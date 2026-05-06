@@ -312,16 +312,16 @@ import RoseWindow from '../components/RoseWindow.astro'
               <td class="r">2026-04-02</td>
             </tr>
             <tr>
-              <td class="label">Validator process</td>
-              <td class="status-ok">Running</td>
+              <td class="label">Validator identity</td>
+              <td class="status-ok">Observed on chain</td>
               <td class="r" data-val="val-status">—</td>
               <td class="r">live</td>
             </tr>
             <tr>
               <td class="label">Axon on chain</td>
               <td class="status-ok">Published</td>
-              <td class="r">135.181.8.214:8080</td>
-              <td class="r">2026-04-18</td>
+              <td class="r" data-val="axon-endpoint">reading chain</td>
+              <td class="r" data-val="axon-updated">live</td>
             </tr>
             <tr>
               <td class="label">Weights on chain</td>
@@ -1256,11 +1256,20 @@ import RoseWindow from '../components/RoseWindow.astro'
         }
       }
       const valStatusEl = document.querySelector<HTMLElement>('[data-val="val-status"]')
+      const us = (data?.miners || []).find((m: any) => m?.uid === 123)
       if (valStatusEl) {
-        // Our validator is uid 123. Show its on-chain status string directly.
-        const us = (data?.miners || []).find((m: any) => m?.uid === 123)
         valStatusEl.textContent = us?.status ? String(us.status).toLowerCase() : 'unknown'
       }
+      const axonEl = document.querySelector<HTMLElement>('[data-val="axon-endpoint"]')
+      if (axonEl) {
+        if (us?.ip && us?.port) {
+          axonEl.textContent = `${us.ip}:${us.port}`
+        } else {
+          axonEl.textContent = 'not published'
+        }
+      }
+      const axonUpdatedEl = document.querySelector<HTMLElement>('[data-val="axon-updated"]')
+      if (axonUpdatedEl) axonUpdatedEl.textContent = 'live'
 
       // Populate miners register
       const miners: any[] = Array.isArray(data?.miners) ? data.miners : []
@@ -1306,6 +1315,7 @@ import RoseWindow from '../components/RoseWindow.astro'
       const r = await fetch(ENDPOINTS.registry, { cache: 'no-store', signal: ctrl.signal })
       if (!r.ok) {
         fetchHealth.registry.lastError = `HTTP ${r.status}`
+        markRegistryUnavailable(fetchHealth.registry.lastError)
         updateDataFreshness()
         return
       }
@@ -1313,7 +1323,13 @@ import RoseWindow from '../components/RoseWindow.astro'
       fetchHealth.registry.lastOk = Date.now()
       fetchHealth.registry.lastError = ''
       const data = payload?.data
-      if (!data) return
+      if (!data) {
+        const reason = payload?.error ? String(payload.error) : 'unavailable'
+        fetchHealth.registry.lastError = reason
+        markRegistryUnavailable(reason)
+        updateDataFreshness()
+        return
+      }
 
       const regCountEl = document.querySelector<HTMLElement>('[data-val="miners-registered"]')
       const regLabelEl = document.querySelector<HTMLElement>('[data-val="miners-registered-label"]')
@@ -1388,10 +1404,31 @@ import RoseWindow from '../components/RoseWindow.astro'
       updateDataFreshness()
     } catch (err: any) {
       fetchHealth.registry.lastError = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')
+      markRegistryUnavailable(fetchHealth.registry.lastError)
       updateDataFreshness()
     } finally {
       clearTimeout(t)
     }
+  }
+
+  function markRegistryUnavailable(reason: string): void {
+    const concise =
+      /PermissionDenied/i.test(reason) ? 'SSH denied' :
+      /timeout/i.test(reason) ? 'timeout' :
+      reason || 'unavailable'
+    const regCountEl = document.querySelector<HTMLElement>('[data-val="miners-registered"]')
+    const regLabelEl = document.querySelector<HTMLElement>('[data-val="miners-registered-label"]')
+    const regStatusEl = document.querySelector<HTMLElement>('[data-val="miners-registered-status"]')
+    if (regCountEl) regCountEl.textContent = '—'
+    if (regLabelEl) regLabelEl.textContent = concise
+    if (regStatusEl) regStatusEl.className = 'status-pending'
+
+    const verCountEl = document.querySelector<HTMLElement>('[data-val="nodes-verified"]')
+    const verLabelEl = document.querySelector<HTMLElement>('[data-val="nodes-verified-label"]')
+    const verStatusEl = document.querySelector<HTMLElement>('[data-val="nodes-verified-status"]')
+    if (verCountEl) verCountEl.textContent = '—'
+    if (verLabelEl) verLabelEl.textContent = 'registry unavailable'
+    if (verStatusEl) verStatusEl.className = 'status-pending'
   }
 
   // Updates the "loading" placeholder in the register list + the

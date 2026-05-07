@@ -1,0 +1,300 @@
+---
+import Base from '../layouts/Base.astro'
+
+const requirements = [
+  'reproducible job specification',
+  'held-out task eval result',
+  'cost, latency, and task-quality report',
+  'one-click Polaris deployment link',
+  'usage attribution path',
+]
+
+const interventions = [
+  'model distillation',
+  'LoRA or adapter',
+  'router',
+  'prompt-compression recipe',
+  'small specialized judge',
+  'cached tool-plan policy',
+  'retrieval pack',
+  'trace dataset plus deployable eval harness',
+  'failure diagnosis that removes wasted work',
+]
+
+const steps = [
+  ['01', 'Pick the workflow', 'Bittensor Subnet Analyst Compression is the first private dry run.'],
+  ['02', 'Run baseline traces', 'Polaris records current cost, latency, quality, outputs, and failure modes.'],
+  ['03', 'Submit the fix', 'Miner packages the cheapest validated intervention as a deployable artifact.'],
+  ['04', 'Pass preflight', 'The manifest, report, eval result, deployment link, and attribution path are checked first.'],
+  ['05', 'Hand to demand', 'Accepted artifacts move to external deployment tests before usage rewards matter.'],
+]
+---
+
+<Base title="cost collapse · cathedral">
+  <style>
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .eyebrow .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .sec { padding: 52px 0; border-bottom: 1px solid var(--border-soft); }
+    .sec:last-of-type { border-bottom: 0; }
+    .wrap { display: grid; grid-template-columns: 160px 1fr; gap: 48px; }
+    @media (max-width: 900px) {
+      .sec { padding: 40px 0; }
+      .wrap { grid-template-columns: 1fr; gap: 20px; }
+    }
+    .hero {
+      padding-top: 42px;
+    }
+    .lede {
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      font-size: clamp(31px, 5vw, 56px);
+      line-height: 1.04;
+      letter-spacing: 0;
+      font-weight: 400;
+      margin: 0;
+      color: var(--fg);
+      max-width: 13ch;
+    }
+    .sub {
+      margin-top: 24px;
+      max-width: 66ch;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+    .quote {
+      margin-top: 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--accent-dim);
+      padding: 16px 18px;
+      color: var(--fg);
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      font-size: clamp(19px, 2.3vw, 27px);
+      line-height: 1.35;
+      max-width: 34ch;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 18px;
+      min-height: 158px;
+    }
+    .card .k {
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .card .t {
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      color: var(--fg);
+      font-size: 24px;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    .card .b {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+    .list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    @media (max-width: 700px) {
+      .list { grid-template-columns: 1fr; }
+    }
+    .list li {
+      border-bottom: 1px solid var(--border-soft);
+      padding: 10px 0;
+      color: var(--fg);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .list li::before {
+      content: '+';
+      color: var(--accent);
+      margin-right: 10px;
+    }
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 48px 190px 1fr;
+      gap: 18px;
+      align-items: baseline;
+      border-bottom: 1px solid var(--border-soft);
+      padding: 13px 0;
+    }
+    @media (max-width: 740px) {
+      .step { grid-template-columns: 48px 1fr; }
+      .step .body { grid-column: 2; }
+    }
+    .step .num { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11px; letter-spacing: 0.16em; }
+    .step .title { color: var(--fg); font-size: 13px; }
+    .step .body { color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .rule {
+      border: 1px solid var(--warn);
+      background: var(--warn-dim);
+      padding: 16px 18px;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      border: 1px solid var(--accent);
+      color: var(--fg);
+      background: var(--accent-dim);
+      padding: 0 13px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: background 120ms, border-color 120ms;
+    }
+    .button:hover,
+    .button:focus-visible {
+      background: var(--surface-2);
+      border-color: var(--fg);
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    code {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      padding: 2px 5px;
+    }
+  </style>
+
+  <section class="sec hero">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">00</span><span>Cost collapse</span></div></div>
+      <div>
+        <h1 class="lede">Make expensive agent work cheap enough to repeat.</h1>
+        <p class="sub">
+          Cathedral is the supply side for Polaris Agent Compute. Miners do not earn for a model upload or a leaderboard score. They earn for a reproducible optimization asset that runs on Polaris, passes held-out checks, and can route real usage back to the creator.
+        </p>
+        <div class="quote">
+          This Polaris-hosted agent costs X credits and takes Y seconds to do Z. Find the smallest intervention that preserves the outcome for less.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">01</span><span>First sprint</span></div></div>
+      <div class="grid">
+        <div class="card">
+          <div class="k">Competition</div>
+          <div class="t">Subnet Analyst Compression</div>
+          <div class="b">Turn an expensive Bittensor analyst workflow into a cheaper specialist that still cites evidence, flags risk, and separates demand from supply.</div>
+        </div>
+        <div class="card">
+          <div class="k">Status</div>
+          <div class="t">Private dry run</div>
+          <div class="b">Rewards do not open until the baseline workflow, held-out eval, deployment format, attribution path, and decay rule are frozen.</div>
+        </div>
+        <div class="card">
+          <div class="k">Rule</div>
+          <div class="t">Deployable or ineligible</div>
+          <div class="b">If it cannot be reproduced, deployed on Polaris, and attributed to downstream usage, it does not enter scoring.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">02</span><span>What passes</span></div></div>
+      <div>
+        <ul class="list">
+          {requirements.map((item) => <li>{item}</li>)}
+        </ul>
+        <div class="rule mt-6">
+          Standalone HuggingFace models, public-benchmark-only improvements, datasets without deployable harnesses, and miner self-deploy usage are not eligible for rewards.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">03</span><span>Interventions</span></div></div>
+      <div>
+        <p class="text-[13px] text-muted leading-relaxed max-w-[68ch] mb-4">
+          The cheapest validated fix can come from several angles. Distillation is one path, not the whole market.
+        </p>
+        <ul class="list">
+          {interventions.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">04</span><span>Launch loop</span></div></div>
+      <div class="steps">
+        {steps.map(([num, title, body]) => (
+          <div class="step">
+            <div class="num">{num}</div>
+            <div class="title">{title}</div>
+            <div class="body">{body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">05</span><span>Starter kit</span></div></div>
+      <div>
+        <p class="text-[13px] text-muted leading-relaxed max-w-[68ch]">
+          The supply kit includes the miner brief, public call, recruiting DM, scoring table, disqualification rules, handoff template, manifest schema, report template, and local preflight checker.
+        </p>
+        <p class="text-[12px] text-dim leading-relaxed mt-4">
+          Local check: <code>just cost-collapse-preflight</code>
+        </p>
+        <div class="links">
+          <a class="button" href="https://github.com/bigailabs/cathedral/tree/main/docs/cost-collapse">Read the kit</a>
+          <a class="button" href="https://github.com/bigailabs/cathedral/blob/main/scripts/cost-collapse/preflight.py">Preflight checker</a>
+          <a class="button" href="https://polaris.computer">Run on Polaris</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

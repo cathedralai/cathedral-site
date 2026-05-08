@@ -1,0 +1,276 @@
+---
+import Base from '../layouts/Base.astro'
+
+const handoffUrl = 'https://github.com/bigailabs/cathedral/blob/main/docs/validator.md'
+const configUrl = 'https://github.com/bigailabs/cathedral/blob/main/config/cathedral-validator.toml.example'
+const repoUrl = 'https://github.com/bigailabs/cathedral'
+---
+
+<Base title="validator · cathedral">
+  <style>
+    .eyebrow {
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--dim); display: flex; align-items: baseline; gap: 10px;
+    }
+    .eyebrow .num { font-variant-numeric: tabular-nums; color: var(--accent); }
+    .sec { padding: 52px 0; border-bottom: 1px solid var(--border-soft); }
+    .sec:last-of-type { border-bottom: 0; }
+    .wrap { display: grid; grid-template-columns: 160px 1fr; gap: 48px; }
+    @media (max-width: 900px) {
+      .sec { padding: 38px 0; }
+      .wrap { grid-template-columns: 1fr; gap: 20px; }
+    }
+    .lede {
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      font-size: clamp(28px, 5vw, 54px);
+      font-weight: 300;
+      line-height: 1.02;
+      color: var(--fg);
+      max-width: 12ch;
+      margin: 0;
+    }
+    .lede em { font-style: italic; color: var(--muted); }
+    .copy {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+      max-width: 68ch;
+      margin: 18px 0 0;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--accent);
+      color: var(--fg);
+      background: var(--accent-dim);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+    }
+    .btn:hover,
+    .btn:focus-visible {
+      color: var(--bg);
+      background: var(--accent);
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .btn.secondary {
+      border-color: var(--border);
+      background: transparent;
+      color: var(--muted);
+    }
+    .btn.secondary:hover,
+    .btn.secondary:focus-visible {
+      border-color: var(--muted);
+      background: var(--surface);
+      color: var(--fg);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      min-height: 172px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-k {
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .card h2 {
+      margin: 0;
+      color: var(--fg);
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      font-size: 24px;
+      font-weight: 300;
+      line-height: 1.16;
+    }
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+    .steps {
+      border-top: 1px solid var(--border);
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 18px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .step:last-child { border-bottom: 0; }
+    .step .n {
+      color: var(--accent);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      font-variant-numeric: tabular-nums;
+    }
+    .step .body {
+      color: var(--fg);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .step .body code {
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+    pre.code {
+      margin: 10px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .note {
+      border-left: 2px solid var(--warn);
+      background: var(--warn-dim);
+      color: var(--fg);
+      padding: 12px 14px;
+      font-size: 12px;
+      line-height: 1.65;
+      max-width: 72ch;
+    }
+    .note strong { color: var(--warn); font-weight: 500; }
+    .link {
+      color: var(--fg);
+      text-decoration: underline;
+      text-decoration-color: var(--dim);
+      text-underline-offset: 3px;
+    }
+    .link:hover,
+    .link:focus-visible {
+      color: var(--accent);
+      outline: none;
+    }
+  </style>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">00</span><span>Validator</span></div></div>
+      <div>
+        <h1 class="lede">Run the SN39 validator.</h1>
+        <p class="copy">
+          Cathedral validators verify the work miners submit and set weights for the mechanism.
+          The goal is simple: run the validator, score deployable work honestly, and help us route
+          real Polaris usage back through the Bittensor ecosystem.
+        </p>
+        <div class="actions">
+          <a class="btn" href={handoffUrl}>Open handoff</a>
+          <a class="btn secondary" href={configUrl}>Config example</a>
+          <a class="btn secondary" href={repoUrl}>Repository</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">01</span><span>What you run</span></div></div>
+      <div class="grid">
+        <article class="card">
+          <div class="card-k">Mechanism</div>
+          <h2>Cathedral validator</h2>
+          <p>Build from source, connect a permitted SN39 hotkey, discover miners, verify their submissions, and emit weights.</p>
+        </article>
+        <article class="card">
+          <div class="card-k">Path</div>
+          <h2>Your hotkey, or child-hotkey</h2>
+          <p>Run the validator from your own permitted hotkey, or child-hotkey Cathedral so we can operate the same mechanism for the experiment.</p>
+        </article>
+        <article class="card">
+          <div class="card-k">Reason</div>
+          <h2>Demand-led rewards</h2>
+          <p>Polaris runs jobs. Cathedral rewards deployable improvements that make those jobs cheaper, faster, or more reliable.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">02</span><span>Quick path</span></div></div>
+      <div>
+        <div class="steps">
+          <div class="step">
+            <div class="n">01</div>
+            <div class="body">
+              Clone the validator repo and install the Rust build dependencies from the handoff.
+<pre class="code">git clone https://github.com/bigailabs/cathedral.git
+cd cathedral</pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n">02</div>
+            <div class="body">
+              Copy the Cathedral config example and set your wallet, hotkey, network, and local paths.
+<pre class="code">cp config/cathedral-validator.toml.example config/validator.toml</pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n">03</div>
+            <div class="body">
+              Build and start the validator.
+<pre class="code">cargo build --release -p basilica-validator --bin cathedral-validator
+RUST_LOG=info,cathedral_validator=debug \
+  ./target/release/cathedral-validator --config config/validator.toml start</pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n">04</div>
+            <div class="body">
+              Check the local health endpoints.
+<pre class="code">curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/miners
+curl http://127.0.0.1:9090/metrics</pre>
+            </div>
+          </div>
+        </div>
+        <p class="copy">
+          Full details live in the
+          <a class="link" href={handoffUrl}>validator handoff</a>. Use that page as the source of truth.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">03</span><span>Current reference</span></div></div>
+      <div>
+        <div class="note">
+          <strong>Known-good path:</strong> the Cathedral operator validator is live on SN39,
+          the validator API is healthy, miners are discovered, and the public log stream is clean.
+          This page exists so validators can use the same source-build path without hunting through Discord.
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

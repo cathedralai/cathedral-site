@@ -23,9 +23,7 @@ miner_node_key_path   = "/root/.ssh/miner_node_key"
 default_node_username = "root"
 
 [validator_assignment]
-strategy               = "fixed_assignment"
-validator_hotkey       = "5DnvAgAVykQFmgTSwLXTHpzfmi6W32VtV8L1D9yxSmtThWPb"
-grpc_endpoint_override = "http://65.109.75.3:50052"
+strategy               = "highest_stake"
 
 [bidding.strategy.static.static_prices]
 RTX_5090 = 0.45
@@ -53,9 +51,7 @@ miner_node_key_path   = "/root/.ssh/miner_node_key"
 default_node_username = "<user>"
 
 [validator_assignment]
-strategy               = "fixed_assignment"
-validator_hotkey       = "5DnvAgAVykQFmgTSwLXTHpzfmi6W32VtV8L1D9yxSmtThWPb"
-grpc_endpoint_override = "http://65.109.75.3:50052"
+strategy               = "highest_stake"
 
 [bidding.strategy.static.static_prices]
 CPU_STANDARD = 0.04
@@ -165,9 +161,9 @@ const CPU_TIERS = [
       </div>
       <div>
         <div class="callout ok mb-6">
-          <strong>Live path.</strong> The public validator is listening at
-          <code>65.109.75.3:50052</code>. Use the fixed-assignment config below until validator
-          discovery catches up cleanly on chain.
+          <strong>Open path.</strong> Miners discover validators from the SN39 metagraph.
+          The validator publishes its axon host on chain, and the miner uses
+          <code>bid_grpc_port = 50052</code> on that same host for bid registration.
         </div>
         <div class="step">
           <div class="n">01</div>
@@ -201,7 +197,7 @@ btcli wallet new-hotkey  --wallet.name cathedral --wallet.hotkey default</pre>
         <div class="step">
           <div class="n">05</div>
           <div class="body">
-            Install <code>cathedral-miner</code> (see section 04 below), point it at the live validator, and watch it verify on <a href="/" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">cathedral.computer</a>.
+            Install <code>cathedral-miner</code> (see section 04 below), leave validator assignment on <code>highest_stake</code>, and watch it verify on <a href="/" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">cathedral.computer</a>.
           </div>
         </div>
         <div class="step">
@@ -295,6 +291,7 @@ btcli wallet new-hotkey  --wallet.name cathedral --wallet.hotkey default</pre>
         <p class="text-[11px] text-dim leading-relaxed mt-3 max-w-[64ch]">
           Change <code class="text-muted">host</code> / <code class="text-muted">port</code> / <code class="text-muted">username</code> to match your machine.
           The validator will SSH in using a key it generates; you don't need to pre-authorize anything.
+          Keep <code class="text-muted">strategy = "highest_stake"</code> unless you are debugging a specific validator.
         </p>
       </div>
     </div>
@@ -347,14 +344,15 @@ INFO  Starting lifecycle loop: health_check=60s</pre>
   <section class="sec">
     <div class="wrap">
       <div>
-        <div class="eyebrow"><span class="num">07</span><span>Validator endpoints</span></div>
+        <div class="eyebrow"><span class="num">07</span><span>Validator discovery</span></div>
       </div>
       <div>
-        <p class="text-[11px] text-accent uppercase tracking-[0.18em] mb-2">Mainnet SN39</p>
-<pre class="code">hotkey    5DnvAgAVykQFmgTSwLXTHpzfmi6W32VtV8L1D9yxSmtThWPb
-grpc      http://65.109.75.3:50052
-axon      65.109.75.3:8080
-subtensor wss://entrypoint-finney.opentensor.ai:443</pre>
+        <p class="text-[12px] text-muted leading-relaxed max-w-[64ch]">
+          Miners read validators from the SN39 metagraph. For each eligible validator, the miner reads
+          the on-chain axon host and constructs the bid endpoint as
+          <code class="text-muted">http://&lt;axon-host&gt;:50052</code>. Validators that want miner traffic
+          must publish an axon and expose TCP <code class="text-muted">50052</code>.
+        </p>
       </div>
     </div>
   </section>
@@ -367,7 +365,7 @@ subtensor wss://entrypoint-finney.opentensor.ai:443</pre>
       <div>
         <ul class="limits space-y-2 list-none">
           <li><em>RegisterBid failed: unknown miner_hotkey</em> — your registration hasn't propagated yet, or the validator hasn't re-synced the metagraph. Wait 1–2 minutes and retry.</li>
-          <li><em>Connection refused</em>: you are using an old validator endpoint. Change <code class="text-muted">grpc_endpoint_override</code> to <code class="text-muted">http://65.109.75.3:50052</code>.</li>
+          <li><em>Connection refused</em>: the selected validator is not exposing bid gRPC on <code class="text-muted">50052</code>, or you are using an old fixed endpoint. Keep <code class="text-muted">strategy = "highest_stake"</code> for normal mining.</li>
           <li><em>BidManager stopped unexpectedly</em> — almost always a config issue. Run <code class="text-muted">cathedral-miner -vv -c miner.toml</code> and read the full error.</li>
           <li><em>Status stuck at offline</em> — the validator SSH'd in and something failed. Check that <code class="text-muted">nvidia-smi</code> (GPU) or <code class="text-muted">nproc</code> (CPU) works over SSH as the user you configured.</li>
           <li><em>Status oscillates between online and offline</em> — validator's Lightweight re-check can't reach your box. Usually a firewall change or the miner process dying. Restart the miner and watch logs.</li>

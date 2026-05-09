@@ -9,8 +9,9 @@ const shortHash = (value: string) => `${value.slice(0, 10)}...${value.slice(-8)}
 const generatedAt = new Date(report.generated_at_unix * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC')
 
 const teacherName = report.teacher.source === 'chutes'
-  ? `Chutes ${report.teacher.model}`
+  ? `${report.teacher.model} on Chutes`
   : report.teacher.model
+const teacherFamily = report.teacher.model.includes('Qwen') ? 'Qwen' : report.teacher.model.split('/').pop() || report.teacher.model
 const studentName = `${number(report.student.artifact_kb, 1)} KB local router`
 const speedup = report.improvement.latency_speedup
 
@@ -62,7 +63,7 @@ const costBars = [
 ]
 
 const progress = [
-  { label: 'Chutes teacher run', status: report.teacher.source === 'chutes' ? 'done' : 'fixture' },
+  { label: `${teacherFamily} teacher run`, status: report.teacher.source === 'chutes' ? 'done' : 'fixture' },
   { label: 'Tiny student trained', status: 'done' },
   { label: 'Held-out eval passed', status: report.improvement.quality_floor_pass ? 'done' : 'blocked' },
   { label: 'Artifact hashed', status: 'done' },
@@ -409,10 +410,10 @@ const rawLinks = [
   <div class="page">
     <section class="hero">
       <div>
-        <p class="eyebrow">POM-0 live smoke test</p>
-        <h1>Distill Chutes to a tiny router</h1>
+        <p class="eyebrow">POM-0 internal smoke test</p>
+        <h1>Distill {teacherFamily} to a tiny issue router</h1>
         <p class="lede">
-          The experiment is simple: use a Chutes teacher to label Polaris operating issues, train a tiny local student, then measure quality, speed, cost, and artifact size.
+          The experiment is simple: call a Chutes-hosted teacher model, train a tiny local student on its labels, then measure quality, speed, cost, and artifact size.
         </p>
       </div>
       <aside class="equation" aria-label="Distillation path">
@@ -487,7 +488,7 @@ const rawLinks = [
       <article class="panel">
         <h2>What this proves</h2>
         <p>
-          A miner submission can be checked as a real artifact, not a leaderboard claim. The missing production step is a Polaris deploy link and usage attribution.
+          This is our dry run of the miner path. It shows that a future miner artifact can be checked as a real file with a report, not just a leaderboard claim.
         </p>
       </article>
     </section>
@@ -550,7 +551,7 @@ const rawLinks = [
     </section>
 
     <section class="note">
-      This is not the final competition. It is the smallest end-to-end proof: Chutes teacher, tiny student, measured report, Cathedral preflight, public dashboard.
+      This is not a miner submission yet. It is the smallest end-to-end proof: Chutes-hosted model, tiny student, measured report, Cathedral preflight, public dashboard. Real miner rewards still need Polaris deploy links and usage attribution.
     </section>
   </div>
 </Base>

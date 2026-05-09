@@ -1,0 +1,183 @@
+{
+  "calls": [
+    {
+      "completion_tokens": 119,
+      "ids": [
+        "train-001",
+        "train-002",
+        "train-003",
+        "train-004",
+        "train-005",
+        "train-006"
+      ],
+      "latency_ms": 4790.617,
+      "prompt_tokens": 254,
+      "total_tokens": 373
+    },
+    {
+      "completion_tokens": 118,
+      "ids": [
+        "train-007",
+        "train-008",
+        "train-009",
+        "train-010",
+        "train-011",
+        "train-012"
+      ],
+      "latency_ms": 5881.111,
+      "prompt_tokens": 253,
+      "total_tokens": 371
+    },
+    {
+      "completion_tokens": 122,
+      "ids": [
+        "train-013",
+        "train-014",
+        "train-015",
+        "train-016",
+        "train-017",
+        "train-018"
+      ],
+      "latency_ms": 5021.786,
+      "prompt_tokens": 254,
+      "total_tokens": 376
+    },
+    {
+      "completion_tokens": 122,
+      "ids": [
+        "train-019",
+        "train-020",
+        "train-021",
+        "train-022",
+        "train-023",
+        "train-024"
+      ],
+      "latency_ms": 4738.802,
+      "prompt_tokens": 256,
+      "total_tokens": 378
+    },
+    {
+      "completion_tokens": 119,
+      "ids": [
+        "eval-001",
+        "eval-002",
+        "eval-003",
+        "eval-004",
+        "eval-005",
+        "eval-006"
+      ],
+      "latency_ms": 4689.848,
+      "prompt_tokens": 253,
+      "total_tokens": 372
+    },
+    {
+      "completion_tokens": 121,
+      "ids": [
+        "eval-007",
+        "eval-008",
+        "eval-009",
+        "eval-010",
+        "eval-011",
+        "eval-012"
+      ],
+      "latency_ms": 4829.179,
+      "prompt_tokens": 247,
+      "total_tokens": 368
+    }
+  ],
+  "created_at_unix": 1778300905,
+  "labels": {
+    "eval-001": "core_compute",
+    "eval-002": "core_compute",
+    "eval-003": "core_compute",
+    "eval-004": "security_compliance",
+    "eval-005": "runtime_chat",
+    "eval-006": "runtime_chat",
+    "eval-007": "billing_ledger",
+    "eval-008": "billing_ledger",
+    "eval-009": "model_factory",
+    "eval-010": "model_factory",
+    "eval-011": "model_factory",
+    "eval-012": "security_compliance",
+    "train-001": "runtime_chat",
+    "train-002": "provider_access",
+    "train-003": "provider_access",
+    "train-004": "core_compute",
+    "train-005": "runtime_chat",
+    "train-006": "security_compliance",
+    "train-007": "provider_access",
+    "train-008": "core_compute",
+    "train-009": "runtime_chat",
+    "train-010": "runtime_chat",
+    "train-011": "runtime_chat",
+    "train-012": "runtime_chat",
+    "train-013": "billing_ledger",
+    "train-014": "billing_ledger",
+    "train-015": "billing_ledger",
+    "train-016": "billing_ledger",
+    "train-017": "runtime_chat",
+    "train-018": "model_factory",
+    "train-019": "model_factory",
+    "train-020": "model_factory",
+    "train-021": "security_compliance",
+    "train-022": "security_compliance",
+    "train-023": "security_compliance",
+    "train-024": "security_compliance"
+  },
+  "pricing": {
+    "chute_id": "2cdc73dd-eec4-5e6b-883a-7736bbe12fd8",
+    "confidential_compute": false,
+    "context_length": 32768,
+    "created": 1778300532,
+    "id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "input_modalities": [
+      "text"
+    ],
+    "max_model_len": 32768,
+    "max_output_length": 32768,
+    "object": "model",
+    "output_modalities": [
+      "text"
+    ],
+    "owned_by": "sglang",
+    "parent": null,
+    "premium": false,
+    "price": {
+      "input": {
+        "tao": 8.708079561112791e-05,
+        "usd": 0.0272
+      },
+      "input_cache_read": {
+        "tao": 4.3540397805563955e-05,
+        "usd": 0.0136
+      },
+      "output": {
+        "tao": 0.00034800303246064723,
+        "usd": 0.1087
+      }
+    },
+    "pricing": {
+      "completion": 0.1087,
+      "input_cache_read": 0.0136,
+      "prompt": 0.0272
+    },
+    "quantization": "fp8",
+    "root": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "supported_features": [
+      "json_mode",
+      "structured_outputs"
+    ],
+    "supported_sampling_parameters": [
+      "temperature",
+      "top_p",
+      "top_k",
+      "repetition_penalty",
+      "frequency_penalty",
+      "presence_penalty",
+      "stop",
+      "seed"
+    ]
+  },
+  "source": "chutes",
+  "teacher_model": "Qwen/Qwen2.5-Coder-32B-Instruct"
+}

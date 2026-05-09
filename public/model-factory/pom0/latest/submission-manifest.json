@@ -1,0 +1,48 @@
+{
+  "artifact": {
+    "base_student": "qwen-2.5-7b-instruct-compatible-router",
+    "id": "pom0-issue-router-3214fb17b1d8",
+    "sha256": "3214fb17b1d81bcf72f857e51d7bf0306efd1b23cc70f3f203ed61df46f92b36",
+    "summary": "Tiny issue-router student distilled from a teacher model for Polaris ModelFactory POM-0.",
+    "teacher_model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "type": "router"
+  },
+  "competition_id": "pom0-model-factory-issue-router",
+  "deployment": {
+    "deploy_spec_path": "job-spec.json",
+    "one_click_polaris_url": null,
+    "status": "local_artifact"
+  },
+  "disqualifier_attestations": {
+    "artifact_hash_matches": true,
+    "does_not_count_self_deploy_as_demand": true,
+    "not_leaderboard_only": true,
+    "not_public_benchmark_only": true,
+    "reproducible_from_job_spec": true
+  },
+  "metrics": {
+    "latency_speedup": 25889.84017407897,
+    "quality_retention": 1.0,
+    "serving_cost_reduction": 1.0,
+    "student_accuracy": 0.8333333333333334,
+    "student_artifact_bytes": 7434,
+    "student_latency_ms_mean": 0.03063951900306468,
+    "teacher_accuracy": 0.75,
+    "teacher_eval_cost_per_item_usd": 3.3073333333333335e-06,
+    "teacher_eval_latency_ms_per_item": 793.25225
+  },
+  "paths": {
+    "artifact": "student_model.json",
+    "job_spec": "job-spec.json",
+    "report": "pom0-report.json"
+  },
+  "schema_version": "cathedral.pom0.submission_manifest.v1",
+  "usage_attribution": {
+    "artifact_event_name": "polaris.model_factory.pom0.artifact_used",
+    "exclude_abuse_flagged_usage": true,
+    "exclude_creator_owned_usage": true,
+    "exclude_platform_owned_usage": true,
+    "exclude_refunded_usage": true,
+    "status": "pending"
+  }
+}

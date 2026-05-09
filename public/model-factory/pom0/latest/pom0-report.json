@@ -1,0 +1,179 @@
+{
+  "artifact": {
+    "base_student": "qwen-2.5-7b-instruct-compatible-router",
+    "bytes": 7434,
+    "id": "pom0-issue-router-3214fb17b1d8",
+    "path": "public/model-factory/pom0/latest/student_model.json",
+    "sha256": "3214fb17b1d81bcf72f857e51d7bf0306efd1b23cc70f3f203ed61df46f92b36",
+    "type": "router"
+  },
+  "competition_id": "pom0-model-factory-issue-router",
+  "eligibility": {
+    "cost_latency_quality_report": true,
+    "held_out_eval_result": true,
+    "polaris_deployable_artifact": true,
+    "reproducible_job_spec": true,
+    "usage_attribution_path": false,
+    "usage_attribution_status": "pending"
+  },
+  "eval_items": [
+    {
+      "gold": "core_compute",
+      "id": "eval-001",
+      "split": "eval",
+      "student": "provider_access",
+      "teacher": "core_compute",
+      "text": "The instance says running but the live URL returns a gateway error."
+    },
+    {
+      "gold": "core_compute",
+      "id": "eval-002",
+      "split": "eval",
+      "student": "core_compute",
+      "teacher": "core_compute",
+      "text": "Destroy failed, but Polaris marked the deployment stopped anyway."
+    },
+    {
+      "gold": "provider_access",
+      "id": "eval-003",
+      "split": "eval",
+      "student": "core_compute",
+      "teacher": "core_compute",
+      "text": "Trusted compute creates an SSH edge but no replica is ready behind it."
+    },
+    {
+      "gold": "provider_access",
+      "id": "eval-004",
+      "split": "eval",
+      "student": "provider_access",
+      "teacher": "security_compliance",
+      "text": "The validator registry endpoint fails because the host key is rejected."
+    },
+    {
+      "gold": "runtime_chat",
+      "id": "eval-005",
+      "split": "eval",
+      "student": "runtime_chat",
+      "teacher": "runtime_chat",
+      "text": "Tool calls are present in the stream but the chat transcript hides them."
+    },
+    {
+      "gold": "runtime_chat",
+      "id": "eval-006",
+      "split": "eval",
+      "student": "runtime_chat",
+      "teacher": "runtime_chat",
+      "text": "The fleet chat backend routes through completions instead of the gateway client."
+    },
+    {
+      "gold": "billing_ledger",
+      "id": "eval-007",
+      "split": "eval",
+      "student": "billing_ledger",
+      "teacher": "billing_ledger",
+      "text": "Creator-owned usage should not count as paid downstream demand."
+    },
+    {
+      "gold": "billing_ledger",
+      "id": "eval-008",
+      "split": "eval",
+      "student": "billing_ledger",
+      "teacher": "billing_ledger",
+      "text": "A reward calculation includes abuse-flagged credit spend."
+    },
+    {
+      "gold": "model_factory",
+      "id": "eval-009",
+      "split": "eval",
+      "student": "model_factory",
+      "teacher": "model_factory",
+      "text": "The POM artifact has no eval report and only claims a leaderboard score."
+    },
+    {
+      "gold": "model_factory",
+      "id": "eval-010",
+      "split": "eval",
+      "student": "model_factory",
+      "teacher": "model_factory",
+      "text": "A ModelFactory distilled router is faster but must still pass the quality floor."
+    },
+    {
+      "gold": "security_compliance",
+      "id": "eval-011",
+      "split": "eval",
+      "student": "security_compliance",
+      "teacher": "model_factory",
+      "text": "The manifest hash does not match the submitted model file."
+    },
+    {
+      "gold": "security_compliance",
+      "id": "eval-012",
+      "split": "eval",
+      "student": "security_compliance",
+      "teacher": "security_compliance",
+      "text": "Raw secret values appear in a trace record exported for miners."
+    }
+  ],
+  "exclusions": {
+    "exclude_abuse_flagged_usage": true,
+    "exclude_creator_owned_usage": true,
+    "exclude_platform_owned_usage": true,
+    "exclude_refunded_usage": true
+  },
+  "generated_at_unix": 1778300905,
+  "improvement": {
+    "break_even_predictions": 37,
+    "latency_speedup": 25889.84017407897,
+    "quality_floor_pass": true,
+    "quality_retention": 1.0,
+    "raw_quality_retention": 1.1111111111111112,
+    "serving_cost_reduction": 1.0,
+    "student_outperformed_teacher_on_gold": true,
+    "teacher_eval_cost_per_item_usd": 0.0000033073333333333335,
+    "teacher_labeling_cost_usd": 0.00011963510000000001
+  },
+  "schema_version": "polaris.model_factory.pom0.report.v1",
+  "student": {
+    "accuracy_vs_gold": 0.8333333333333334,
+    "agreement_with_teacher": 0.75,
+    "artifact_bytes": 7434,
+    "artifact_kb": 7.259765625,
+    "kind": "multinomial_naive_bayes_issue_router",
+    "latency_ms_mean": 0.03063951900306468,
+    "latency_ms_p95": 0.0439999857917428,
+    "latency_runs": 1200,
+    "serving_cost_usd_per_item": 0.0,
+    "vocab_terms": 178
+  },
+  "task": {
+    "description": "Route Polaris and Cathedral operating issues to the right work lane.",
+    "held_out_eval_count": 12,
+    "id": "polaris_issue_router_v1",
+    "labels": [
+      "core_compute",
+      "provider_access",
+      "runtime_chat",
+      "billing_ledger",
+      "model_factory",
+      "security_compliance"
+    ],
+    "train_count": 24
+  },
+  "teacher": {
+    "accuracy_vs_gold": 0.75,
+    "calls": 6,
+    "eval_cost_usd": 0.000039688000000000004,
+    "eval_latency_ms_per_item": 793.25225,
+    "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "pricing_usd_per_million_tokens": {
+      "completion": 0.1087,
+      "input_cache_read": 0.0136,
+      "prompt": 0.0272
+    },
+    "root": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "source": "chutes",
+    "total_completion_tokens": 721,
+    "total_cost_usd": 0.00011963510000000001,
+    "total_prompt_tokens": 1517
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "artifact_type": "router",
+  "base_student": "qwen-2.5-7b-instruct-compatible-router",
+  "command": "python3 scripts/model_factory/pom0_distill.py --offline-teacher",
+  "competition_id": "pom0-model-factory-issue-router",
+  "quality_floor": {
+    "maximum_accuracy_drop": 0.05,
+    "minimum_retention_vs_teacher": 0.95
+  },
+  "runner": "scripts/model_factory/pom0_distill.py",
+  "schema_version": "polaris.model_factory.pom0.job_spec.v1",
+  "task_id": "polaris_issue_router_v1",
+  "teacher_model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+  "teacher_source": "chutes"
+}

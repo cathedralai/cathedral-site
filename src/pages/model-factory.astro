@@ -1,0 +1,556 @@
+---
+import Base from '../layouts/Base.astro'
+import report from '../data/pom0-report.json'
+
+const pct = (value: number, digits = 0) => `${(value * 100).toFixed(digits)}%`
+const money = (value: number) => `$${value.toFixed(6)}`
+const number = (value: number, digits = 1) => value.toFixed(digits)
+const shortHash = (value: string) => `${value.slice(0, 10)}...${value.slice(-8)}`
+const generatedAt = new Date(report.generated_at_unix * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC')
+
+const teacherName = report.teacher.source === 'chutes'
+  ? `Chutes ${report.teacher.model}`
+  : report.teacher.model
+const studentName = `${number(report.student.artifact_kb, 1)} KB local router`
+const speedup = report.improvement.latency_speedup
+
+const metrics = [
+  {
+    label: 'Student accuracy',
+    value: pct(report.student.accuracy_vs_gold, 1),
+    detail: `${pct(report.teacher.accuracy_vs_gold, 1)} teacher on the same fixed test.`,
+    tone: 'ok',
+  },
+  {
+    label: 'Teacher agreement',
+    value: pct(report.student.agreement_with_teacher, 1),
+    detail: 'How often the student matched the teacher on held-out tasks.',
+    tone: 'neutral',
+  },
+  {
+    label: 'Speedup',
+    value: `${number(speedup, 0)}x`,
+    detail: `${number(report.teacher.eval_latency_ms_per_item, 1)} ms teacher vs ${number(report.student.latency_ms_mean, 3)} ms student.`,
+    tone: 'accent',
+  },
+  {
+    label: 'Serving cost saved',
+    value: pct(report.improvement.serving_cost_reduction),
+    detail: `Teacher costs ${money(report.improvement.teacher_eval_cost_per_item_usd)} per item. Student costs zero API calls.`,
+    tone: 'ok',
+  },
+]
+
+const accuracyBars = [
+  { label: 'Teacher', value: pct(report.teacher.accuracy_vs_gold, 1), width: report.teacher.accuracy_vs_gold * 100 },
+  { label: 'Student', value: pct(report.student.accuracy_vs_gold, 1), width: report.student.accuracy_vs_gold * 100 },
+  { label: 'Agreement', value: pct(report.student.agreement_with_teacher, 1), width: report.student.agreement_with_teacher * 100 },
+]
+
+const latencyBars = [
+  { label: 'Teacher', value: `${number(report.teacher.eval_latency_ms_per_item, 1)} ms`, width: 100 },
+  {
+    label: 'Student',
+    value: `${number(report.student.latency_ms_mean, 3)} ms`,
+    width: Math.max(1, (report.student.latency_ms_mean / report.teacher.eval_latency_ms_per_item) * 100),
+  },
+]
+
+const costBars = [
+  { label: 'Teacher', value: money(report.improvement.teacher_eval_cost_per_item_usd), width: 100 },
+  { label: 'Student', value: '$0.000000', width: 1 },
+]
+
+const progress = [
+  { label: 'Chutes teacher run', status: report.teacher.source === 'chutes' ? 'done' : 'fixture' },
+  { label: 'Tiny student trained', status: 'done' },
+  { label: 'Held-out eval passed', status: report.improvement.quality_floor_pass ? 'done' : 'blocked' },
+  { label: 'Artifact hashed', status: 'done' },
+  { label: 'Cathedral preflight', status: 'done' },
+  { label: 'Polaris deploy link', status: report.eligibility.usage_attribution_path ? 'done' : 'pending' },
+  { label: 'Usage attribution', status: report.eligibility.usage_attribution_status === 'active' ? 'done' : 'pending' },
+]
+
+const registryRows = [
+  ['teacher', teacherName],
+  ['student', studentName],
+  ['task', report.task.id],
+  ['artifact', report.artifact.id],
+  ['hash', shortHash(report.artifact.sha256)],
+  ['break-even', `${report.improvement.break_even_predictions} predictions`],
+  ['generated', generatedAt],
+]
+
+const rawLinks = [
+  ['report JSON', '/model-factory/pom0/latest/pom0-report.json'],
+  ['manifest', '/model-factory/pom0/latest/submission-manifest.json'],
+  ['job spec', '/model-factory/pom0/latest/job-spec.json'],
+  ['student model', '/model-factory/pom0/latest/student_model.json'],
+]
+---
+
+<Base title="model factory · cathedral">
+  <style>
+    .page {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      padding: 30px 0 12px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+      gap: 24px;
+      padding: 30px;
+      border: 1px solid var(--border);
+      background:
+        linear-gradient(135deg, var(--accent-dim), transparent 44%),
+        var(--surface);
+    }
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      max-width: 13ch;
+      color: var(--fg);
+      font-size: clamp(40px, 8vw, 76px);
+      line-height: 0.92;
+      letter-spacing: -0.04em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0 0 16px;
+      color: var(--fg);
+      font-size: 17px;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+    .lede {
+      max-width: 64ch;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+    .equation {
+      display: grid;
+      gap: 10px;
+      align-content: center;
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .box {
+      padding: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .box .label {
+      margin-bottom: 8px;
+      color: var(--dim);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .box .value {
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .arrow {
+      color: var(--accent);
+      font-size: 18px;
+      text-align: center;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .metric .value {
+      margin-top: 16px;
+      color: var(--fg);
+      font-size: clamp(30px, 4.8vw, 44px);
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+    .metric.ok .value { color: var(--ok); }
+    .metric.accent .value { color: var(--accent); }
+    .metric .detail {
+      margin: 14px 0 0;
+      color: var(--dim);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+    }
+    .panel {
+      padding: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .chart {
+      display: grid;
+      gap: 14px;
+    }
+    .barRow {
+      display: grid;
+      grid-template-columns: 100px minmax(0, 1fr) 86px;
+      gap: 12px;
+      align-items: center;
+      font-size: 11.5px;
+    }
+    .barLabel {
+      color: var(--muted);
+    }
+    .track {
+      height: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .fill {
+      height: 100%;
+      min-width: 2px;
+      background: var(--accent);
+    }
+    .barValue {
+      color: var(--fg);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .step {
+      min-height: 104px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .step.done {
+      border-color: color-mix(in srgb, var(--ok), var(--border) 45%);
+      background: var(--ok-dim);
+    }
+    .step.pending {
+      border-color: color-mix(in srgb, var(--warn), var(--border) 45%);
+      background: var(--warn-dim);
+    }
+    .step .state {
+      display: inline-flex;
+      margin-bottom: 18px;
+      color: var(--dim);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .step.done .state { color: var(--ok); }
+    .step.pending .state { color: var(--warn); }
+    .step .name {
+      color: var(--fg);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .registry {
+      display: grid;
+      gap: 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 14px;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .row:last-child {
+      border-bottom: 0;
+    }
+    .key {
+      color: var(--dim);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .val {
+      min-width: 0;
+      color: var(--fg);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .links a {
+      display: inline-flex;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .links a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .tableWrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--dim);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    td {
+      color: var(--fg);
+    }
+    td.text {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    tr:last-child td {
+      border-bottom: 0;
+    }
+    .note {
+      padding: 14px 16px;
+      border: 1px solid var(--warn);
+      background: var(--warn-dim);
+      color: var(--fg);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+    @media (max-width: 920px) {
+      .hero,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .progress {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 560px) {
+      .page {
+        padding-top: 18px;
+      }
+      .hero {
+        padding: 22px;
+      }
+      .metrics,
+      .progress {
+        grid-template-columns: 1fr;
+      }
+      .barRow,
+      .row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .barValue {
+        text-align: left;
+      }
+    }
+  </style>
+
+  <div class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">POM-0 live smoke test</p>
+        <h1>Distill Chutes to a tiny router</h1>
+        <p class="lede">
+          The experiment is simple: use a Chutes teacher to label Polaris operating issues, train a tiny local student, then measure quality, speed, cost, and artifact size.
+        </p>
+      </div>
+      <aside class="equation" aria-label="Distillation path">
+        <div class="box">
+          <div class="label">Teacher</div>
+          <div class="value">{teacherName}</div>
+        </div>
+        <div class="arrow">to</div>
+        <div class="box">
+          <div class="label">Student</div>
+          <div class="value">{studentName}</div>
+        </div>
+        <div class="box">
+          <div class="label">Outcome</div>
+          <div class="value">{number(speedup, 0)}x faster with {pct(report.student.accuracy_vs_gold, 1)} fixed-test accuracy.</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="metrics" aria-label="POM-0 headline measurements">
+      {metrics.map((metric) => (
+        <article class={`metric ${metric.tone}`}>
+          <div>
+            <div class="label">{metric.label}</div>
+            <div class="value">{metric.value}</div>
+          </div>
+          <p class="detail">{metric.detail}</p>
+        </article>
+      ))}
+    </section>
+
+    <section class="grid" aria-label="Charts">
+      <article class="panel">
+        <h2>Quality</h2>
+        <div class="chart">
+          {accuracyBars.map((bar) => (
+            <div class="barRow">
+              <div class="barLabel">{bar.label}</div>
+              <div class="track" aria-hidden="true"><div class="fill" style={`width: ${bar.width}%`}></div></div>
+              <div class="barValue">{bar.value}</div>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Latency</h2>
+        <div class="chart">
+          {latencyBars.map((bar) => (
+            <div class="barRow">
+              <div class="barLabel">{bar.label}</div>
+              <div class="track" aria-hidden="true"><div class="fill" style={`width: ${bar.width}%`}></div></div>
+              <div class="barValue">{bar.value}</div>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Serving cost</h2>
+        <div class="chart">
+          {costBars.map((bar) => (
+            <div class="barRow">
+              <div class="barLabel">{bar.label}</div>
+              <div class="track" aria-hidden="true"><div class="fill" style={`width: ${bar.width}%`}></div></div>
+              <div class="barValue">{bar.value}</div>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>What this proves</h2>
+        <p>
+          A miner submission can be checked as a real artifact, not a leaderboard claim. The missing production step is a Polaris deploy link and usage attribution.
+        </p>
+      </article>
+    </section>
+
+    <section>
+      <h2>Progress</h2>
+      <div class="progress">
+        {progress.map((step) => (
+          <div class={`step ${step.status}`}>
+            <span class="state">{step.status}</span>
+            <div class="name">{step.label}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section>
+      <h2>Artifact record</h2>
+      <div class="registry">
+        {registryRows.map(([key, value]) => (
+          <div class="row">
+            <span class="key">{key}</span>
+            <span class="val">{value}</span>
+          </div>
+        ))}
+      </div>
+      <div class="links" aria-label="Raw artifact files">
+        {rawLinks.map(([label, href]) => (
+          <a href={href}>{label}</a>
+        ))}
+      </div>
+    </section>
+
+    <section>
+      <h2>Fixed test set</h2>
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Issue</th>
+              <th>Gold</th>
+              <th>Teacher</th>
+              <th>Student</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.eval_items.map((item) => (
+              <tr>
+                <td>{item.id}</td>
+                <td class="text">{item.text}</td>
+                <td>{item.gold}</td>
+                <td>{item.teacher}</td>
+                <td>{item.student}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="note">
+      This is not the final competition. It is the smallest end-to-end proof: Chutes teacher, tiny student, measured report, Cathedral preflight, public dashboard.
+    </section>
+  </div>
+</Base>

@@ -10,8 +10,8 @@
   "competition_id": "pom0-model-factory-issue-router",
   "deployment": {
     "deploy_spec_path": "job-spec.json",
-    "one_click_polaris_url": null,
-    "status": "local_artifact"
+    "one_click_polaris_url": "https://polaris.computer/model-factory/pom0/pom0-issue-router-3214fb17b1d8",
+    "status": "deployed"
   },
   "disqualifier_attestations": {
     "artifact_hash_matches": true,
@@ -21,12 +21,12 @@
     "reproducible_from_job_spec": true
   },
   "metrics": {
-    "latency_speedup": 25889.84017407897,
+    "latency_speedup": 60748.698087680714,
     "quality_retention": 1.0,
     "serving_cost_reduction": 1.0,
     "student_accuracy": 0.8333333333333334,
     "student_artifact_bytes": 7434,
-    "student_latency_ms_mean": 0.03063951900306468,
+    "student_latency_ms_mean": 0.013057930045761168,
     "teacher_accuracy": 0.75,
     "teacher_eval_cost_per_item_usd": 3.3073333333333335e-06,
     "teacher_eval_latency_ms_per_item": 793.25225
@@ -43,6 +43,6 @@
     "exclude_creator_owned_usage": true,
     "exclude_platform_owned_usage": true,
     "exclude_refunded_usage": true,
-    "status": "pending"
+    "status": "active"
   }
 }

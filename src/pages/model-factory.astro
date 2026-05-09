@@ -68,7 +68,7 @@ const progress = [
   { label: 'Held-out eval passed', status: report.improvement.quality_floor_pass ? 'done' : 'blocked' },
   { label: 'Artifact hashed', status: 'done' },
   { label: 'Cathedral preflight', status: 'done' },
-  { label: 'Polaris deploy link', status: report.eligibility.usage_attribution_path ? 'done' : 'pending' },
+  { label: 'Polaris deploy link', status: report.artifact.one_click_polaris_url ? 'done' : 'pending' },
   { label: 'Usage attribution', status: report.eligibility.usage_attribution_status === 'active' ? 'done' : 'pending' },
 ]
 
@@ -83,6 +83,8 @@ const registryRows = [
 ]
 
 const rawLinks = [
+  ['Polaris run link', report.artifact.one_click_polaris_url],
+  ['attribution feed', report.artifact.usage_attribution_url],
   ['report JSON', '/model-factory/pom0/latest/pom0-report.json'],
   ['manifest', '/model-factory/pom0/latest/submission-manifest.json'],
   ['job spec', '/model-factory/pom0/latest/job-spec.json'],
@@ -551,7 +553,7 @@ const rawLinks = [
     </section>
 
     <section class="note">
-      This is not a miner submission yet. It is the smallest end-to-end proof: Chutes-hosted model, tiny student, measured report, Cathedral preflight, public dashboard. Real miner rewards still need Polaris deploy links and usage attribution.
+      This is not a miner submission yet. It is the smallest end-to-end proof: Chutes-hosted model, tiny student, measured report, Cathedral preflight, public dashboard, Polaris run link, and usage attribution path. Real miner rewards still need paid downstream Polaris usage.
     </section>
   </div>
 </Base>

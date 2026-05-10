@@ -1,0 +1,118 @@
+---
+/*
+ * Auth bootstrap. Mirrors the Supabase + Polaris pattern used in
+ * src/pages/afrotensor.astro so a session created on either page works on
+ * both. Exposes window.__cathedralAuth for the rest of the page.
+ *
+ * Loaded into <head> via Base.astro so all client scripts can call it.
+ */
+
+const POLARIS_API_BASE =
+  (import.meta.env.PUBLIC_POLARIS_API_BASE as string | undefined) ||
+  'https://api.polaris.computer'
+---
+
+<script
+  is:inline
+  data-polaris-api-base={POLARIS_API_BASE}
+  data-supabase-url="https://xuxtkpixggpmzjjogkmt.supabase.co"
+  data-supabase-publishable-key="sb_publishable_bOPumgAxK8skthifaNIDkw_VkqjnpbB"
+  id="cathedral-auth-bootstrap"
+>
+  ;(function () {
+    var script = document.getElementById('cathedral-auth-bootstrap')
+    var CFG = {
+      apiBase: script.getAttribute('data-polaris-api-base'),
+      supabaseUrl: script.getAttribute('data-supabase-url'),
+      supabasePublishableKey: script.getAttribute('data-supabase-publishable-key'),
+    }
+    var SESSION_KEY = 'polaris_session'
+    var listeners = []
+    var _sbPromise = null
+
+    async function getSupabase() {
+      if (!_sbPromise) {
+        _sbPromise = (async function () {
+          if (!CFG.supabaseUrl || !CFG.supabasePublishableKey) {
+            throw new Error('supabase-not-configured')
+          }
+          var mod = await import('https://esm.sh/@supabase/supabase-js@2.45.4?target=es2022')
+          return mod.createClient(CFG.supabaseUrl, CFG.supabasePublishableKey, {
+            auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true,
+              storageKey: SESSION_KEY,
+            },
+          })
+        })()
+      }
+      return _sbPromise
+    }
+
+    async function currentAccessToken() {
+      try {
+        var sb = await getSupabase()
+        var data = (await sb.auth.getSession()).data
+        return data && data.session ? data.session.access_token : null
+      } catch (_) {
+        return null
+      }
+    }
+
+    async function authedFetch(path, init) {
+      var token = await currentAccessToken()
+      if (!token) throw new Error('not-authenticated')
+      var headers = new Headers((init && init.headers) || {})
+      headers.set('Authorization', 'Bearer ' + token)
+      if (init && init.body && !headers.has('Content-Type') && !(init.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json')
+      }
+      var resp = await fetch(CFG.apiBase + path, Object.assign({}, init, { headers: headers }))
+      if (resp.status === 401) {
+        try { var sb = await getSupabase(); await sb.auth.signOut() } catch (_) {}
+        throw new Error('not-authenticated')
+      }
+      if (!resp.ok) {
+        var detail = ''
+        try { detail = (await resp.json()).detail || '' } catch (_) {}
+        throw new Error('api-' + resp.status + (detail ? ': ' + detail : ''))
+      }
+      return resp.json()
+    }
+
+    async function signOut() {
+      try {
+        var sb = await getSupabase()
+        await sb.auth.signOut()
+      } catch (_) {}
+      notify(false)
+    }
+
+    function notify(loggedIn) {
+      for (var i = 0; i < listeners.length; i++) {
+        try { listeners[i](loggedIn) } catch (_) {}
+      }
+    }
+
+    function onAuthChange(cb) {
+      listeners.push(cb)
+      currentAccessToken().then(function (t) { cb(!!t) })
+    }
+
+    // Subscribe to supabase auth changes so the UI can update without a reload.
+    getSupabase().then(function (sb) {
+      sb.auth.onAuthStateChange(function (_event, session) {
+        notify(!!session)
+      })
+    }).catch(function () {})
+
+    window.__cathedralAuth = {
+      getSupabase: getSupabase,
+      currentAccessToken: currentAccessToken,
+      authedFetch: authedFetch,
+      signOut: signOut,
+      onAuthChange: onAuthChange,
+    }
+  })()
+</script>

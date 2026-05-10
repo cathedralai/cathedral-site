@@ -1,0 +1,205 @@
+---
+/*
+ * Login modal. Same Supabase entry points as afrotensor (Google OAuth +
+ * email magic link). Hidden by default; opened by any element with
+ * `data-login-trigger` attribute.
+ */
+---
+
+<div
+  class="login-modal"
+  id="cathedral-login-modal"
+  hidden
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cathedral-login-heading"
+>
+  <div class="login-card">
+    <h2 id="cathedral-login-heading">Sign in to submit an agent</h2>
+    <p class="intro">
+      Cathedral uses your Polaris account to associate submissions with a
+      session. You'll still sign each bundle with your Bittensor hotkey.
+    </p>
+    <button type="button" class="btn primary" id="cathedral-login-google">Continue with Google</button>
+    <div class="sep">or</div>
+    <form id="cathedral-login-magic-form">
+      <input
+        type="email"
+        name="email"
+        id="cathedral-login-email"
+        placeholder="you@example.com"
+        required
+        autocomplete="email"
+      />
+      <button type="submit" class="btn">Email me a magic link</button>
+    </form>
+    <div class="status" id="cathedral-login-status"></div>
+    <button type="button" class="close" id="cathedral-login-close">Cancel</button>
+  </div>
+</div>
+
+<style>
+  .login-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 100;
+    padding: 24px;
+  }
+  .login-modal[hidden] { display: none; }
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px 28px 22px;
+    width: 100%;
+    max-width: 380px;
+    position: relative;
+    font-size: 13px;
+  }
+  .login-card h2 {
+    font-family: 'Newsreader', ui-serif, Georgia, serif;
+    font-size: 22px;
+    font-weight: 300;
+    margin: 0 0 6px 0;
+    color: var(--fg);
+  }
+  .login-card .intro {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .login-card .btn {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font: inherit;
+    text-align: center;
+    transition: border-color 140ms, color 140ms;
+  }
+  .login-card .btn + .btn { margin-top: 8px; }
+  .login-card .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .login-card .btn.primary { border-color: var(--accent); color: var(--accent); }
+  .login-card input[type='email'] {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 9px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font: inherit;
+  }
+  .login-card input[type='email']:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+  .login-card .sep {
+    text-align: center;
+    color: var(--dim);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 14px 0 10px;
+  }
+  .login-card .close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: transparent;
+    border: 0;
+    color: var(--dim);
+    cursor: pointer;
+    font: inherit;
+    padding: 4px;
+  }
+  .login-card .close:hover { color: var(--fg); }
+  .login-card .status {
+    font-size: 11px;
+    margin-top: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+    min-height: 1em;
+  }
+  .login-card .status.err { color: var(--err); }
+</style>
+
+<script is:inline>
+  ;(function () {
+    var modal = document.getElementById('cathedral-login-modal')
+    if (!modal) return
+    var status = document.getElementById('cathedral-login-status')
+    var emailInput = document.getElementById('cathedral-login-email')
+
+    function open() {
+      status.textContent = ''
+      status.classList.remove('err')
+      modal.hidden = false
+      setTimeout(function () { if (emailInput) emailInput.focus() }, 0)
+    }
+    function close() { modal.hidden = true }
+
+    document.querySelectorAll('[data-login-trigger]').forEach(function (el) {
+      el.addEventListener('click', function (e) { e.preventDefault(); open() })
+    })
+
+    document.getElementById('cathedral-login-close').addEventListener('click', close)
+    modal.addEventListener('click', function (e) { if (e.target === modal) close() })
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) close()
+    })
+
+    document.getElementById('cathedral-login-google').addEventListener('click', async function () {
+      try {
+        if (!window.__cathedralAuth) throw new Error('auth-not-ready')
+        var sb = await window.__cathedralAuth.getSupabase()
+        status.classList.remove('err')
+        status.textContent = 'Redirecting to Google…'
+        var result = await sb.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + window.location.pathname },
+        })
+        if (result.error) throw result.error
+      } catch (err) {
+        status.textContent = err.message === 'supabase-not-configured'
+          ? 'Sign-in is not configured on this build.'
+          : (err.message || 'Google sign-in failed.')
+        status.classList.add('err')
+      }
+    })
+
+    document.getElementById('cathedral-login-magic-form').addEventListener('submit', async function (e) {
+      e.preventDefault()
+      var email = (emailInput.value || '').trim()
+      if (!email) return
+      try {
+        if (!window.__cathedralAuth) throw new Error('auth-not-ready')
+        var sb = await window.__cathedralAuth.getSupabase()
+        status.classList.remove('err')
+        status.textContent = 'Sending magic link…'
+        var result = await sb.auth.signInWithOtp({
+          email: email,
+          options: { emailRedirectTo: window.location.origin + window.location.pathname },
+        })
+        if (result.error) throw result.error
+        status.textContent = 'Check your inbox for the link.'
+      } catch (err) {
+        status.textContent = err.message === 'supabase-not-configured'
+          ? 'Sign-in is not configured on this build.'
+          : (err.message || 'Failed to send link.')
+        status.classList.add('err')
+      }
+    })
+
+    // Expose helper so other scripts can open the modal programmatically.
+    window.__cathedralOpenLogin = open
+  })()
+</script>

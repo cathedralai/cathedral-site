@@ -1,1464 +1,304 @@
 ---
 import Base from '../layouts/Base.astro'
-import LogStream from '../components/LogStream.astro'
-import MinersRegister from '../components/MinersRegister.astro'
-import RoseWindow from '../components/RoseWindow.astro'
+import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
+import { relativeTime, formatScore, shortHash } from '../lib/format'
+
+const [feed, cards] = await Promise.all([
+  fetchHomeFeed(12),
+  fetchAvailableCards(),
+])
+
+const totalAgents = cards.reduce((s, c) => s + c.agent_count, 0)
+const cardsWithEvals = cards.filter((c) => c.latest_eval_at).length
+const last7DayCount = feed.filter((e) => {
+  const t = Date.now() - new Date(e.ran_at).getTime()
+  return t < 7 * 24 * 60 * 60 * 1000
+}).length
+const latestMerkleEpoch = feed
+  .map((e) => e.merkle_epoch)
+  .filter((e): e is number => e !== null)
+  .reduce((max, e) => (e > max ? e : max), 0)
 ---
 
-<Base title="cathedral">
+<Base title="cathedral · agent-run regulatory intelligence">
+  <div class="banner">
+    <span class="b-dot"></span>
+    Cathedral v1 — cards and scores stabilize over the first 30 days.
+  </div>
+
+  <section class="hero">
+    <p class="eyebrow">SN39 · Cathedral</p>
+    <h1>
+      Agent-run regulatory<br/>intelligence for Bittensor.
+    </h1>
+    <p class="lede">
+      Miners craft Hermes agents. Cathedral runs them privately and scores
+      their outputs publicly. Best agents earn TAO.
+    </p>
+    <div class="hero-cta">
+      <a class="btn primary" href="/workforce">Submit an agent</a>
+      <a class="btn" href="/workforce">Browse the workforce</a>
+      <a class="btn ghost" href="/how-it-works">How it works →</a>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">01</span>
+      <h2>Today's regulatory updates</h2>
+      <span class="rule"></span>
+      <span class="head-meta">live · refreshes every minute</span>
+    </header>
+    {feed.length === 0 ? (
+      <p class="empty">No outputs in the last 24 hours.</p>
+    ) : (
+      <div class="grid">
+        {feed.slice(0, 6).map((evt) => (
+          <a class="card" href={`/cards/${evt.card_id}/feed`}>
+            <span class="card-jurisdiction">{evt.output_card.jurisdiction.toUpperCase()} · {evt.card_id}</span>
+            <h3 class="card-title">{evt.output_card.title}</h3>
+            <p class="card-summary">{evt.output_card.summary}</p>
+            <footer class="card-foot">
+              <span class="by">{evt.agent_display_name}</span>
+              <span class="dim">·</span>
+              <span class="score">{formatScore(evt.weighted_score)}</span>
+              <span class="dim">·</span>
+              <span class="ts">{relativeTime(evt.ran_at)}</span>
+            </footer>
+          </a>
+        ))}
+      </div>
+    )}
+    {feed.length > 6 && (
+      <p class="more">
+        <a href="/workforce">see all {feed.length} updates today →</a>
+      </p>
+    )}
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">02</span>
+      <h2>The cards</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="cards-row">
+      {cards.map((c) => (
+        <a class="card-tile" href={`/cards/${c.card_id}`}>
+          <span class="ct-jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
+          <h3>{c.definition.display_name}</h3>
+          <p>{c.definition.topic}</p>
+          <footer>
+            <span><strong>{c.agent_count}</strong> agents</span>
+            <span class="dim">·</span>
+            <span>{c.latest_eval_at ? relativeTime(c.latest_eval_at) : 'no outputs yet'}</span>
+          </footer>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="block stats">
+    <header class="block-head">
+      <span class="num">03</span>
+      <h2>The workforce</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="stat-grid">
+      <div class="stat">
+        <strong>{totalAgents}</strong>
+        <span>agents across {cardsWithEvals} cards</span>
+      </div>
+      <div class="stat">
+        <strong>{last7DayCount}</strong>
+        <span>cards produced in last 24h</span>
+      </div>
+      <div class="stat">
+        <strong>{latestMerkleEpoch || '—'}</strong>
+        <span>latest merkle epoch on chain</span>
+      </div>
+      <div class="stat">
+        <a href="/workforce">browse the workforce →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block prose-block">
+    <header class="block-head">
+      <span class="num">04</span>
+      <h2>How it works</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="prose-cols">
+      <div class="prose">
+        <p>
+          Miners build a Hermes profile (soul.md, skills, configs) and submit
+          a signed bundle. Cathedral encrypts it, runs it on Polaris compute
+          against rolling regulatory tasks, and scores each output.
+        </p>
+        <p>
+          Outputs are public, signed, and weekly-anchored on chain. The bundle
+          itself is private — the miner's IP. Best-performing agents earn TAO
+          through the standard Bittensor weights flow.
+        </p>
+        <p>
+          <a href="/how-it-works">Read the full explainer →</a>
+        </p>
+      </div>
+      <aside class="receipt-card">
+        <p class="rk">Trust receipts</p>
+        <ul>
+          <li>Every output signed by cathedral with Ed25519 (key in JWKS).</li>
+          <li>Every bundle hash anchored in a weekly Merkle root on chain.</li>
+          <li>Every miner's submission carries an sr25519 hotkey signature.</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
   <style>
-    /* Numbered eyebrow — structural spine */
+    .banner {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin: 24px 0 0; padding: 7px 12px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+    .banner .b-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-dim);
+    }
+
+    .hero { padding: 36px 0 56px; border-bottom: 1px solid var(--border-soft); }
     .eyebrow {
-      font-size: 10px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--dim);
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--accent); margin: 0 0 14px;
     }
-    .eyebrow .num {
-      font-variant-numeric: tabular-nums;
-      color: var(--accent);
-    }
-    .eyebrow .rule {
-      flex: 1;
-      height: 1px;
-      background: var(--border-soft);
-    }
-    /* Section layout — generous vertical rhythm */
-    .sec { padding: 72px 0; border-bottom: 1px solid var(--border-soft); }
-    .sec:last-of-type { border-bottom: 0; }
-    .sec .wrap { display: grid; grid-template-columns: 160px 1fr; gap: 48px; }
-    @media (max-width: 900px) {
-      .sec { padding: 56px 0; }
-      .sec .wrap { grid-template-columns: 1fr; gap: 24px; }
-    }
-
-    /* Thesis — three centered lines, stacked (hero only). */
-    .hero-thesis {
-      width: 100%;
-      margin: 0;
-      padding: 0 0 8px 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .thesis.thesis-stack {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: clamp(4px, 0.8vw, 10px);
-      width: 100%;
-    }
-    .thesis-stack .thesis-line {
-      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+    .hero h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
       font-weight: 300;
-      line-height: 1.35;
-      color: var(--muted);
-      margin: 0;
-      font-size: clamp(1rem, 1.3vw + 0.6rem, 1.25rem);
-      white-space: nowrap;
-      max-width: 100%;
-    }
-    .thesis-stack .thesis-line--lede {
-      font-size: clamp(1.45rem, 2.2vw + 0.45rem, 1.95rem);
-      font-weight: 500;
+      font-size: clamp(40px, 7vw, 84px);
+      line-height: 0.98;
+      letter-spacing: -0.02em;
       color: var(--fg);
-      line-height: 1.25;
+      margin: 0;
+      max-width: 18ch;
     }
-    @media (max-width: 640px) {
-      .thesis-stack .thesis-line { white-space: normal; }
+    .lede {
+      max-width: 56ch; margin: 22px 0 0;
+      color: var(--muted); font-size: 16px; line-height: 1.6;
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300;
     }
-    .thesis-stack .thesis-line em { font-style: italic; color: var(--muted); }
-    .thesis-stack .thesis-line .accent {
-      color: var(--accent);
-      font-style: normal;
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+    .btn {
+      display: inline-block; padding: 9px 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--fg); font: inherit; font-size: 12px;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
+    .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .btn.primary:hover { background: var(--surface-2); }
+    .btn.ghost { background: transparent; }
+
+    .block { padding: 36px 0; border-bottom: 1px solid var(--border-soft); }
+    .block:last-of-type { border-bottom: 0; }
+    .block-head {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 18px;
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: 18px;
+      letter-spacing: 0; text-transform: none;
+      color: var(--fg); margin: 0;
+    }
+    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+    .block-head .head-meta, .block-head .head-link { color: var(--muted); text-transform: lowercase; letter-spacing: 0.05em; }
+    .block-head .head-link:hover { color: var(--accent); }
+
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      padding: 16px 16px 14px; background: var(--surface);
+      transition: background 140ms, color 140ms;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .card:hover { background: var(--surface-2); }
+    .card-jurisdiction {
+      color: var(--accent); font-size: 9.5px; letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .card-title { color: var(--fg); font-size: 14px; line-height: 1.3; margin: 0; font-weight: 500; }
+    .card-summary { color: var(--muted); font-size: 11.5px; line-height: 1.55; margin: 0; flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-foot {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
+      padding-top: 8px; border-top: 1px solid var(--border-soft);
+    }
+    .card-foot .by { color: var(--fg); }
+    .card-foot .score { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .card-foot .ts { color: var(--dim); font-variant-numeric: tabular-nums; }
+    .card-foot .dim { color: var(--border); }
+    .more { margin: 14px 0 0; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
+    .more a { color: var(--accent); }
+
+    .cards-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
+    @media (max-width: 1000px) { .cards-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { .cards-row { grid-template-columns: 1fr 1fr; } }
+    .card-tile {
+      padding: 16px; background: var(--surface);
+      display: flex; flex-direction: column; gap: 6px;
+      transition: background 140ms, border-color 140ms;
+    }
+    .card-tile:hover { background: var(--surface-2); }
+    .ct-jurisdiction { color: var(--accent); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; }
+    .card-tile h3 { font-size: 13px; color: var(--fg); margin: 4px 0 0; font-weight: 500; line-height: 1.3; }
+    .card-tile p { font-size: 11.5px; color: var(--muted); margin: 0; line-height: 1.5; flex: 1; }
+    .card-tile footer { display: flex; gap: 6px; align-items: baseline; font-size: 10.5px; color: var(--dim); padding-top: 8px; border-top: 1px solid var(--border-soft); margin-top: 8px; flex-wrap: wrap; }
+    .card-tile footer strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .card-tile footer .dim { color: var(--border); }
+
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft);
+    }
+    @media (max-width: 800px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+    .stat {
+      padding: 18px 16px; background: var(--surface);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .stat strong {
+      color: var(--fg); font-size: 28px; font-variant-numeric: tabular-nums; line-height: 1;
       font-weight: 500;
     }
+    .stat span { color: var(--dim); font-size: 11px; letter-spacing: 0.05em; }
+    .stat a { color: var(--accent); font-size: 12px; align-self: flex-start; margin-top: auto; }
+    .stat a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-    /* Hero — thesis band first; live state + terminals sit below with air. */
-    .sec.hero { padding-top: 32px; padding-bottom: 48px; }
-    .hero-live {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-top: clamp(24px, 3vw, 36px);
-      padding-top: clamp(18px, 2vw, 26px);
-      border-top: 1px solid var(--border-soft);
+    .prose-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
+    @media (max-width: 800px) { .prose-cols { grid-template-columns: 1fr; gap: 18px; } }
+    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 60ch; }
+    .prose p + p { margin-top: 12px; }
+    .prose a { color: var(--accent); }
+    .prose a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .receipt-card {
+      padding: 16px 18px; background: var(--surface); border: 1px solid var(--border);
     }
-    .hero-live > * { min-width: 0; }
-
-    /* Header row: "01 LIVE STATE — blurb" on a single line, with wrap fallback. */
-    .proof-meta--lead { padding: 0; border: 0; }
-    .proof-head {
-      display: flex;
-      align-items: baseline;
-      gap: 14px;
-      flex-wrap: wrap;
+    .receipt-card .rk { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+    .receipt-card ul { margin: 0; padding: 0; list-style: none; }
+    .receipt-card li {
+      font-size: 12px; color: var(--muted); line-height: 1.5;
+      padding: 8px 0; border-top: 1px solid var(--border-soft);
     }
-    .proof-head .eyebrow { flex: 0 0 auto; }
-    .proof-head .cap {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.5;
-      color: var(--muted);
-      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
-      font-style: italic;
-      font-weight: 300;
-    }
-
-    /* Compact stats row: pills of key/value pairs, no stacked list. */
-    .proof-stats {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 20px;
-      font-variant-numeric: tabular-nums;
-      line-height: 1.4;
-    }
-    .proof-stats .stat {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 6px;
-    }
-    .proof-stats .k {
-      font-size: 9px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .proof-stats .v {
-      font-size: 12px;
-      color: var(--fg);
-    }
-    .proof-stats .sep { color: var(--border); }
-
-    /* Fade in on first paint for the thesis lines */
-    .thesis-fade { animation: fade-in 900ms ease-out both; }
-    .thesis-fade .thesis-line:nth-child(1) { animation: fade-in 700ms 80ms ease-out both; }
-    .thesis-fade .thesis-line:nth-child(2) { animation: fade-in 700ms 240ms ease-out both; }
-    .thesis-fade .thesis-line:nth-child(3) { animation: fade-in 700ms 400ms ease-out both; }
-    @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-    @media (prefers-reduced-motion: reduce) {
-      .thesis-fade, .thesis-fade .thesis-line { animation: none !important; }
-    }
-
-    /* State section — the two panes, full width under the header so edges line up.
-       Miners column is anchored at a tight fixed range so the validator (left)
-       absorbs any width reduction, not the already-tight miners register. */
-    .state-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
-      gap: 12px;
-      height: 340px;
-      min-height: 280px;
-      min-width: 0;
-      width: 100%;
-    }
-    .state-grid > * { min-width: 0; }
-    @media (max-width: 900px) {
-      .state-grid { grid-template-columns: 1fr; height: auto; }
-      .state-grid > * { min-height: 260px; }
-    }
-    @media (max-width: 640px) {
-      .sec.hero { padding-top: 24px; padding-bottom: 40px; }
-      .hero-live { margin-top: 20px; padding-top: 16px; gap: 12px; }
-      .state-grid > * { min-height: 220px; }
-      .proof-head { gap: 8px 12px; }
-      .proof-stats { gap: 4px 14px; }
-    }
-    /* Empty states: let the body flex-column and float the placeholder to center
-       via margin:auto. When real rows land, JS removes the placeholder and the
-       log lines stack top-down as usual. */
-    .state-grid :global([data-log-body]),
-    .state-grid :global([data-miners-list]) {
-      display: flex;
-      flex-direction: column;
-    }
-    .state-grid :global([data-empty]),
-    .state-grid :global(.miners-placeholder),
-    .state-grid :global(.miners-error) {
-      margin: auto;
-      padding: 24px 16px;
-      text-align: center;
-      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
-      font-style: italic;
-      font-weight: 300;
-      font-size: 13px;
-      letter-spacing: 0.01em;
-      color: var(--dim);
-      opacity: 0.75;
-    }
-
-    /* Honest numbers register. Overflow wrapper lets long value columns
-       scroll on narrow viewports instead of clipping. */
-    .register-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .register { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
-    .register th {
-      text-align: left; padding: 10px 12px 10px 0;
-      font-weight: 400; font-size: 9px;
-      letter-spacing: 0.2em; text-transform: uppercase;
-      color: var(--dim);
-      border-bottom: 1px solid var(--border);
-    }
-    .register th.r { text-align: right; }
-    .register td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--border-soft); color: var(--fg); }
-    .register td.r { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .register td.label { color: var(--muted); }
-    .register .status-ok     { color: var(--accent); }
-    .register .status-pending{ color: var(--warn); }
-    .register .status-off    { color: var(--err); }
-
-    /* Two doors */
-    .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    @media (max-width: 700px) { .doors { grid-template-columns: 1fr; } }
-    .door {
-      background: var(--bg); padding: 28px; min-height: 180px;
-      display: flex; flex-direction: column; justify-content: space-between;
-      transition: background 120ms;
-    }
-    .door:hover { background: var(--surface); }
-    .door .k { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); }
-    .door .t { font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif); font-size: 22px; font-weight: 300; color: var(--fg); margin-top: 8px; line-height: 1.3; }
-    .door .arrow { color: var(--accent); font-size: 16px; }
-
-    /* Silhouette — a quiet cathedral behind the participation doors.
-       Lives at the bottom of the doors section. Grayscale + low opacity
-       so it reads as ambient, never as content. Different blend for each
-       theme because the image is bright by default. */
-    .silhouette {
-      margin-top: 40px;
-      width: 100%;
-      height: 110px;
-      background-image: url('/images/notre-dame-sunrise.jpg');
-      background-size: cover;
-      background-position: center 40%;
-      filter: grayscale(1) contrast(0.9) brightness(0.95);
-      opacity: 0.22;
-      border-top: 1px solid var(--border-soft);
-      mask-image: linear-gradient(to bottom, transparent 0%, black 50%, transparent 100%);
-      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 50%, transparent 100%);
-    }
-    html[data-theme='light'] .silhouette {
-      opacity: 0.18;
-      filter: grayscale(1) contrast(0.85) brightness(1.05);
-    }
+    .receipt-card li:first-child { border-top: 0; padding-top: 0; }
   </style>
-
-  <!-- ═══════════════ Hero — three-line thesis, then live proof ═══════════════ -->
-  <section class="sec hero">
-    <div class="hero-thesis">
-      <div class="thesis thesis-fade thesis-stack">
-        <p class="thesis-line thesis-line--lede">
-          A cathedral is a <span class="accent">commons</span>
-        </p>
-        <p class="thesis-line">
-          <em>The masons who laid the first stones knew they wouldn't see the spire.</em>
-        </p>
-        <p class="thesis-line">
-          We're building compute the same way. In public, for whoever needs it.
-        </p>
-      </div>
-    </div>
-    <div class="hero-live">
-      <div class="proof-meta proof-meta--lead">
-        <div class="proof-head">
-          <div class="eyebrow"><span class="num">01</span><span>Live state</span></div>
-          <p class="cap">The validator, verifying. Masons on chain, as we see them.</p>
-        </div>
-        <div class="proof-stats">
-          <span class="stat"><span class="k">subnet</span><span class="v">sn39 · finney</span></span>
-          <span class="stat"><span class="k">block</span><span class="v" data-val="block">—</span></span>
-          <span class="stat"><span class="k">stake</span><span class="v">131.82α</span><span class="k">/ ~14k α permit</span></span>
-        </div>
-      </div>
-      <div class="state-grid">
-        <LogStream id="validator" label="validator" host="vps · fin" role="VERIFY" terminalIndex="T1" />
-        <MinersRegister />
-        {/* safelist for dynamic classes set by JS below:
-            bg-accentDim border-l-2 border-accent pl-2 -ml-2
-            border-warn bg-warnDim text-warn bg-muted text-dim
-            bg-errDim border-err text-err */}
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════ 02 Honest numbers ═══════════════ -->
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">02</span><span>Honest numbers</span></div>
-        <p class="mt-4 text-[12px] text-muted max-w-[28ch] leading-[1.55] font-serif italic font-[300] text-[14px]">
-          What's true today.<br/>Nothing more.
-        </p>
-      </div>
-      <div class="register-wrap">
-        <table class="register">
-          <thead>
-            <tr>
-              <th style="width:34%">Register</th>
-              <th>State</th>
-              <th class="r" style="width:20%">Value</th>
-              <th class="r" style="width:16%">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="label">Subnet</td>
-              <td class="status-ok">Registered on finney</td>
-              <td class="r">SN39</td>
-              <td class="r">2026-04-02</td>
-            </tr>
-            <tr>
-              <td class="label">Validator process</td>
-              <td class="status-ok">Running</td>
-              <td class="r" data-val="val-status">—</td>
-              <td class="r">live</td>
-            </tr>
-            <tr>
-              <td class="label">Validator endpoint</td>
-              <td class="status-ok">Published</td>
-              <td class="r">65.109.75.3:8080</td>
-              <td class="r">live</td>
-            </tr>
-            <tr>
-              <td class="label">Weights on chain</td>
-              <td class="status-pending">Parked · below permit</td>
-              <td class="r">—</td>
-              <td class="r">—</td>
-            </tr>
-            <tr>
-              <td class="label">Masons on chain</td>
-              <td class="status-ok" title="Declared = has an axon endpoint on chain. Cheap signal — doesn't mean the mason has contacted our validator.">Declared</td>
-              <td class="r" data-val="miners-active">—</td>
-              <td class="r">live</td>
-            </tr>
-            <tr>
-              <td class="label">Registered with us</td>
-              <td class="status-pending" data-val="miners-registered-status" title="Mason has called RegisterBid on our validator with at least one node still active.">
-                <span data-val="miners-registered-label">—</span>
-              </td>
-              <td class="r" data-val="miners-registered">—</td>
-              <td class="r">live</td>
-            </tr>
-            <tr>
-              <td class="label">Verified GPU nodes</td>
-              <td class="status-pending" data-val="nodes-verified-status">
-                <span data-val="nodes-verified-label">awaiting first</span>
-              </td>
-              <td class="r" data-val="nodes-verified">0</td>
-              <td class="r">live</td>
-            </tr>
-            <tr>
-              <td class="label">GPU categories</td>
-              <td class="status-pending" title="Allow-list is a string match on nvidia-smi. Spoofable. See issue #24.">Draft</td>
-              <td class="r">consumer + workstation</td>
-              <td class="r">2026-04-18</td>
-            </tr>
-            <tr>
-              <td class="label">Emissions</td>
-              <td class="status-pending">Accrue in ledger · no payouts yet</td>
-              <td class="r">0.00τ</td>
-              <td class="r">—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════ 03 Participate ═══════════════ -->
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">03</span><span>Participate</span></div>
-      </div>
-      <div>
-        <div class="doors">
-          <a href="/mine" class="door">
-            <div>
-              <div class="k">For masons</div>
-              <div class="t">Lay a stone.<br/><em>Bring what you have.</em></div>
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-dim tracking-[0.18em] uppercase">
-              <span>/mine</span>
-              <span class="arrow">→</span>
-            </div>
-          </a>
-          <a href="/roadmap" class="door">
-            <div>
-              <div class="k">For patrons</div>
-              <div class="t">Stake on the validator.<br/><em>Fund the build.</em></div>
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-dim tracking-[0.18em] uppercase">
-              <span>/roadmap</span>
-              <span class="arrow">→</span>
-            </div>
-          </a>
-        </div>
-        <div class="silhouette" role="presentation" aria-hidden="true"></div>
-      </div>
-    </div>
-  </section>
 </Base>
-
-<script>
-  // ---------------------------------------------------------------------------
-  // Config
-  // ---------------------------------------------------------------------------
-  const API_BASE = 'https://api.polaris.computer'
-  const ENDPOINTS = {
-    validator: `${API_BASE}/api/substrate/validator/logs`,
-    miner: `${API_BASE}/api/substrate/miner/logs`,
-    state: `${API_BASE}/api/substrate/state`,
-    registry: `${API_BASE}/api/substrate/validator/registry`,
-  }
-  const POLL_MS = 4000
-  const STATE_POLL_MS = 10000
-  const MAX_LINES_PER_PANE = 500
-  const PAIR_WINDOW_SEC = 8
-
-  // ---------------------------------------------------------------------------
-  // Pairing — which log events correlate across streams
-  // ---------------------------------------------------------------------------
-  const EVENT_PATTERNS = [
-    { id: 'registration', side: 'validator', re: /Accepted miner registration via RegisterBid/ },
-    { id: 'registration', side: 'miner', re: /Successfully registered with validator/ },
-    { id: 'verification', side: 'validator', re: /\[EVAL_FLOW\] SSH connection test successful/ },
-    { id: 'verification', side: 'validator', re: /SSH GPU discovery completed/ },
-    { id: 'verification', side: 'validator', re: /Node verification result successfully stored/ },
-    { id: 'health', side: 'miner', re: /Starting lifecycle loop|health_check/ },
-    { id: 'ssh-deploy', side: 'miner', re: /Successfully set exclusive access for validator|Deployed SSH keys for validator/ },
-    { id: 'ssh-deploy', side: 'validator', re: /SSH (?:key|connection).*registered/i },
-    { id: 'weight-parked', side: 'validator', re: /Invalid Transaction \(1010\)/ },
-  ]
-
-  // ---------------------------------------------------------------------------
-  // Error decoder — explain known log patterns in plain English.
-  // kind: 'parked' = expected-but-ugly (amber), 'info' = informational (blue),
-  //       'alarm' = genuinely broken (red).
-  // forceLevel: override the INFO/WARN/ERROR level the server reported,
-  //             so the scary-looking loops don't read as alarms.
-  // ---------------------------------------------------------------------------
-  type Decoded = {
-    kind: 'parked' | 'info' | 'alarm'
-    title: string
-    meaning: string
-    doing: string
-    forceLevel?: string
-    /** When true, suppress this line entirely — ceremonial noise. */
-    suppress?: boolean
-    /** When set, replace the raw message with this compact form. */
-    compactMessage?: string
-  }
-
-  const DECODERS: { re: RegExp; d: Decoded }[] = [
-    {
-      re: /Invalid Transaction \(1010\)/,
-      d: {
-        kind: 'parked',
-        title: 'weight submission parked',
-        meaning: 'the chain rejected set_weights because we don\u2019t hold a validator permit on sn39. the (1010) code means no-permit / payment-refused. no fees were spent, no data was lost.',
-        doing: 'the validator will keep retrying every 10s. the moment we cross the permit stake threshold, the next retry lands and emissions start flowing. no restart needed.',
-        forceLevel: 'WARN',
-      },
-    },
-    {
-      re: /Retrying weight submission in \d+ seconds/,
-      d: {
-        kind: 'parked',
-        title: 'retry loop (parked)',
-        meaning: 'the self-heal side of the parked weight-submission. the validator expects this to fail until we have permit stake.',
-        doing: 'nothing to fix — this is the system working as designed. stake unlocks it.',
-        forceLevel: 'DEBUG',
-        suppress: true,
-      },
-    },
-    {
-      re: /Initiating weight submission to chain netuid=\d+ version_key=\d+ weight_count=\d+ current_block=(\d+)/,
-      d: {
-        kind: 'info',
-        title: 'weight submission initiated',
-        meaning: 'the validator starts a fresh attempt to set on-chain weights for the current block. expected each interval.',
-        doing: 'the (1010) response will say no-permit, retry loop handles it.',
-        forceLevel: 'INFO',
-        compactMessage: 'weight submit · block $1',
-      },
-    },
-    {
-      re: /Failed to submit weights to chain/,
-      d: {
-        kind: 'parked',
-        title: 'weight submission parked',
-        meaning: 'same as (1010) — wraps the chain\u2019s rejection into a validator-level log. awaiting permit.',
-        doing: 'retry loop handles it; emissions start flowing the instant we clear the stake threshold.',
-        forceLevel: 'WARN',
-      },
-    },
-    {
-      re: /Weight setting attempt \d+ failed/,
-      d: {
-        kind: 'parked',
-        title: 'weight retry (parked)',
-        meaning: 'an attempt in the weight retry loop. the validator expects these to fail until we have permit stake — same (1010) story, just surfaced per-attempt.',
-        doing: 'next attempt runs on schedule. nothing to fix.',
-        forceLevel: 'DEBUG',
-      },
-    },
-    {
-      re: /Failed to set weights (?:at block )?\d*:?\s*Failed to set weights after \d+ attempts/,
-      d: {
-        kind: 'parked',
-        title: 'weight submission parked',
-        meaning: 'the retry loop finished its attempts for this block and none landed. same (1010) / no-permit story — each batch of attempts is expected to fail at our current stake.',
-        doing: 'the loop restarts on the next block. emissions unlock the moment we clear the stake threshold.',
-        forceLevel: 'WARN',
-      },
-    },
-    {
-      re: /Failed to set weights after \d+ attempts/,
-      d: {
-        kind: 'parked',
-        title: 'weight submission parked',
-        meaning: 'retry batch for this block ended; no attempt landed because we don\u2019t hold a validator permit yet.',
-        doing: 'fresh batch on the next block. no restart, no data lost.',
-        forceLevel: 'WARN',
-      },
-    },
-    {
-      re: /Validator \[redacted:[^\]]+\] not found on-chain; synthesizing placeholder/,
-      d: {
-        kind: 'info',
-        title: 'synthetic validator binding',
-        meaning: 'the miner was given a validator hotkey via config but that hotkey isn\u2019t visible on-chain yet from the miner\u2019s view. we override the grpc endpoint explicitly so the miner can still reach us.',
-        doing: 'expected while the miner and validator run in a shared hotkey setup. harmless.',
-        forceLevel: 'INFO',
-      },
-    },
-    {
-      re: /no axon endpoint; gRPC endpoint must be provided via override/,
-      d: {
-        kind: 'info',
-        title: 'grpc override in use',
-        meaning: 'the validator doesn\u2019t publish an axon endpoint on-chain, so the miner uses a static override from miner.toml to reach the bid-grpc port.',
-        doing: 'this is the current configuration, not a bug.',
-        forceLevel: 'INFO',
-      },
-    },
-    {
-      re: /SSH connection test failed|ssh.*timeout|could not connect to/i,
-      d: {
-        kind: 'alarm',
-        title: 'ssh reachability problem',
-        meaning: 'the validator could not open an ssh session to a registered miner node. verification will fail for that cycle.',
-        doing: 'the next cycle retries. if it keeps happening, the miner needs to check firewall, sshd, and that the validator\u2019s key was deployed.',
-      },
-    },
-    {
-      re: /health_check failed|health check failed/i,
-      d: {
-        kind: 'alarm',
-        title: 'miner health check failed',
-        meaning: 'the miner could not verify one of its own gpu nodes. the node will be dropped from the bid pool for this cycle.',
-        doing: 'miner retries on the next lifecycle tick. persistent failures need operator attention on the node.',
-      },
-    },
-  ]
-
-  function decode(message: string): Decoded | undefined {
-    for (const { re, d } of DECODERS) {
-      if (re.test(message)) return d
-    }
-    return undefined
-  }
-
-  type Line = {
-    ts: string | null
-    tsEpoch: number | null
-    level: string
-    target: string
-    message: string
-    eventId?: string
-    key: string
-  }
-
-  function classify(side: 'validator' | 'miner', message: string): string | undefined {
-    for (const p of EVENT_PATTERNS) {
-      if (p.side === side && p.re.test(message)) return p.id
-    }
-    return undefined
-  }
-
-  function parseTsEpoch(ts: string | null): number | null {
-    if (!ts) return null
-    // Incoming format e.g. 2026-04-17T03:47:15.123Z
-    const d = new Date(ts)
-    return isFinite(d.getTime()) ? d.getTime() / 1000 : null
-  }
-
-  function lineKey(ts: string | null, target: string, message: string): string {
-    return `${ts ?? ''}|${target}|${message}`.slice(0, 200)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-  const state = {
-    validator: { lines: [] as Line[], el: null as HTMLElement | null, connected: false as boolean },
-    miner: { lines: [] as Line[], el: null as HTMLElement | null, connected: false as boolean },
-    pairs: new Map<string, number>(), // lineKey -> timestamp pair was made
-  }
-
-  function levelClass(level: string): string {
-    switch (level) {
-      case 'ERROR': return 'text-err'
-      case 'WARN': return 'text-warn'
-      case 'DEBUG':
-      case 'TRACE': return 'text-dim'
-      default: return 'text-muted'
-    }
-  }
-
-  function decoderKindClass(kind: Decoded['kind']): { dot: string; label: string; bar: string } {
-    switch (kind) {
-      case 'parked': return { dot: 'bg-warn', label: 'text-warn', bar: 'border-warn' }
-      case 'alarm': return { dot: 'bg-err', label: 'text-err', bar: 'border-err' }
-      default: return { dot: 'bg-accent', label: 'text-accent', bar: 'border-accent' }
-    }
-  }
-
-  // Dedupe decoder annotations within a 2-minute rolling window so a
-  // single event doesn't render its full "means / doing" block on every
-  // retry line. First occurrence gets the annotation; subsequent ones
-  // still force-level down to WARN/DEBUG but skip the block.
-  const recentAnnotations = new Map<string, number>()
-  const ANNOTATION_DEDUPE_WINDOW_SEC = 120
-
-  function shouldShowAnnotation(title: string, tsEpoch: number | null): boolean {
-    const now = tsEpoch ?? Date.now() / 1000
-    const last = recentAnnotations.get(title)
-    if (last != null && now - last < ANNOTATION_DEDUPE_WINDOW_SEC) return false
-    recentAnnotations.set(title, now)
-    return true
-  }
-
-  function renderLine(line: Line): HTMLElement {
-    // A "line" can render as either a single row or a row + annotation.
-    // We return a wrapper div containing one or two children so the main
-    // rendering loop stays simple (one top-level element per log line).
-    const wrapper = document.createElement('div')
-    wrapper.dataset.lineKey = line.key
-    if (line.eventId) wrapper.dataset.eventId = line.eventId
-
-    const dec = decode(line.message)
-    const displayLevel = dec?.forceLevel ?? line.level
-    const showAnnotation = dec ? shouldShowAnnotation(dec.title, line.tsEpoch) : false
-
-    const row = document.createElement('div')
-    row.className = 'group flex gap-2 px-1 -mx-1 rounded-sm transition-colors duration-500'
-
-    const timeShort = line.ts ? line.ts.slice(11, 19) : '        '
-    const targetShort = line.target ? line.target.split('::').slice(-1)[0].slice(0, 18) : ''
-
-    const ts = document.createElement('span')
-    ts.className = 'text-dim shrink-0 tabular-nums'
-    ts.textContent = timeShort
-    row.appendChild(ts)
-
-    const lvl = document.createElement('span')
-    lvl.className = `shrink-0 w-10 ${levelClass(displayLevel)}`
-    lvl.textContent = displayLevel
-    row.appendChild(lvl)
-
-    // Target (e.g. "weight_setter") adds little for end-users — every
-    // validator log line is from the same handful of targets. Keep the
-    // info reachable via hover on the row, but don't spend ~140px on it.
-    row.title = line.target
-
-    const msg = document.createElement('span')
-    msg.className = 'text-fg break-words flex-1 min-w-0'
-    msg.textContent = formatMessage(line.message, dec)
-    msg.title = line.message   // hover to see the raw wrapped form
-    row.appendChild(msg)
-
-    wrapper.appendChild(row)
-
-    if (dec && showAnnotation) {
-      const kc = decoderKindClass(dec.kind)
-      const annot = document.createElement('div')
-      annot.className = `ml-[68px] my-1 pl-3 border-l-2 ${kc.bar} text-[10.5px] leading-[1.5] text-muted space-y-0.5 max-w-[60ch]`
-      annot.dataset.annotation = dec.kind
-
-      const title = document.createElement('div')
-      title.className = `flex items-center gap-2 ${kc.label} font-[500] uppercase tracking-[0.08em] text-[10px]`
-      const dot = document.createElement('span')
-      dot.className = `inline-block h-1.5 w-1.5 rounded-full ${kc.dot}`
-      title.appendChild(dot)
-      const titleText = document.createElement('span')
-      titleText.textContent = dec.title
-      title.appendChild(titleText)
-      // "expected" / "info" / "needs attention" tag so at-a-glance it's
-      // obvious whether a red log line is actually a problem.
-      const tag = document.createElement('span')
-      const tagText =
-        dec.kind === 'parked' ? 'expected · no action'
-        : dec.kind === 'info' ? 'informational'
-        : 'needs attention'
-      tag.className = 'ml-auto text-dim font-normal normal-case tracking-normal text-[10px]'
-      tag.textContent = tagText
-      title.appendChild(tag)
-      annot.appendChild(title)
-
-      const meaning = document.createElement('div')
-      meaning.innerHTML = `<span class="text-dim uppercase tracking-[0.08em] text-[9px] mr-2">means</span>${escapeHtml(dec.meaning)}`
-      annot.appendChild(meaning)
-
-      const doing = document.createElement('div')
-      doing.innerHTML = `<span class="text-dim uppercase tracking-[0.08em] text-[9px] mr-2">doing</span>${escapeHtml(dec.doing)}`
-      annot.appendChild(doing)
-
-      wrapper.appendChild(annot)
-    }
-
-    return wrapper
-  }
-
-  // Trim backend-wrapped error noise down to the signal.
-  //
-  // Backend gives us sausage like:
-  //   "Weight submission attempt 1 failed: Weight submission failed
-  //    (Unknown): Transaction submission failed: Failed to submit
-  //    extrinsic: RPC error: User error: Invalid Transaction (1010) -
-  //    Context: netuid=39, version_key=5592, uids=[204]"
-  // The signal is: attempt N, (1010), netuid=39. Everything else is
-  // wrapper layers from the substrate client. This formatter strips
-  // redundant "X: Y: Z:" chains and collapses known noise patterns.
-  function formatMessage(raw: string, dec?: Decoded): string {
-    // Decoder-supplied compact form wins. Supports $1..$9 backrefs
-    // against the decoder's regex so we can pull out block numbers etc.
-    if (dec?.compactMessage) {
-      for (const { re, d } of DECODERS) {
-        if (d !== dec) continue
-        const mm = re.exec(raw)
-        if (!mm) continue
-        return dec.compactMessage.replace(/\$(\d)/g, (_, n) => mm[Number(n)] ?? '')
-      }
-      return dec.compactMessage
-    }
-    let m = raw
-    // The (1010) cluster — most common noisy line. Extract attempt #
-    // and block (if present), drop the 5 levels of "foo failed: bar failed:".
-    const invalid1010 = /Invalid Transaction \(1010\)/.exec(m)
-    if (invalid1010) {
-      const attemptMatch = /attempt (\d+) failed/i.exec(m)
-      const netuidMatch = /netuid=(\d+)/.exec(m)
-      const attempt = attemptMatch ? ` · attempt ${attemptMatch[1]}` : ''
-      const netuid = netuidMatch ? ` · netuid=${netuidMatch[1]}` : ''
-      return `weight (1010) · no-permit${attempt}${netuid}`
-    }
-    // "Failed to set weights at block N: Failed to set weights after K attempts" → compact
-    const failedBatch = /Failed to set weights (?:at block (\d+):\s*)?Failed to set weights after (\d+) attempts/.exec(m)
-    if (failedBatch) {
-      const block = failedBatch[1] ? ` · block ${failedBatch[1]}` : ''
-      return `weight batch parked · ${failedBatch[2]} attempts${block}`
-    }
-    // Generic nested "X: Y: Z:" — keep only the last non-empty segment
-    // when the message is very long and heavily colon-nested.
-    if (m.length > 140 && (m.match(/:/g) || []).length >= 4) {
-      const parts = m.split(/:\s*/).filter(Boolean)
-      if (parts.length >= 3) return parts[parts.length - 1].slice(0, 200)
-    }
-    return m
-  }
-
-  function escapeHtml(s: string): string {
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-  }
-
-  function renderAll(side: 'validator' | 'miner') {
-    const s = state[side]
-    if (!s.el) return
-    const body = s.el.querySelector<HTMLElement>('[data-log-body]')
-    if (!body) return
-    const empty = body.querySelector<HTMLElement>('[data-empty]')
-    if (empty) empty.remove()
-
-    // Remember whether user was scrolled to bottom before we append
-    const atBottom = Math.abs(body.scrollHeight - body.scrollTop - body.clientHeight) < 40
-
-    // Diff: append only lines not already rendered
-    const existingKeys = new Set(
-      Array.from(body.querySelectorAll<HTMLElement>('[data-line-key]')).map(el => el.dataset.lineKey!),
-    )
-    for (const line of s.lines) {
-      if (existingKeys.has(line.key)) continue
-      const dec = decode(line.message)
-      if (dec?.suppress) continue
-      const el = renderLine(line)
-      body.appendChild(el)
-    }
-
-    // Trim oldest if over cap
-    while (body.children.length > MAX_LINES_PER_PANE) {
-      body.firstElementChild?.remove()
-    }
-
-    if (atBottom) body.scrollTop = body.scrollHeight
-  }
-
-  function applyPairHighlights() {
-    // Build index by eventId for each side
-    const byEvent: Record<string, { validator: Line[]; miner: Line[] }> = {}
-    for (const side of ['validator', 'miner'] as const) {
-      for (const line of state[side].lines) {
-        if (!line.eventId || line.tsEpoch == null) continue
-        if (!byEvent[line.eventId]) byEvent[line.eventId] = { validator: [], miner: [] }
-        byEvent[line.eventId][side].push(line)
-      }
-    }
-    // For each event, find pairs within PAIR_WINDOW_SEC
-    const pairedKeys = new Set<string>()
-    for (const { validator, miner } of Object.values(byEvent)) {
-      for (const v of validator) {
-        for (const m of miner) {
-          if (Math.abs((v.tsEpoch ?? 0) - (m.tsEpoch ?? 0)) <= PAIR_WINDOW_SEC) {
-            pairedKeys.add(v.key)
-            pairedKeys.add(m.key)
-          }
-        }
-      }
-    }
-    // Apply DOM class to paired rows; un-apply where not paired
-    for (const side of ['validator', 'miner'] as const) {
-      const s = state[side]
-      if (!s.el) continue
-      const body = s.el.querySelector<HTMLElement>('[data-log-body]')
-      if (!body) continue
-      for (const row of body.querySelectorAll<HTMLElement>('[data-line-key]')) {
-        if (pairedKeys.has(row.dataset.lineKey!)) {
-          if (!row.classList.contains('bg-accentDim')) {
-            row.classList.add('bg-accentDim', 'border-l-2', 'border-accent', 'pl-2', '-ml-2')
-          }
-        }
-      }
-    }
-  }
-
-  async function fetchLogs(side: 'validator' | 'miner') {
-    try {
-      const r = await fetch(ENDPOINTS[side], { cache: 'no-store' })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const data = await r.json()
-      const lines: any[] = Array.isArray(data?.lines) ? data.lines : []
-      state[side].connected = !!data?.connected
-      const prevKeys = new Set(state[side].lines.map((l) => l.key))
-      const mapped: Line[] = lines.map((l) => {
-        const message = typeof l?.message === 'string' ? l.message : ''
-        const ts = typeof l?.timestamp === 'string' ? l.timestamp : null
-        const target = typeof l?.target === 'string' ? l.target : ''
-        const level = typeof l?.level === 'string' ? l.level : 'INFO'
-        return {
-          ts,
-          tsEpoch: parseTsEpoch(ts),
-          level,
-          target,
-          message,
-          eventId: classify(side, message),
-          key: lineKey(ts, target, message),
-        } as Line
-      })
-      state[side].lines = mapped
-
-      // Validator side: scan any NEW lines for miner UID mentions and pulse
-      // the matching row in the miners register on the right.
-      if (side === 'validator') {
-        for (const ln of mapped) {
-          if (prevKeys.has(ln.key)) continue
-          scanLogLineForMinerMentions(ln.message)
-        }
-      }
-
-      renderAll(side)
-      setLive(side, true)
-    } catch (e) {
-      state[side].connected = false
-      setLive(side, false, e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  function setLive(side: 'validator' | 'miner', live: boolean, err?: string) {
-    const root = state[side].el
-    if (!root) return
-    const indicator = root.querySelector<HTMLElement>('[data-live-indicator]')
-    const status = root.querySelector<HTMLElement>('[data-status]')
-    if (!live) {
-      if (indicator) {
-        const dot = indicator.querySelector<HTMLElement>('span:last-child')
-        if (dot) dot.className = 'relative inline-flex rounded-full h-1.5 w-1.5 bg-err'
-        indicator.querySelectorAll<HTMLElement>('.animate-ping').forEach(el => el.classList.add('hidden'))
-      }
-      if (status) status.textContent = err ? `offline · ${err.slice(0, 40)}` : 'offline'
-      return
-    }
-    // live: compute freshness from newest log line
-    applyFreshness(side)
-  }
-
-  // Freshness tier, by age of most-recent log line + whether the backend
-  // tailer has an active SSH session to the box:
-  //   <  2m                     : live   (green ping)      — activity recent
-  //   < 10m                     : quiet  (muted, no ping)  — fine, just a lull
-  //   >=10m AND connected=true  : idle   (muted, no ping)  — healthy but silent
-  //                                                          (miner lifecycle loops don't
-  //                                                           log every tick; validator
-  //                                                           weight-retries every 10s.)
-  //   >=10m AND connected=false : stale  (amber alarm)     — we lost the SSH stream;
-  //                                                          this is the actual problem case.
-  function applyFreshness(side: 'validator' | 'miner') {
-    const root = state[side].el
-    if (!root) return
-    const indicator = root.querySelector<HTMLElement>('[data-live-indicator]')
-    const status = root.querySelector<HTMLElement>('[data-status]')
-    const fresh = root.querySelector<HTMLElement>('[data-freshness]')
-    const lines = state[side].lines
-    const connected = state[side].connected
-    const newest = lines.reduce<number | null>((a, l) => {
-      if (l.tsEpoch == null) return a
-      return a == null || l.tsEpoch > a ? l.tsEpoch : a
-    }, null)
-    const nowSec = Date.now() / 1000
-    const ageSec = newest == null ? Infinity : nowSec - newest
-    const ageMin = ageSec / 60
-    let tier: 'live' | 'quiet' | 'idle' | 'stale' = 'live'
-    if (ageMin >= 10) tier = connected ? 'idle' : 'stale'
-    else if (ageMin >= 2) tier = 'quiet'
-
-    if (indicator) {
-      const dot = indicator.querySelector<HTMLElement>('span:last-child')
-      const ping = indicator.querySelector<HTMLElement>('.animate-ping')
-      if (dot) {
-        dot.className = 'relative inline-flex rounded-full h-1.5 w-1.5 ' +
-          (tier === 'live' ? 'bg-accent'
-          : tier === 'stale' ? 'bg-warn'
-          : 'bg-muted')
-      }
-      if (ping) ping.classList.toggle('hidden', tier !== 'live')
-    }
-    const label =
-      tier === 'live' ? 'live'
-      : tier === 'quiet' ? 'quiet'
-      : tier === 'idle' ? 'idle · healthy'
-      : 'stale · stream lost'
-    if (status) {
-      status.textContent = label
-      status.className = (tier === 'stale' ? 'text-warn' : 'text-dim')
-    }
-    if (fresh) {
-      fresh.textContent = newest == null ? '' : `updated ${formatAge(ageSec)} ago`
-      fresh.className = 'tabular-nums ' + (tier === 'stale' ? 'text-warn' : 'text-dim')
-    }
-
-    // Highlight the most-recent log row ONLY when the stream is actually
-    // lost — not when the miner is just quiet. An idle-but-connected pane
-    // shouldn't shout "last thing that happened was at startup."
-    const body = root.querySelector<HTMLElement>('[data-log-body]')
-    if (body) {
-      body.querySelectorAll<HTMLElement>('[data-last-line]').forEach(el => {
-        el.removeAttribute('data-last-line')
-        el.classList.remove('border-l-2', 'border-warn', 'bg-warnDim', 'pl-2', '-ml-2')
-      })
-      if (tier === 'stale') {
-        const lastRow = body.querySelector<HTMLElement>('[data-line-key]:last-child')
-        if (lastRow) {
-          lastRow.setAttribute('data-last-line', '')
-          lastRow.classList.add('border-l-2', 'border-warn', 'bg-warnDim', 'pl-2', '-ml-2')
-        }
-      }
-    }
-  }
-
-  function formatAge(secs: number): string {
-    if (!isFinite(secs)) return '?'
-    if (secs < 60) return `${Math.floor(secs)}s`
-    const m = Math.floor(secs / 60)
-    if (m < 60) return `${m}m`
-    const h = Math.floor(m / 60)
-    return `${h}h ${m % 60}m`
-  }
-
-  // ---------------------------------------------------------------------------
-  // Miners register (right-hand panel)
-  // ---------------------------------------------------------------------------
-  // We care about our identities specifically: validator (uid 123) and the
-  // old miner slot (uid 115). Everything else is anonymous neighbors on SN39.
-  const OUR_VALIDATOR_UID = 123
-  const OUR_MINER_UID = 115
-
-  type MinerRow = {
-    uid: number
-    hotkey: string
-    status: string      // Active | Inactive etc. from chain
-    stake: number
-    incentive: number
-    ip: string | null
-    port: number | null
-    // Populated from /api/substrate/validator/registry — tells us whether
-    // the miner is actually registered + verified *with our validator*,
-    // which is a much stronger signal than the chain-declared status.
-    validatorStatus?: 'verified' | 'online' | 'offline' | 'unknown'
-    bidActive?: boolean
-    hasRental?: boolean
-    // Client-only state:
-    rejected?: boolean   // flipped when validator log classifies it as bad
-    lastMentionedTs?: number  // unix ms — last time validator log named it
-  }
-
-  // Keyed by uid so /registry can race /state without losing tags.
-  // fetchRegistry writes here even if registerState.miners is empty;
-  // fetchState reads it when inserting/updating rows.
-  type ValidatorTag = {
-    validatorStatus: 'verified' | 'online' | 'offline' | 'unknown'
-    bidActive: boolean
-    hasRental: boolean
-  }
-  const validatorTags = new Map<number, ValidatorTag>()
-
-  const registerState = {
-    miners: new Map<number, MinerRow>(),
-    order: [] as number[],   // render order; rejected floats to top of its section
-  }
-
-  function abbrevHotkey(h: string): string {
-    if (!h || h.length < 10) return h || ''
-    return h.slice(0, 6) + '…' + h.slice(-4)
-  }
-
-  function pillFor(m: MinerRow): { text: string; cls: string; title: string } {
-    if (m.rejected) return {
-      text: 'rejected',
-      cls: 'text-err border-err',
-      title: 'Our validator SSH-verified this node and it failed a policy check (wrong GPU, timeout, etc.)',
-    }
-    if (m.validatorStatus === 'verified') return {
-      text: 'verified',
-      cls: 'text-ok border-ok',
-      title: 'Our validator has SSH-confirmed this node and it passed checks. Eligible for weight + emissions.',
-    }
-    if (m.validatorStatus === 'online' || m.bidActive || m.hasRental) return {
-      text: 'registered',
-      cls: 'text-accent border-accent',
-      title: 'Mason has registered at least one node with our validator (RegisterBid). Verification pending.',
-    }
-    if (m.uid === OUR_VALIDATOR_UID) return {
-      text: 'ours · validator',
-      cls: 'text-accent border-accent',
-      title: 'Our validator (UID 123) on SN39.',
-    }
-    if (m.uid === OUR_MINER_UID) return {
-      text: 'ours · orphaned',
-      cls: 'text-warn border-warn',
-      title: 'Our old mason (UID 115). Registered on chain but the GPU node is gone; pending re-host.',
-    }
-    if (m.status === 'Active') return {
-      text: 'declared',
-      cls: 'text-muted border-border',
-      title: 'Mason has declared an axon endpoint on chain. Not the same as verified — our validator has not yet SSH-confirmed GPU hardware. Could be live, could be a stub.',
-    }
-    return {
-      text: 'unverified',
-      cls: 'text-dim border-borderSoft',
-      title: 'No axon on chain and no verification record.',
-    }
-  }
-
-  function renderMinersRegister(): void {
-    const listEl = document.querySelector<HTMLElement>('[data-miners-list]')
-    const countEl = document.querySelector<HTMLElement>('[data-miners-count]')
-    const activeEl = document.querySelector<HTMLElement>('[data-miners-active-count]')
-    const pendingEl = document.querySelector<HTMLElement>('[data-miners-pending]')
-    const updatedEl = document.querySelector<HTMLElement>('[data-miners-updated]')
-    if (!listEl) return
-
-    // Ordering, top → bottom. Only the signal tiers render — declared-
-    // on-chain miners are hidden because that signal is cheap and noisy:
-    //   1. Verified — SSH-confirmed live miners
-    //   2. Registered — called RegisterBid, not yet verified
-    //   3. Rejected — surfaced so we can see what's been kicked
-    //   4. Ours — validator + any of our own miner slots, for identity
-    // Everything else is chain-noise and doesn't render. The raw UID
-    // count stays visible in the header so operators can still see
-    // how many miners have declared.
-    const all = Array.from(registerState.miners.values())
-    const taken = new Set<number>()
-    const pick = (pred: (m: MinerRow) => boolean): MinerRow[] => {
-      const out = all.filter((m) => !taken.has(m.uid) && pred(m))
-      for (const m of out) taken.add(m.uid)
-      return out
-    }
-
-    const verified = pick((m) => m.validatorStatus === 'verified')
-    const registered = pick((m) => m.validatorStatus === 'online' || m.bidActive || m.hasRental)
-    const rejected = pick((m) => !!m.rejected)
-    const ours = pick((m) => m.uid === OUR_VALIDATOR_UID || m.uid === OUR_MINER_UID)
-
-    verified.sort((a, b) => a.uid - b.uid)
-    registered.sort((a, b) => a.uid - b.uid)
-
-    const ordered = [...verified, ...registered, ...rejected, ...ours]
-    registerState.order = ordered.map((m) => m.uid)
-
-    // Stats for the footer — declared count is total Active minus our
-    // visible bands so the header math still works out.
-    const declaredCount = all.filter((m) => m.status === 'Active' && !taken.has(m.uid)).length
-    const inactiveCount = all.filter((m) => m.status !== 'Active' && !taken.has(m.uid)).length
-
-    // Diff-render: only touch what changed
-    const existing = new Map<number, HTMLElement>()
-    for (const el of Array.from(listEl.querySelectorAll<HTMLElement>('[data-uid]'))) {
-      existing.set(Number(el.dataset.uid), el)
-    }
-
-    // Remove the 'loading…' placeholder
-    const placeholder = listEl.querySelector<HTMLElement>('.miners-placeholder')
-    if (placeholder) placeholder.remove()
-    const emptyText = listEl.querySelector<HTMLElement>('.text-dim:not([data-uid])')
-    if (emptyText && emptyText.textContent?.includes('loading')) emptyText.remove()
-
-    // Rebuild in order (cheap — ~256 rows max)
-    listEl.innerHTML = ''
-    for (const m of ordered) {
-      const row = document.createElement('div')
-      row.dataset.uid = String(m.uid)
-      row.className = [
-        'miner-row flex items-center gap-2 px-3 py-1.5 text-[11px] border-b border-borderSoft',
-        'transition-colors duration-500',
-        m.rejected ? 'bg-errDim' : '',
-      ].filter(Boolean).join(' ')
-
-      const uidCell = document.createElement('span')
-      uidCell.className = 'shrink-0 w-10 tabular-nums text-dim'
-      uidCell.textContent = 'uid ' + m.uid
-      row.appendChild(uidCell)
-
-      const keyCell = document.createElement('span')
-      keyCell.className = 'flex-1 min-w-0 truncate font-mono text-fg tabular-nums'
-      keyCell.textContent = abbrevHotkey(m.hotkey)
-      row.appendChild(keyCell)
-
-      const pill = pillFor(m)
-      const pillEl = document.createElement('span')
-      pillEl.className = 'shrink-0 text-[9px] uppercase tracking-[0.12em] border px-1.5 py-[2px] cursor-help ' + pill.cls
-      pillEl.textContent = pill.text
-      pillEl.title = pill.title
-      row.appendChild(pillEl)
-
-      listEl.appendChild(row)
-    }
-
-    // Footer tallies
-    if (countEl) countEl.textContent = String(all.length) + ' uids'
-    // Header label: emphasise signal tiers. Declared/inactive are hidden
-    // from the list but counted so the user can still see the funnel.
-    if (activeEl) {
-      const label = verified.length > 0
-        ? `${verified.length} verified · ${registered.length} registered`
-        : `${registered.length} registered`
-      activeEl.textContent = label
-    }
-    if (pendingEl) pendingEl.textContent = `${declaredCount} declared · ${inactiveCount} inactive · ${rejected.length} rejected`
-    if (updatedEl) updatedEl.textContent = new Date().toLocaleTimeString()
-  }
-
-  /** Pulse a miner row when a validator log line names its UID. */
-  function pulseMinerRow(uid: number, kind: 'mention' | 'reject' = 'mention'): void {
-    const row = document.querySelector<HTMLElement>(`[data-miners-list] [data-uid="${uid}"]`)
-    if (!row) return
-    if (kind === 'reject') {
-      const m = registerState.miners.get(uid)
-      if (m && !m.rejected) {
-        m.rejected = true
-        renderMinersRegister()
-      }
-      return
-    }
-    row.classList.remove('bg-accentDim')
-    void row.offsetWidth   // restart animation
-    row.classList.add('bg-accentDim')
-    setTimeout(() => row.classList.remove('bg-accentDim'), 1200)
-  }
-
-  /** Call this from the validator log ingest path with every new line. */
-  function scanLogLineForMinerMentions(message: string): void {
-    // Match "miner UID" and "miner 123" and "miner_uid=123" (handles zero, two, three-digit UIDs)
-    const uidMatches: number[] = []
-    for (const re of [
-      /miner[_\s]+uid[=\s]+(\d+)/gi,
-      /\bminer\s+(\d+)\b/gi,
-      /\buid=(\d+)/gi,
-    ]) {
-      let m: RegExpExecArray | null
-      while ((m = re.exec(message)) !== null) {
-        const uid = Number(m[1])
-        if (Number.isFinite(uid) && uid >= 0 && uid < 300) uidMatches.push(uid)
-      }
-    }
-    // Reject-classifying lines — treat as flipping the row to rejected
-    const isReject =
-      /CONFIG REJECTED/i.test(message) ||
-      /rejected/i.test(message) && /miner/i.test(message) ||
-      /invalid axon/i.test(message) ||
-      /score=0\.00/i.test(message)
-
-    for (const uid of uidMatches) {
-      pulseMinerRow(uid, isReject ? 'reject' : 'mention')
-    }
-  }
-
-  // Track health of each endpoint so the UI can tell the user what's
-  // happening instead of sitting on "loading…" when an upstream is down.
-  const fetchHealth = {
-    state: { lastOk: 0, lastError: '' as string | '' },
-    registry: { lastOk: 0, lastError: '' as string | '' },
-  }
-
-  async function fetchState() {
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 20_000)
-    try {
-      const r = await fetch(ENDPOINTS.state, { cache: 'no-store', signal: ctrl.signal })
-      if (!r.ok) {
-        fetchHealth.state.lastError = `HTTP ${r.status}`
-        updateDataFreshness()
-        return
-      }
-      const data = await r.json()
-      fetchHealth.state.lastOk = Date.now()
-      fetchHealth.state.lastError = ''
-      const blockEl = document.querySelector<HTMLElement>('[data-val="block"]')
-      if (blockEl) {
-        const block = data?.summary?.block
-        if (typeof block === 'number') blockEl.textContent = block.toLocaleString()
-      }
-      // Honest-numbers table data
-      const activeEl = document.querySelector<HTMLElement>('[data-val="miners-active"]')
-      if (activeEl) {
-        const active = data?.summary?.active_miners
-        const total = data?.summary?.total_miners
-        if (typeof active === 'number' && typeof total === 'number') {
-          activeEl.textContent = `${active} · ${total} uids`
-        }
-      }
-      const valStatusEl = document.querySelector<HTMLElement>('[data-val="val-status"]')
-      if (valStatusEl) {
-        // Our validator is uid 123. Show its on-chain status string directly.
-        const us = (data?.miners || []).find((m: any) => m?.uid === 123)
-        valStatusEl.textContent = us?.status ? String(us.status).toLowerCase() : 'unknown'
-      }
-
-      // Populate miners register
-      const miners: any[] = Array.isArray(data?.miners) ? data.miners : []
-      for (const m of miners) {
-        const uid = Number(m?.uid)
-        if (!Number.isFinite(uid)) continue
-        const prev = registerState.miners.get(uid)
-        const tag = validatorTags.get(uid)
-        registerState.miners.set(uid, {
-          uid,
-          hotkey: String(m?.hotkey ?? ''),
-          status: String(m?.status ?? 'Inactive'),
-          stake: Number(m?.stake) || 0,
-          incentive: Number(m?.incentive) || 0,
-          ip: m?.ip ?? null,
-          port: m?.port ?? null,
-          // Carry over any validator-side tag captured by fetchRegistry,
-          // falling back to the previous row if we already had it.
-          validatorStatus: tag?.validatorStatus ?? prev?.validatorStatus,
-          bidActive: tag?.bidActive ?? prev?.bidActive,
-          hasRental: tag?.hasRental ?? prev?.hasRental,
-          // Preserve client-only state across refreshes
-          rejected: prev?.rejected,
-          lastMentionedTs: prev?.lastMentionedTs,
-        })
-      }
-      renderMinersRegister()
-      updateDataFreshness()
-    } catch (err: any) {
-      fetchHealth.state.lastError = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')
-      updateDataFreshness()
-    } finally {
-      clearTimeout(t)
-    }
-  }
-
-  async function fetchRegistry() {
-    // Three-tier funnel: declared on chain (above) → registered with us → verified.
-    // Backend caches this at 30s so hammering is cheap.
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 20_000)
-    try {
-      const r = await fetch(ENDPOINTS.registry, { cache: 'no-store', signal: ctrl.signal })
-      if (!r.ok) {
-        fetchHealth.registry.lastError = `HTTP ${r.status}`
-        updateDataFreshness()
-        return
-      }
-      const payload = await r.json()
-      fetchHealth.registry.lastOk = Date.now()
-      fetchHealth.registry.lastError = ''
-      const data = payload?.data
-      if (!data) return
-
-      const regCountEl = document.querySelector<HTMLElement>('[data-val="miners-registered"]')
-      const regLabelEl = document.querySelector<HTMLElement>('[data-val="miners-registered-label"]')
-      const regStatusEl = document.querySelector<HTMLElement>('[data-val="miners-registered-status"]')
-      const minersRegistered = Number(data.miners_with_nodes) || 0
-      const nodesRegistered = Number(data.nodes_registered) || 0
-      if (regCountEl) {
-        regCountEl.textContent = minersRegistered.toString()
-      }
-      if (regLabelEl) {
-        if (minersRegistered === 0) {
-          regLabelEl.textContent = 'None yet'
-        } else {
-          regLabelEl.textContent = `${nodesRegistered} node${nodesRegistered === 1 ? '' : 's'}`
-        }
-      }
-      if (regStatusEl) {
-        regStatusEl.className = minersRegistered > 0 ? 'status-ok' : 'status-pending'
-      }
-
-      const verCountEl = document.querySelector<HTMLElement>('[data-val="nodes-verified"]')
-      const verLabelEl = document.querySelector<HTMLElement>('[data-val="nodes-verified-label"]')
-      const verStatusEl = document.querySelector<HTMLElement>('[data-val="nodes-verified-status"]')
-      const verified = Number(data.nodes_verified) || 0
-      if (verCountEl) verCountEl.textContent = verified.toString()
-      if (verLabelEl) {
-        verLabelEl.textContent = verified === 0 ? '0 — awaiting first' : `${verified} live`
-      }
-      if (verStatusEl) {
-        verStatusEl.className = verified > 0 ? 'status-ok' : 'status-pending'
-      }
-
-      // Per-miner status: write into the shared validatorTags map so
-      // fetchState can pick it up even if fetchRegistry wins the race on
-      // the very first tick (registerState.miners is populated async).
-      // Also update any existing row in place and force a re-render.
-      const perMiner: Array<{ uid: number; status: string; bid_active: boolean; has_rental: boolean }> = Array.isArray(data.miners) ? data.miners : []
-      const seen = new Set<number>()
-      for (const m of perMiner) {
-        seen.add(m.uid)
-        const validatorStatus =
-          m.status === 'verified' ? 'verified' :
-          m.status === 'online' ? 'online' :
-          m.status === 'offline' ? 'offline' : 'unknown'
-        const tag: ValidatorTag = {
-          validatorStatus: validatorStatus as ValidatorTag['validatorStatus'],
-          bidActive: !!m.bid_active,
-          hasRental: !!m.has_rental,
-        }
-        validatorTags.set(m.uid, tag)
-        const row = registerState.miners.get(m.uid)
-        if (row) {
-          row.validatorStatus = tag.validatorStatus
-          row.bidActive = tag.bidActive
-          row.hasRental = tag.hasRental
-        }
-      }
-      // Clear tags for miners who no longer register with us, otherwise
-      // a freshly-deleted node keeps its stale "online" pill forever.
-      for (const uid of Array.from(validatorTags.keys())) {
-        if (!seen.has(uid)) {
-          validatorTags.delete(uid)
-          const row = registerState.miners.get(uid)
-          if (row) {
-            row.validatorStatus = undefined
-            row.bidActive = undefined
-            row.hasRental = undefined
-          }
-        }
-      }
-      renderMinersRegister()
-      updateDataFreshness()
-    } catch (err: any) {
-      fetchHealth.registry.lastError = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')
-      updateDataFreshness()
-    } finally {
-      clearTimeout(t)
-    }
-  }
-
-  // Updates the "loading" placeholder in the register list + the
-  // freshness marker next to the header counts. If either endpoint is
-  // down and we have no cached rows, show a clear "can't reach" message
-  // instead of spinning forever on "loading…".
-  function updateDataFreshness(): void {
-    const listEl = document.querySelector<HTMLElement>('[data-miners-list]')
-    const updatedEl = document.querySelector<HTMLElement>('[data-miners-updated]')
-    if (!listEl) return
-
-    const hasRows = registerState.miners.size > 0
-    const placeholder = listEl.querySelector<HTMLElement>('.miners-placeholder, .miners-error')
-    const anyError = fetchHealth.state.lastError || fetchHealth.registry.lastError
-    const anyFresh = fetchHealth.state.lastOk || fetchHealth.registry.lastOk
-
-    if (!hasRows) {
-      if (placeholder) placeholder.remove()
-      const el = document.createElement('div')
-      if (anyError && !anyFresh) {
-        el.className = 'miners-error px-3 py-4 text-[11px] text-warn'
-        el.textContent = `couldn't reach the subnet (${anyError}) — retrying`
-      } else {
-        el.className = 'miners-placeholder px-3 py-4 text-[11px] text-dim'
-        el.textContent = 'loading…'
-      }
-      // Only add if there's no content already
-      if (listEl.children.length === 0) listEl.appendChild(el)
-    }
-
-    // Header "last seen" — prefer newest success of either fetch.
-    const newest = Math.max(fetchHealth.state.lastOk, fetchHealth.registry.lastOk)
-    if (updatedEl && newest) {
-      updatedEl.textContent = new Date(newest).toLocaleTimeString()
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Boot
-  // ---------------------------------------------------------------------------
-  function init() {
-    state.validator.el = document.querySelector<HTMLElement>('[data-stream="validator"]')
-    // miner log pane removed from the home page — no element to wire.
-
-    const tick = async () => {
-      await fetchLogs('validator')
-      // pair highlights kept off for now — we only stream validator on the page
-    }
-    tick()
-    setInterval(tick, POLL_MS)
-
-    // Freshness counter updates independently of fetch cadence so the
-    // "updated Xs ago" caption ticks smoothly.
-    setInterval(() => {
-      applyFreshness('validator')
-    }, 1000)
-
-    fetchState()
-    setInterval(fetchState, STATE_POLL_MS)
-
-    fetchRegistry()
-    setInterval(fetchRegistry, STATE_POLL_MS)
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init)
-  } else {
-    init()
-  }
-</script>

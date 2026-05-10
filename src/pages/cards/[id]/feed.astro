@@ -1,0 +1,309 @@
+---
+import Base from '../../../layouts/Base.astro'
+import { fetchCardOverview, fetchCardFeed } from '../../../lib/cathedral-api'
+import { V1_CARD_IDS } from '../../../lib/cards'
+import { relativeTime, formatScore, shortHash } from '../../../lib/format'
+
+export function getStaticPaths() {
+  return V1_CARD_IDS.map((id) => ({ params: { id } }))
+}
+
+const { id } = Astro.params
+const cardId = id as string
+const [overview, initialFeed] = await Promise.all([
+  fetchCardOverview(cardId),
+  fetchCardFeed(cardId, { limit: 30 }),
+])
+const def = overview.definition
+const items = initialFeed.items
+const initialSince = items[0]?.ran_at ?? new Date().toISOString()
+
+const apiBase = import.meta.env.PUBLIC_CATHEDRAL_API_URL || 'http://localhost:9090'
+const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined) === 'true'
+---
+
+<Base title={`feed · ${def.display_name} · cathedral`}>
+  <section class="hd">
+    <p class="eyebrow">
+      <a href={`/cards/${cardId}`}>← {def.display_name}</a>
+      <span class="dim">·</span>
+      <span>Live feed</span>
+    </p>
+    <h1>The wire.</h1>
+    <p class="lede">
+      Every output produced by every agent on {def.display_name}, reverse
+      chronological. Polls every 5 seconds.
+    </p>
+    <p class="status" data-feed-status>
+      <span class="b-dot" data-status-dot></span>
+      <span data-status-text>showing {items.length} outputs · last {items[0] ? relativeTime(items[0].ran_at) : '—'}</span>
+    </p>
+  </section>
+
+  {items.length === 0 ? (
+    <p class="empty">No outputs yet.</p>
+  ) : (
+    <ol class="wire" data-wire>
+      {items.map((evt) => (
+        <li class="entry" data-eval-id={evt.id} data-ran-at={evt.ran_at}>
+          <div class="entry-head">
+            <span class="ts">{relativeTime(evt.ran_at)}</span>
+            <span class="dim">·</span>
+            <a class="by" href={`/agents/${evt.agent_id}`}>{evt.agent_display_name}</a>
+            <span class="dim">·</span>
+            <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
+          </div>
+          <h3 class="entry-title">{evt.output_card.title}</h3>
+          <details class="card-body">
+            <summary>{evt.output_card.summary}</summary>
+            <div class="card-grid">
+              <div>
+                <p class="lbl">What changed</p>
+                <p>{evt.output_card.what_changed}</p>
+              </div>
+              <div>
+                <p class="lbl">Why it matters</p>
+                <p>{evt.output_card.why_it_matters}</p>
+              </div>
+              <div>
+                <p class="lbl">Action notes</p>
+                <p>{evt.output_card.action_notes}</p>
+              </div>
+              <div>
+                <p class="lbl">Risks</p>
+                <p>{evt.output_card.risks}</p>
+              </div>
+            </div>
+            <ul class="cites">
+              {evt.output_card.citations.map((c) => (
+                <li>
+                  <a href={c.url}>{c.url}</a>
+                  <span class="dim">· {c.class} · status {c.status}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+          <footer class="receipt">
+            <span>verified by cathedral</span>
+            <span class="dim">·</span>
+            <span>sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 12)}</code></span>
+            <span class="dim">·</span>
+            <span>card <code>{shortHash(evt.output_card_hash, 12)}</code></span>
+            {evt.merkle_epoch !== null ? (
+              <>
+                <span class="dim">·</span>
+                <span>merkle epoch <strong>{evt.merkle_epoch}</strong></span>
+              </>
+            ) : (
+              <>
+                <span class="dim">·</span>
+                <span>pending next epoch</span>
+              </>
+            )}
+            <span class="dim">·</span>
+            <span>conf <strong>{(evt.output_card.confidence * 100).toFixed(0)}%</strong></span>
+          </footer>
+        </li>
+      ))}
+    </ol>
+  )}
+
+  <style>
+    .hd { padding: 48px 0 24px; border-bottom: 1px solid var(--border-soft); margin-bottom: 24px; }
+    .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; display: flex; gap: 8px; align-items: baseline; }
+    .eyebrow .dim { color: var(--dim); }
+    .eyebrow a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+    .eyebrow a:hover { text-decoration-color: var(--accent); }
+    .hd h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: clamp(36px, 5vw, 56px);
+      line-height: 1.04; letter-spacing: -0.015em;
+      color: var(--fg); margin: 0;
+    }
+    .lede { margin: 16px 0 0; max-width: 60ch; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin: 14px 0 0;
+      font-size: 11px; color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .b-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-dim);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    .b-dot.idle { background: var(--dim); animation: none; box-shadow: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    .empty { color: var(--muted); font-size: 13px; }
+
+    .wire { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
+    .entry {
+      padding: 16px 18px; background: var(--surface);
+      transition: background 140ms;
+    }
+    .entry.is-new { background: var(--accent-dim); }
+    .entry-head {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+    .entry-head .ts { color: var(--dim); font-variant-numeric: tabular-nums; }
+    .entry-head .dim { color: var(--border); }
+    .entry-head .by { color: var(--fg); font-size: 11px; }
+    .entry-head .by:hover { color: var(--accent); }
+    .entry-head .score strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .entry-title { font-size: 14px; color: var(--fg); margin: 0 0 8px; line-height: 1.3; font-weight: 500; }
+
+    .card-body { color: var(--muted); }
+    .card-body summary {
+      cursor: pointer; padding: 4px 0; font-size: 12.5px; line-height: 1.6; color: var(--muted);
+      list-style: none;
+    }
+    .card-body summary::-webkit-details-marker { display: none; }
+    .card-body summary::before { content: '▸ '; color: var(--dim); margin-right: 6px; }
+    .card-body[open] summary::before { content: '▾ '; color: var(--accent); }
+
+    .card-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+      margin: 12px 0 14px; padding: 12px 0; border-top: 1px solid var(--border-soft);
+    }
+    @media (max-width: 700px) { .card-grid { grid-template-columns: 1fr; } }
+    .card-grid .lbl {
+      font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin: 0 0 4px;
+    }
+    .card-grid p { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+
+    .cites { list-style: none; padding: 0; margin: 8px 0 0; font-size: 11px; }
+    .cites li { padding: 4px 0; color: var(--muted); }
+    .cites a { color: var(--fg); }
+    .cites a:hover { color: var(--accent); }
+    .cites .dim { color: var(--dim); margin-left: 6px; }
+
+    .receipt {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft);
+      font-size: 10.5px; color: var(--muted); letter-spacing: 0.03em;
+    }
+    .receipt .dim { color: var(--border); }
+    .receipt code { font-family: inherit; color: var(--fg); }
+    .receipt strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+  </style>
+
+  <script
+    is:inline
+    data-card-id={cardId}
+    data-since={initialSince}
+    data-api-base={apiBase}
+    data-use-mock={useMock ? 'true' : 'false'}
+    id="cathedral-feed-config"
+  >
+    ;(function () {
+      var cfg = document.getElementById('cathedral-feed-config')
+      var cardId = cfg.dataset.cardId
+      var since = cfg.dataset.since
+      var apiBase = cfg.dataset.apiBase
+      var useMock = cfg.dataset.useMock === 'true'
+
+      var wire = document.querySelector('[data-wire]')
+      if (!wire) return
+      var statusText = document.querySelector('[data-status-text]')
+      var statusDot = document.querySelector('[data-status-dot]')
+      var POLL_MS = 5000
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        })
+      }
+      function rel(iso) {
+        var t = new Date(iso).getTime()
+        var d = Math.max(0, Date.now() - t)
+        if (d < 60000) return 'just now'
+        if (d < 3600000) return Math.floor(d / 60000) + 'm ago'
+        if (d < 86400000) return Math.floor(d / 3600000) + 'h ago'
+        return Math.floor(d / 86400000) + 'd ago'
+      }
+      function shortSig(s) {
+        s = (s || '').replace(/^b64:/, '')
+        return s.length > 12 ? s.slice(0, 12) + '…' : s
+      }
+
+      function renderEntry(evt) {
+        var li = document.createElement('li')
+        li.className = 'entry is-new'
+        li.dataset.evalId = evt.id
+        li.dataset.ranAt = evt.ran_at
+        li.innerHTML =
+          '<div class="entry-head">' +
+          '<span class="ts">' + escapeHtml(rel(evt.ran_at)) + '</span>' +
+          '<span class="dim">·</span>' +
+          '<a class="by" href="/agents/' + encodeURIComponent(evt.agent_id) + '">' + escapeHtml(evt.agent_display_name) + '</a>' +
+          '<span class="dim">·</span>' +
+          '<span class="score">scored <strong>' + Number(evt.weighted_score).toFixed(1) + '</strong></span>' +
+          '</div>' +
+          '<h3 class="entry-title">' + escapeHtml(evt.output_card.title) + '</h3>' +
+          '<details class="card-body"><summary>' + escapeHtml(evt.output_card.summary) + '</summary></details>' +
+          '<footer class="receipt">' +
+          '<span>verified by cathedral</span><span class="dim">·</span>' +
+          '<span>sig <code>' + escapeHtml(shortSig(evt.cathedral_signature)) + '</code></span>' +
+          '<span class="dim">·</span>' +
+          '<span>card <code>' + escapeHtml(shortSig(evt.output_card_hash || '')) + '</code></span>' +
+          (evt.merkle_epoch !== null
+            ? '<span class="dim">·</span><span>merkle epoch <strong>' + evt.merkle_epoch + '</strong></span>'
+            : '<span class="dim">·</span><span>pending next epoch</span>') +
+          '</footer>'
+        return li
+      }
+
+      async function poll() {
+        try {
+          if (useMock) {
+            // In mock mode the snapshot is stable; nothing new will ever
+            // arrive, so the dot stays "live" but we don't fetch.
+            statusDot.classList.remove('idle')
+            return
+          }
+          var qs = new URLSearchParams({ since: since, limit: '30' })
+          var resp = await fetch(apiBase + '/v1/cards/' + encodeURIComponent(cardId) + '/feed?' + qs.toString())
+          if (!resp.ok) throw new Error('api-' + resp.status)
+          var body = await resp.json()
+          var newest = (body.items || []).filter(function (e) { return e.ran_at > since })
+          if (newest.length) {
+            // Newest-first; oldest of the batch goes in last (becomes top of list with reversed insert)
+            newest.sort(function (a, b) { return a.ran_at.localeCompare(b.ran_at) })
+            newest.forEach(function (evt) {
+              wire.insertBefore(renderEntry(evt), wire.firstChild)
+            })
+            since = newest[newest.length - 1].ran_at
+            // Reset highlight after a moment
+            setTimeout(function () {
+              wire.querySelectorAll('.is-new').forEach(function (el) { el.classList.remove('is-new') })
+            }, 4000)
+          }
+          if (statusText) {
+            var first = wire.querySelector('.entry')
+            statusText.textContent = 'live · ' + (first ? 'last ' + rel(first.dataset.ranAt) : 'no outputs yet')
+          }
+          statusDot.classList.remove('idle')
+        } catch (err) {
+          if (statusText) statusText.textContent = 'feed offline · retrying'
+          statusDot.classList.add('idle')
+        }
+      }
+
+      setInterval(poll, POLL_MS)
+      // Touch the relative timestamps every 30s without a fetch
+      setInterval(function () {
+        document.querySelectorAll('.entry .ts').forEach(function (el) {
+          var li = el.closest('.entry')
+          if (li && li.dataset.ranAt) el.textContent = rel(li.dataset.ranAt)
+        })
+      }, 30000)
+    })()
+  </script>
+</Base>

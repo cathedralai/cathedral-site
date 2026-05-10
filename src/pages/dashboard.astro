@@ -1,0 +1,306 @@
+---
+import Base from '../layouts/Base.astro'
+import LoginModal from '../components/LoginModal.astro'
+
+/*
+ * The dashboard shows the logged-in miner's submissions across all cards.
+ * Per CONTRACTS §2.11 we hit GET /v1/miners/{hotkey}/agents — but the
+ * "logged-in miner" identity comes from Polaris (Supabase JWT), and we
+ * don't yet have a fixed mapping from session → hotkey on the cathedral
+ * side. For v1 we let the miner pick a hotkey via the same Polkadot.js
+ * extension flow used on /submit, then load their agents.
+ *
+ * In mock mode we serve a deterministic fixture so the page is testable
+ * without a real session or extension.
+ */
+
+const apiBase = import.meta.env.PUBLIC_CATHEDRAL_API_URL || 'http://localhost:9090'
+const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined) === 'true'
+---
+
+<Base title="dashboard · cathedral">
+  <section class="hd">
+    <p class="eyebrow">SN39 · Dashboard</p>
+    <h1>Your agents.</h1>
+    <p class="lede">
+      Submissions you own across every card, with current scores, ranks, and
+      eval status. Pick the hotkey that signed your submissions to load them.
+    </p>
+  </section>
+
+  <section class="gate" data-auth-gate>
+    <div class="gate-card">
+      <p class="rk">Sign in required</p>
+      <h2>You need a Polaris session.</h2>
+      <p>Cathedral uses your Polaris account so submissions stay tied to a stable identity.</p>
+      <button type="button" class="btn primary" data-login-trigger>Sign in</button>
+    </div>
+  </section>
+
+  <section class="picker" data-picker hidden>
+    <header class="block-head">
+      <span class="num">01</span>
+      <h2>Hotkey</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="hk-row">
+      <button class="btn" data-hk-load>Detect hotkeys</button>
+      <select class="hk-select" data-hk-select hidden></select>
+      <button class="btn primary" data-hk-load-agents disabled>Load my agents</button>
+    </div>
+    <p class="status" data-picker-status></p>
+  </section>
+
+  <section class="agents-section" data-agents-section hidden>
+    <header class="block-head">
+      <span class="num">02</span>
+      <h2>Submissions</h2>
+      <span class="rule"></span>
+      <span data-counter class="head-meta">0 agents</span>
+    </header>
+    <div class="agents" data-agents></div>
+  </section>
+
+  <LoginModal />
+
+  <style>
+    .hd { padding: 48px 0 28px; }
+    .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+    .hd h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: clamp(36px, 5vw, 56px);
+      line-height: 1.04; letter-spacing: -0.015em;
+      color: var(--fg); margin: 0;
+    }
+    .lede { margin: 16px 0 0; max-width: 64ch; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+
+    .gate { padding: 24px 0; }
+    .gate-card { padding: 24px 26px; border: 1px solid var(--border); background: var(--surface); }
+    .gate-card .rk { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+    .gate-card h2 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: 22px; color: var(--fg); margin: 0 0 8px;
+    }
+    .gate-card p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 60ch; }
+
+    .block-head {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 16px;
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: 18px;
+      letter-spacing: 0; text-transform: none;
+      color: var(--fg); margin: 0;
+    }
+    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+    .block-head .head-meta { color: var(--muted); text-transform: lowercase; letter-spacing: 0.05em; font-variant-numeric: tabular-nums; }
+
+    .picker { padding: 24px 0; border-top: 1px solid var(--border-soft); }
+    .hk-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .hk-select {
+      font: inherit; font-size: 13px;
+      padding: 9px 12px; min-width: 280px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .hk-select:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .btn {
+      display: inline-block; padding: 9px 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--fg); font: inherit; font-size: 12px;
+      cursor: pointer;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
+    .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { margin: 12px 0 0; font-size: 12px; color: var(--muted); min-height: 1em; }
+    .status.err { color: var(--err); }
+
+    .agents-section { padding: 24px 0; border-top: 1px solid var(--border-soft); }
+    .agents { display: grid; gap: 12px; }
+    .row {
+      padding: 14px 16px; border: 1px solid var(--border); background: var(--surface);
+      display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 16px; align-items: center;
+    }
+    .row .name { font-size: 13.5px; color: var(--fg); }
+    .row .name a { color: var(--fg); }
+    .row .name a:hover { color: var(--accent); }
+    .row .name small { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; letter-spacing: 0.04em; }
+    .row .col {
+      font-size: 12px; color: var(--muted);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .row .col strong { color: var(--fg); font-variant-numeric: tabular-nums; font-size: 14px; }
+    .row .col span { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+    .row .status-pill {
+      font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+      padding: 4px 8px; border: 1px solid var(--border); color: var(--muted);
+    }
+    .row .status-pill.ranked { color: var(--ok); border-color: var(--ok); background: var(--ok-dim); }
+    .row .status-pill.evaluating { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
+    .row .status-pill.rejected { color: var(--err); border-color: var(--err); background: var(--err-dim); }
+    .row .status-pill.pending_check, .row .status-pill.queued { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+    .row .actions { display: flex; gap: 6px; }
+    .row .actions a {
+      padding: 4px 9px; border: 1px solid var(--border); color: var(--muted);
+      font-size: 11px; transition: border-color 140ms, color 140ms;
+    }
+    .row .actions a:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 800px) {
+      .row { grid-template-columns: 1fr; gap: 8px; }
+    }
+  </style>
+
+  <script
+    is:inline
+    type="module"
+    data-api-base={apiBase}
+    data-use-mock={useMock ? 'true' : 'false'}
+    id="cathedral-dashboard-config"
+  >
+    const cfg = document.getElementById('cathedral-dashboard-config')
+    const apiBase = cfg.dataset.apiBase
+    const useMock = cfg.dataset.useMock === 'true'
+
+    const gate = document.querySelector('[data-auth-gate]')
+    const picker = document.querySelector('[data-picker]')
+    const agentsSection = document.querySelector('[data-agents-section]')
+    const status = document.querySelector('[data-picker-status]')
+    const counter = document.querySelector('[data-counter]')
+    const agentsEl = document.querySelector('[data-agents]')
+    const hkLoadBtn = document.querySelector('[data-hk-load]')
+    const hkSelect = document.querySelector('[data-hk-select]')
+    const hkLoadAgentsBtn = document.querySelector('[data-hk-load-agents]')
+
+    let _dapp = null
+    function rel(iso) {
+      var t = new Date(iso).getTime()
+      var d = Math.max(0, Date.now() - t)
+      if (d < 60000) return 'just now'
+      if (d < 3600000) return Math.floor(d / 60000) + 'm ago'
+      if (d < 86400000) return Math.floor(d / 3600000) + 'h ago'
+      return Math.floor(d / 86400000) + 'd ago'
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      })
+    }
+
+    function setAuth(loggedIn) {
+      gate.hidden = loggedIn
+      picker.hidden = !loggedIn
+    }
+    function waitForAuth() {
+      if (window.__cathedralAuth) {
+        window.__cathedralAuth.onAuthChange(setAuth)
+      } else {
+        setTimeout(waitForAuth, 100)
+      }
+    }
+    waitForAuth()
+
+    hkLoadBtn.addEventListener('click', async function () {
+      try {
+        status.textContent = 'Looking for Polkadot.js extension…'
+        status.className = 'status'
+        if (!_dapp) _dapp = await import('https://esm.sh/@polkadot/extension-dapp@0.50.1')
+        const enabled = await _dapp.web3Enable('cathedral.computer')
+        if (!enabled.length) throw new Error('Polkadot.js extension not detected.')
+        const accounts = await _dapp.web3Accounts()
+        if (!accounts.length) throw new Error('No accounts in extension.')
+        hkSelect.innerHTML = ''
+        accounts.forEach(function (a) {
+          const opt = document.createElement('option')
+          opt.value = a.address
+          opt.textContent = (a.meta.name ? a.meta.name + ' · ' : '') + a.address.slice(0, 8) + '…' + a.address.slice(-4)
+          hkSelect.appendChild(opt)
+        })
+        hkSelect.hidden = false
+        hkLoadAgentsBtn.disabled = false
+        status.textContent = ''
+      } catch (err) {
+        status.textContent = err.message || String(err)
+        status.className = 'status err'
+      }
+    })
+
+    hkLoadAgentsBtn.addEventListener('click', async function () {
+      const hotkey = hkSelect.value
+      if (!hotkey) return
+      status.textContent = 'Loading your agents…'
+      status.className = 'status'
+      try {
+        let items
+        if (useMock) {
+          items = mockAgentsForHotkey(hotkey)
+        } else {
+          const resp = await fetch(apiBase + '/v1/miners/' + encodeURIComponent(hotkey) + '/agents')
+          if (!resp.ok) throw new Error('api-' + resp.status)
+          items = (await resp.json()).items || []
+        }
+        renderAgents(items)
+        agentsSection.hidden = false
+        status.textContent = ''
+      } catch (err) {
+        status.textContent = err.message || String(err)
+        status.className = 'status err'
+      }
+    })
+
+    function mockAgentsForHotkey(hotkey) {
+      const seed = hotkey.split('').reduce(function (a, c) { return a + c.charCodeAt(0) }, 0)
+      const cards = ['eu-ai-act', 'us-ai-eo', 'uk-ai-whitepaper']
+      const out = []
+      for (let i = 0; i < (1 + (seed % 3)); i++) {
+        const cardId = cards[(seed + i) % cards.length]
+        const submitted = new Date(Date.now() - ((seed % 25) + i * 6) * 86400000).toISOString()
+        const lastEval = new Date(Date.now() - ((i + 1) * 47) * 60000).toISOString()
+        const status = ['ranked', 'ranked', 'evaluating', 'queued'][((seed + i) % 4)]
+        out.push({
+          id: 'sub-' + (seed + i).toString(16),
+          display_name: 'Agent ' + String.fromCharCode(65 + i) + ' for ' + cardId,
+          card_id: cardId,
+          bundle_hash: (hotkey + i).repeat(4).slice(0, 64),
+          bundle_size_bytes: 32000 + (i * 5000),
+          status: status,
+          current_score: status === 'ranked' ? Math.round((60 + (seed % 30)) * 10) / 10 : null,
+          current_rank: status === 'ranked' ? 1 + ((seed + i) % 5) : null,
+          submitted_at: submitted,
+          last_eval_at: lastEval,
+          recent_evals: [],
+          score_history: [],
+        })
+      }
+      return out
+    }
+
+    function renderAgents(items) {
+      counter.textContent = items.length + (items.length === 1 ? ' agent' : ' agents')
+      if (!items.length) {
+        agentsEl.innerHTML = '<p class="status">No agents under this hotkey yet. <a href="/workforce">Browse the workforce.</a></p>'
+        return
+      }
+      agentsEl.innerHTML = items.map(function (a) {
+        const lastEval = a.last_eval_at || (a.recent_evals && a.recent_evals[0] && a.recent_evals[0].ran_at)
+        return '<div class="row">' +
+          '<div class="name"><a href="/agents/' + encodeURIComponent(a.id) + '">' + escapeHtml(a.display_name) + '</a>' +
+          '<small>card ' + escapeHtml(a.card_id) + ' · submitted ' + rel(a.submitted_at) + '</small></div>' +
+          '<div class="col"><strong>' + (a.current_score == null ? '—' : a.current_score.toFixed(1)) + '</strong><span>score</span></div>' +
+          '<div class="col"><strong>' + (a.current_rank == null ? '—' : '#' + a.current_rank) + '</strong><span>rank</span></div>' +
+          '<div class="col"><strong>' + (lastEval ? rel(lastEval) : '—') + '</strong><span>last eval</span></div>' +
+          '<span class="status-pill ' + a.status + '">' + a.status.replace('_', ' ') + '</span>' +
+          '<div class="actions">' +
+          '<a href="/agents/' + encodeURIComponent(a.id) + '">view</a>' +
+          '<a href="/cards/' + encodeURIComponent(a.card_id) + '/submit">new version</a>' +
+          '</div>' +
+          '</div>'
+      }).join('')
+    }
+  </script>
+</Base>

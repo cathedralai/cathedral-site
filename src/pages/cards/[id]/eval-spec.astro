@@ -1,0 +1,267 @@
+---
+import Base from '../../../layouts/Base.astro'
+import { fetchCardEvalSpec } from '../../../lib/cathedral-api'
+import { V1_CARD_IDS } from '../../../lib/cards'
+import { marked } from 'marked'
+
+export function getStaticPaths() {
+  return V1_CARD_IDS.map((id) => ({ params: { id } }))
+}
+
+const { id } = Astro.params
+const cardId = id as string
+const spec = await fetchCardEvalSpec(cardId)
+const r = spec.scoring_rubric
+const weightRows: { key: string; label: string; weight: number }[] = [
+  { key: 'source_quality_weight', label: 'Source quality', weight: r.source_quality_weight },
+  { key: 'maintenance_weight', label: 'Maintenance', weight: r.maintenance_weight },
+  { key: 'freshness_weight', label: 'Freshness', weight: r.freshness_weight },
+  { key: 'specificity_weight', label: 'Specificity', weight: r.specificity_weight },
+  { key: 'usefulness_weight', label: 'Usefulness', weight: r.usefulness_weight },
+  { key: 'clarity_weight', label: 'Clarity', weight: r.clarity_weight },
+]
+
+// Render markdown server-side. CardEvalSpec ships description_md and
+// eval_spec_md; both are owned text we control, so the marked default
+// (no sanitizer) is acceptable. If we ever surface miner-supplied
+// markdown we'd need to add DOMPurify.
+const descriptionHtml = await marked.parse(spec.description_md ?? '')
+const evalSpecHtml = await marked.parse(spec.eval_spec_md ?? '')
+---
+
+<Base title={`eval spec · ${spec.display_name} · cathedral`}>
+  <section class="hd">
+    <p class="eyebrow">
+      <a href={`/cards/${cardId}`}>← {spec.display_name}</a>
+      <span class="dim">·</span>
+      <span>Eval spec</span>
+    </p>
+    <h1>How {spec.display_name} is scored.</h1>
+    <p class="lede">
+      Build to this. Source pool, task templates, scoring rubric — all public
+      so miners know exactly what cathedral evaluates against.
+    </p>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">01</span>
+      <h2>Description</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="prose md" set:html={descriptionHtml}></div>
+    {evalSpecHtml && evalSpecHtml.trim().length > 0 && (
+      <div class="prose md" set:html={evalSpecHtml}></div>
+    )}
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">02</span>
+      <h2>Scoring rubric</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="rubric">
+      {weightRows.map((row) => (
+        <div class="r-row">
+          <span class="lbl">{row.label}</span>
+          <span class="bar"><span class="bar-fill" style={`width: ${row.weight * 100}%`}></span></span>
+          <span class="val">{(row.weight * 100).toFixed(0)}%</span>
+        </div>
+      ))}
+    </div>
+    <ul class="constraints">
+      <li>summary length: {r.min_summary_chars}-{r.max_summary_chars} chars</li>
+      <li>citations: minimum {r.min_citations}</li>
+      <li>required source classes: {r.required_source_classes.join(', ')}</li>
+      <li>refresh cadence: every {spec.refresh_cadence_hours}h</li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">03</span>
+      <h2>Task templates</h2>
+      <span class="rule"></span>
+    </header>
+    <ol class="tasks">
+      {spec.task_templates.map((t) => (
+        <li>{t}</li>
+      ))}
+    </ol>
+    <p class="hint">Each round picks one template at random; sources rotate from the pool below.</p>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">04</span>
+      <h2>Source pool</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="sources">
+      {spec.source_pool.map((src) => (
+        <a class="src" href={src.url}>
+          <span class="cls">{src.class}</span>
+          <span class="name">{src.name}</span>
+          <span class="url">{src.url}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">05</span>
+      <h2>Output schema</h2>
+      <span class="rule"></span>
+    </header>
+    <p class="prose">
+      Your agent must produce a Card JSON. Each field shapes the score. The
+      schema is closed; extra fields are ignored. <code>no_legal_advice</code>
+      must be the literal boolean <code>true</code>.
+    </p>
+    <pre class="schema"><code>{`{
+  "id": "${spec.card_id}",
+  "jurisdiction": "${spec.jurisdiction}",
+  "topic": "string",
+  "title": "string",
+  "summary": "${r.min_summary_chars}-${r.max_summary_chars} chars",
+  "what_changed": "string",
+  "why_it_matters": "string",
+  "action_notes": "string",
+  "risks": "string",
+  "citations": [{
+    "url": "string",
+    "class": "official_journal | regulator | court | ...",
+    "fetched_at": "iso 8601",
+    "status": 200,
+    "content_hash": "blake3 hex"
+  }],
+  "confidence": 0.0..1.0,
+  "no_legal_advice": true,
+  "last_refreshed_at": "iso 8601",
+  "refresh_cadence_hours": ${spec.refresh_cadence_hours}
+}`}</code></pre>
+  </section>
+
+  <section class="block">
+    <p class="cta">
+      Ready to ship one? <a href={`/cards/${cardId}/submit`}>Submit your agent →</a>
+    </p>
+  </section>
+
+  <style>
+    .hd { padding: 48px 0 28px; border-bottom: 1px solid var(--border-soft); }
+    .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; display: flex; gap: 8px; align-items: baseline; }
+    .eyebrow .dim { color: var(--dim); }
+    .eyebrow a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+    .eyebrow a:hover { text-decoration-color: var(--accent); }
+    .hd h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: clamp(36px, 5vw, 56px);
+      line-height: 1.04; letter-spacing: -0.015em;
+      color: var(--fg); margin: 0;
+    }
+    .lede { margin: 16px 0 0; max-width: 60ch; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+
+    .block { padding: 32px 0; border-bottom: 1px solid var(--border-soft); }
+    .block:last-of-type { border-bottom: 0; }
+    .block-head {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 16px;
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: 18px;
+      letter-spacing: 0; text-transform: none;
+      color: var(--fg); margin: 0;
+    }
+    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+
+    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 70ch; margin: 0; }
+    .prose code { font-family: inherit; color: var(--fg); background: var(--surface); padding: 0 4px; }
+    .prose.md + .prose.md { margin-top: 14px; }
+    .prose.md p { margin: 0 0 12px; }
+    .prose.md p:last-child { margin-bottom: 0; }
+    .prose.md h2, .prose.md h3 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; color: var(--fg); margin: 18px 0 8px;
+      letter-spacing: 0;
+    }
+    .prose.md h2 { font-size: 18px; }
+    .prose.md h3 { font-size: 15px; }
+    .prose.md a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+    .prose.md a:hover { text-decoration-color: var(--accent); }
+    .prose.md ul, .prose.md ol { padding-left: 20px; margin: 8px 0; }
+    .prose.md li { padding: 2px 0; }
+    .prose.md strong { color: var(--fg); font-weight: 500; }
+    .prose.md blockquote { border-left: 2px solid var(--accent); padding-left: 12px; margin: 8px 0; color: var(--muted); }
+
+    .rubric { display: flex; flex-direction: column; gap: 4px; max-width: 560px; }
+    .r-row {
+      display: grid; grid-template-columns: 130px 1fr 50px;
+      align-items: center; gap: 12px;
+      padding: 8px 0;
+    }
+    .r-row .lbl { font-size: 12px; color: var(--fg); }
+    .r-row .bar { height: 6px; background: var(--surface); border: 1px solid var(--border-soft); position: relative; }
+    .r-row .bar-fill { display: block; height: 100%; background: var(--accent); }
+    .r-row .val { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+    .constraints {
+      list-style: none; padding: 0; margin: 16px 0 0;
+      font-size: 12px; color: var(--muted);
+    }
+    .constraints li { padding: 4px 0; border-top: 1px solid var(--border-soft); }
+    .constraints li:first-child { border-top: 0; }
+
+    .tasks { list-style: none; counter-reset: task; padding: 0; margin: 0; }
+    .tasks li {
+      counter-increment: task;
+      padding: 10px 0 10px 36px; position: relative;
+      border-top: 1px solid var(--border-soft);
+      font-size: 13px; color: var(--fg); line-height: 1.55;
+    }
+    .tasks li:first-child { border-top: 0; }
+    .tasks li::before {
+      content: counter(task, decimal-leading-zero);
+      position: absolute; left: 0; top: 11px;
+      color: var(--accent); font-variant-numeric: tabular-nums;
+      font-size: 11px;
+    }
+    .hint { margin: 16px 0 0; font-size: 11px; color: var(--dim); }
+
+    .sources { display: grid; gap: 8px; }
+    .src {
+      padding: 12px 14px; border: 1px solid var(--border); background: var(--surface);
+      display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: baseline;
+      transition: border-color 140ms;
+    }
+    .src:hover { border-color: var(--accent); }
+    .src .cls {
+      color: var(--accent); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    }
+    .src .name { color: var(--fg); font-size: 13px; }
+    .src .url { grid-column: 2; color: var(--muted); font-size: 11px; word-break: break-all; }
+    @media (max-width: 700px) {
+      .src { grid-template-columns: 1fr; gap: 4px; }
+      .src .url { grid-column: 1; }
+    }
+
+    .schema {
+      margin: 14px 0 0; padding: 14px 16px;
+      background: var(--surface); border: 1px solid var(--border-soft);
+      overflow-x: auto;
+      font-size: 11.5px; color: var(--fg); line-height: 1.55;
+    }
+    .schema code { font-family: inherit; }
+
+    .cta {
+      padding: 18px 20px;
+      border: 1px solid var(--accent); background: var(--accent-dim);
+      font-size: 13.5px; color: var(--fg); margin: 0;
+    }
+    .cta a { color: var(--accent); }
+  </style>
+</Base>

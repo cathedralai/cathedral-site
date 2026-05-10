@@ -3,7 +3,7 @@ import RoseWindow from '../components/RoseWindow.astro'
 
 interface Props {
   title?: string
-  /** When true, the page fills the viewport exactly — use for the log dashboard. */
+  /** When true, the page fills the viewport exactly for the log dashboard. */
   fullHeight?: boolean
 }
 
@@ -12,10 +12,8 @@ const { title = 'cathedral', fullHeight = false } = Astro.props
 const shellClass = fullHeight
   ? 'mx-auto max-w-[1180px] h-screen flex flex-col px-4 py-4 sm:px-5'
   : 'mx-auto max-w-[1180px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
-/* Top nav keeps the full shell width (breathing, airy). The body of the
-   page (everything under the nav) sits in a narrower column — roughly
-   Word "Normal" margins (≈1in each side) — so content doesn't feel like
-   it's running off the page. */
+/* Top nav keeps the full shell width. The body of the page sits in a
+   narrower column so content does not run off the page. */
 const mainClass = fullHeight
   ? 'flex-1 min-h-0 flex flex-col w-full max-w-[960px] mx-auto'
   : 'flex-1 flex flex-col w-full max-w-[960px] mx-auto'
@@ -55,11 +53,10 @@ const footerClass = fullHeight
           <span>cathedral</span>
         </a>
         <span class="text-dim">·</span>
+        <a href="/intelligence" class="hover:text-fg transition-colors">intelligence</a>
         <a href="/mine" class="hover:text-fg transition-colors">mine</a>
-        <a href="/validator" class="hover:text-fg transition-colors">validator</a>
+        <a href="/validators" class="hover:text-fg transition-colors">validators</a>
         <a href="/afrotensor" class="hover:text-fg transition-colors">afrotensor</a>
-        <a href="/roadmap" class="hover:text-fg transition-colors">roadmap</a>
-        <a href="/changelog" class="hover:text-fg transition-colors">changelog</a>
         <a href="https://github.com/bigailabs/cathedral" class="hover:text-fg transition-colors">github</a>
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
         <button
@@ -113,9 +110,7 @@ const footerClass = fullHeight
       })()
     </script>
     <style is:global>
-      /* Slate palette, inspired by the Cathedral Subnet design drop.
-         oklch-first, with hex fallbacks handled by CSS variables being read
-         directly into hex-compatible Tailwind tokens. */
+      /* Slate palette, inspired by the Cathedral Subnet design drop. */
       html[data-theme='dark'] {
         color-scheme: dark;
         --bg: #0e0f12;
@@ -126,13 +121,13 @@ const footerClass = fullHeight
         --fg: #e6e9ef;
         --muted: #9ba2ae;
         --dim: #6a7380;
-        --accent: #7ea8d0;          /* slate-blue — quiet, confident */
+        --accent: #7ea8d0;          /* slate-blue, quiet, confident */
         --accent-dim: rgba(126, 168, 208, 0.14);
         --warn: #d8a765;
         --warn-dim: rgba(216, 167, 101, 0.12);
         --err: #d97a6c;
         --err-dim: rgba(217, 122, 108, 0.12);
-        --ok: #89b890;                /* muted sage — verified, good, quiet */
+        --ok: #89b890;                /* muted sage, verified, good, quiet */
         --ok-dim: rgba(137, 184, 144, 0.14);
         --scrollbar-thumb: #2a2e36;
         --scrollbar-thumb-hover: #3a3f48;
@@ -159,15 +154,12 @@ const footerClass = fullHeight
         --scrollbar-thumb-hover: #b6b2a2;
       }
       html, body { background: var(--bg); color: var(--fg); }
-      /* Prevent stray horizontal scroll from wide children (long code
-         strings, grid-internal overflow) on narrow viewports. Individual
-         elements that need to scroll (code blocks) use their own
-         overflow-x: auto. */
+      /* Prevent stray horizontal scroll from wide children on narrow viewports. */
       html, body { overflow-x: hidden; }
       * { box-sizing: border-box; }
       a { text-decoration: none; }
       body { font-feature-settings: 'calt' 1, 'ss01' 1, 'ss02' 1, 'zero' 1, 'tnum' 1; }
-      /* Serif for display copy — Newsreader paired with mono body. */
+      /* Serif for display copy. Newsreader paired with mono body. */
       .font-serif { font-family: 'Newsreader', ui-serif, Georgia, serif; }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }

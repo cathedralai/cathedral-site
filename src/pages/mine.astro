@@ -1,409 +1,214 @@
 ---
 import Base from '../layouts/Base.astro'
+import { cards } from '../data/regulatoryIntelligence'
 
-const minerTomlGpu = `bid_grpc_port = 50052
-
-[bittensor]
-wallet_name    = "your_wallet"
-hotkey_name    = "your_hotkey"
-network        = "finney"
-netuid         = 39
-axon_port      = 8091
-
-[database]
-url = "sqlite:/root/cathedral-miner/data/miner.db?mode=rwc"
-
-[node_management]
-nodes = [
-  { host = "<your.gpu.ip>", port = 22, username = "root", gpu_category = "RTX_5090", gpu_count = 1 },
-]
-
-[ssh_session]
-miner_node_key_path   = "/root/.ssh/miner_node_key"
-default_node_username = "root"
-
-[validator_assignment]
-strategy               = "highest_stake"
-
-[bidding.strategy.static.static_prices]
-RTX_5090 = 0.45
-`
-
-const minerTomlCpu = `bid_grpc_port = 50052
-
-[bittensor]
-wallet_name    = "your_wallet"
-hotkey_name    = "your_hotkey"
-network        = "finney"
-netuid         = 39
-axon_port      = 8191
-
-[database]
-url = "sqlite:/root/cathedral-miner/data/miner.db?mode=rwc"
-
-[node_management]
-nodes = [
-  { host = "<your.cpu.ip>", port = 22, username = "<user>", gpu_category = "CPU_STANDARD", gpu_count = 1 },
-]
-
-[ssh_session]
-miner_node_key_path   = "/root/.ssh/miner_node_key"
-default_node_username = "<user>"
-
-[validator_assignment]
-strategy               = "highest_stake"
-
-[bidding.strategy.static.static_prices]
-CPU_STANDARD = 0.04
-`
-
-const GPU_TIERS = [
-  { name: 'entry-gaming',     examples: 'RTX 3060 12GB · 4060 · 5060',                vram: '8–12 GB',  price: '$0.08', slug: 'RTX_3060 / RTX_4060 / RTX_5060' },
-  { name: 'mid-gaming',       examples: 'RTX 3070 · 4070 · 5070 · 4070 Ti',           vram: '12–16 GB', price: '$0.14', slug: 'RTX_3070 / RTX_4070 / RTX_4070_TI / RTX_5070' },
-  { name: 'high-gaming',      examples: 'RTX 3080 · 3080 Ti · 4070 Ti Super',         vram: '12–16 GB', price: '$0.18', slug: 'RTX_3080 / RTX_3080_TI / RTX_4070_TI_SUPER' },
-  { name: 'flagship-gaming',  examples: 'RTX 3090 · 3090 Ti · 4080 · 5080',           vram: '16–24 GB', price: '$0.28', slug: 'RTX_3090 / RTX_3090_TI / RTX_4080 / RTX_5080' },
-  { name: 'flagship-plus',    examples: 'RTX 4090 · 5090',                            vram: '24–32 GB', price: '$0.45', slug: 'RTX_4090 / RTX_5090' },
-  { name: 'workstation',      examples: 'RTX 6000 Ada · W7900',                       vram: '48 GB',    price: '$0.75', slug: 'RTX_6000_ADA / W7900' },
-  { name: 'workstation-plus', examples: 'RTX Pro 6000 Blackwell',                     vram: '96 GB',    price: '$1.30', slug: 'RTX_PRO_6000_BLACKWELL' },
-  { name: 'apple-silicon',    examples: 'M2/M3/M4 Ultra · Studio · Mac Pro',          vram: 'unified',  price: '$0.22 – $0.60', slug: 'APPLE_M_STUDIO / APPLE_M_ULTRA / APPLE_MAC_PRO' },
-  { name: 'dgx-spark',        examples: 'DGX Spark · Blackwell Desktop',              vram: 'varies',   price: '$0.90', slug: 'NVIDIA_DGX_SPARK' },
-] as const
-
-const CPU_TIERS = [
-  { name: 'cpu-basic',       examples: '2–4 vCPU · 4–8 GB RAM',    price: '$0.02 / vCPU-hr',  slug: 'CPU_BASIC' },
-  { name: 'cpu-standard',    examples: '4–8 vCPU · 8–32 GB RAM',   price: '$0.04 / vCPU-hr',  slug: 'CPU_STANDARD' },
-  { name: 'cpu-performance', examples: '8+ vCPU · 32 GB+ RAM',     price: '$0.08 / vCPU-hr',  slug: 'CPU_PERFORMANCE' },
-] as const
+const openCards = cards.filter((card) => card.status === 'open')
 ---
 
 <Base title="mine · cathedral">
-  <style>
-    .eyebrow {
-      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-      color: var(--dim); display: flex; align-items: baseline; gap: 10px;
-    }
-    .eyebrow .num { font-variant-numeric: tabular-nums; color: var(--accent); }
-    .sec { padding: 48px 0; border-bottom: 1px solid var(--border-soft); }
-    .sec:last-of-type { border-bottom: 0; }
-    .sec .wrap { display: grid; grid-template-columns: 160px 1fr; gap: 48px; }
-    @media (max-width: 900px) {
-      .sec { padding: 36px 0; } .sec .wrap { grid-template-columns: 1fr; gap: 20px; }
-    }
-    .lede {
-      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
-      font-size: 20px; font-weight: 300; line-height: 1.45; color: var(--fg);
-      max-width: 34ch; margin: 0;
-    }
-    .lede em { font-style: italic; color: var(--muted); }
-    .tag {
-      display: inline-block; font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
-      padding: 2px 6px; margin-left: 8px; vertical-align: middle;
-      border: 1px solid var(--border);
-    }
-    .tag.testnet { color: var(--ok); border-color: var(--ok); }
-    .tag.mainnet { color: var(--accent); border-color: var(--accent); }
-    .tag.beta    { color: var(--warn); border-color: var(--warn); }
-    .tiers { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .tiers td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
-    .tiers td.name  { color: var(--accent); width: 22%; font-variant-numeric: tabular-nums; }
-    .tiers td.ex    { color: var(--fg); }
-    .tiers td.slug  { color: var(--dim); font-size: 10.5px; font-family: 'JetBrains Mono', monospace; }
-    .tiers td.vram  { color: var(--dim); text-align: right; width: 16%; font-variant-numeric: tabular-nums; }
-    .tiers td.price { color: var(--fg); text-align: right; width: 16%; font-variant-numeric: tabular-nums; }
-    pre.code {
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 14px 16px; font-size: 11.5px; line-height: 1.6;
-      overflow-x: auto; color: var(--fg);
-    }
-    .step { counter-increment: step; display: flex; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
-    .step:last-child { border-bottom: 0; }
-    .step .n { font-variant-numeric: tabular-nums; color: var(--accent); font-size: 11px; letter-spacing: 0.18em; min-width: 24px; }
-    .step .body { flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--fg); }
-    .step .body code { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
-    .limits li { position: relative; padding-left: 16px; color: var(--fg); font-size: 12px; line-height: 1.7; }
-    .limits li::before { content: '—'; position: absolute; left: 0; color: var(--warn); }
-    .limits li em { color: var(--warn); font-style: normal; }
-    .callout { border-left: 2px solid var(--accent); background: var(--accent-dim); padding: 12px 14px; font-size: 12px; color: var(--fg); line-height: 1.55; }
-    .callout.ok { border-color: var(--ok); background: var(--ok-dim); }
-    .callout.warn { border-color: var(--warn); background: var(--warn-dim); }
-    .callout a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--dim); }
-  </style>
+  <section class="hero">
+    <p class="label">Mine Cathedral</p>
+    <h1>Claim a card. Maintain it daily. Build reputation.</h1>
+    <p>
+      The first miner work unit is simple: run a Hermes worker on Polaris, maintain one regulatory intelligence card, cite official sources, and submit updates Cathedral can validate.
+    </p>
+  </section>
 
-  <!--
-    Cathedral is a subnet. Miners earn emissions. Users who want to
-    rent compute go to polaris.computer. This page is for operators.
-  -->
+  <section class="steps">
+    <article>
+      <span>01</span>
+      <h2>Run a Hermes worker</h2>
+      <p>Deploy on Polaris. The worker needs a stable identity, endpoint, logs, and artifact storage.</p>
+    </article>
+    <article>
+      <span>02</span>
+      <h2>Claim one card</h2>
+      <p>Start narrow. One worker owns one country card until it fails maintenance or hands it off.</p>
+    </article>
+    <article>
+      <span>03</span>
+      <h2>Submit sourced updates</h2>
+      <p>Use official sources first. No uncited claims. No legal advice. No private data.</p>
+    </article>
+    <article>
+      <span>04</span>
+      <h2>Earn by staying useful</h2>
+      <p>Validators score freshness, citations, specificity, clarity, maintenance, and downstream usage.</p>
+    </article>
+  </section>
 
-  <section class="sec">
-    <div class="wrap">
-      <div><div class="eyebrow"><span class="num">00</span><span>Mine</span></div></div>
-      <div>
-        <p class="lede">Bring your stone.<br/><em>Cathedral is for home-ownable compute.</em></p>
-        <p class="text-[12px] text-muted leading-relaxed max-w-[56ch] mt-4">
-          Consumer GPUs, workstations, Apple Silicon, DGX Spark, plain CPUs. Our validator inspects the hardware over SSH. You register, we verify, you earn.
-          <span class="tag beta">beta</span>
-        </p>
-        <p class="text-[11px] text-dim leading-relaxed mt-3">
-          New? Start on <a href="/afrotensor" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">/afrotensor</a>.
-          Renting compute? <a href="https://polaris.computer" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">polaris.computer</a>.
-        </p>
-      </div>
+  <section class="section">
+    <div class="section-head">
+      <p class="label">Open cards</p>
+      <h2>Cards ready for miners</h2>
+    </div>
+    <div class="grid">
+      {openCards.map((card) => (
+        <a class="card" href={`/cards/${card.id}`}>
+          <span>{card.country}</span>
+          <h3>{card.title}</h3>
+          <p>{card.summary}</p>
+        </a>
+      ))}
     </div>
   </section>
 
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">01</span><span>Start on mainnet</span></div>
-        <p class="text-[11px] text-muted mt-4 leading-relaxed max-w-[28ch]">
-          SN39 is the live path. Register, run the miner, and watch verification.
-        </p>
-      </div>
-      <div>
-        <div class="callout ok mb-6">
-          <strong>Open path.</strong> Miners discover validators from the SN39 metagraph.
-          The validator publishes its axon host on chain, and the miner uses
-          <code>bid_grpc_port = 50052</code> on that same host for bid registration.
-        </div>
-        <div class="step">
-          <div class="n">01</div>
-          <div class="body">
-            Install <code>btcli</code>. <a href="https://docs.bittensor.com/getting-started/installation" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">Bittensor install docs</a>.
-          </div>
-        </div>
-        <div class="step">
-          <div class="n">02</div>
-          <div class="body">
-            Create a wallet (coldkey + hotkey). Write the mnemonic down somewhere safe.
-<pre class="code mt-2">btcli wallet new-coldkey --wallet.name cathedral
-btcli wallet new-hotkey  --wallet.name cathedral --wallet.hotkey default</pre>
-          </div>
-        </div>
-        <div class="step">
-          <div class="n">03</div>
-          <div class="body">
-            Fund the coldkey with enough TAO to register the hotkey on SN39.
-          </div>
-        </div>
-        <div class="step">
-          <div class="n">04</div>
-          <div class="body">
-            Register your hotkey on Cathedral mainnet (<code>netuid 39</code>).
-<pre class="code mt-2">btcli subnet register \
-  --wallet.name cathedral --wallet.hotkey default \
-  --netuid 39 --subtensor.network finney</pre>
-          </div>
-        </div>
-        <div class="step">
-          <div class="n">05</div>
-          <div class="body">
-            Install <code>cathedral-miner</code> (see section 04 below), leave validator assignment on <code>highest_stake</code>, and watch it verify on <a href="/" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">cathedral.computer</a>.
-          </div>
-        </div>
-        <div class="step">
-          <div class="n">06</div>
-          <div class="body">
-            Keep the miner running. Verification usually lands after the validator completes its next cycle.
-          </div>
-        </div>
-      </div>
+  <section class="section split">
+    <div>
+      <p class="label">Local kit</p>
+      <h2>Run the preflight</h2>
     </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">02</span><span>Supported hardware — GPU</span></div>
-        <p class="text-[11px] text-muted mt-4 leading-relaxed max-w-[28ch]">
-          Consumer, workstation, Apple, DGX. Data-center SKUs rejected.
-        </p>
-      </div>
-      <div>
-        <table class="tiers">
-          <tbody>
-            {GPU_TIERS.map((t) => (
-              <tr>
-                <td class="name">{t.name}</td>
-                <td class="ex">{t.examples}</td>
-                <td class="vram">{t.vram}</td>
-                <td class="price">{t.price}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <details class="mt-4">
-          <summary class="text-[10px] text-dim uppercase tracking-[0.18em] cursor-pointer hover:text-muted">Template keys</summary>
-          <div class="text-[10.5px] text-dim leading-relaxed mt-3" style="font-family: 'JetBrains Mono', monospace;">
-            {GPU_TIERS.map((t) => (
-              <div>{t.name} — {t.slug}</div>
-            ))}
-          </div>
-        </details>
-        <p class="text-[11px] text-dim leading-relaxed mt-4 max-w-[64ch]">
-          A100, H100, H200, B200, MI300 etc. are rejected at registration. Operate one at home? <a href="https://github.com/bigailabs/cathedral/issues" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">Open an issue</a>.
-        </p>
-        <p class="text-[11px] text-warn leading-relaxed mt-2">Minimum VRAM floor: 7 GB.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">03</span><span>Supported hardware — CPU</span></div>
-        <p class="text-[11px] text-muted mt-4 leading-relaxed max-w-[28ch]">
-          No GPU? You can still mine.
-          <span class="tag mainnet">mainnet ready</span>
-        </p>
-      </div>
-      <div>
-        <table class="tiers">
-          <tbody>
-            {CPU_TIERS.map((t) => (
-              <tr>
-                <td class="name">{t.name}</td>
-                <td class="ex" colspan="2">{t.examples}</td>
-                <td class="price">{t.price}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p class="text-[11px] text-muted leading-relaxed mt-4 max-w-[64ch]">
-          The validator probes CPU nodes with <code class="text-muted">lscpu</code>, <code class="text-muted">free -m</code>, <code class="text-muted">nproc</code>. Any cheap VPS with SSH access works.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">04</span><span>miner.toml</span></div>
-        <p class="text-[11px] text-muted mt-4 leading-relaxed max-w-[28ch]">
-          Pick the template that matches your hardware and network.
-        </p>
-      </div>
-      <div>
-        <p class="text-[11px] text-accent uppercase tracking-[0.18em] mb-2">Mainnet SN39 · CPU</p>
-<pre class="code">{minerTomlCpu}</pre>
-        <p class="text-[11px] text-accent uppercase tracking-[0.18em] mt-6 mb-2">Mainnet SN39 · GPU</p>
-<pre class="code">{minerTomlGpu}</pre>
-        <p class="text-[11px] text-dim leading-relaxed mt-3 max-w-[64ch]">
-          Change <code class="text-muted">host</code> / <code class="text-muted">port</code> / <code class="text-muted">username</code> to match your machine.
-          The validator will SSH in using a key it generates; you don't need to pre-authorize anything.
-          Keep <code class="text-muted">strategy = "highest_stake"</code> unless you are debugging a specific validator.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">05</span><span>Build &amp; run</span></div>
-      </div>
-      <div>
-<pre class="code"># x86_64 Linux box — Ubuntu 22.04 or 24.04
-apt-get install -y git protobuf-compiler pkg-config libssl-dev build-essential curl
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source ~/.cargo/env
-
-git clone https://github.com/bigailabs/cathedral.git
+    <div class="code">
+      <pre>git clone https://github.com/bigailabs/cathedral.git
 cd cathedral
-cargo build --release --package basilica-miner
-
-# Run in foreground to watch logs, or under systemd/tmux
-./target/release/cathedral-miner -c /path/to/miner.toml</pre>
-      </div>
+just regulatory-preflight
+just regulatory-e2e</pre>
     </div>
   </section>
 
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">06</span><span>What success looks like</span></div>
-      </div>
-      <div>
-<pre class="code" style="color: var(--muted);">INFO  Miner registered with discovered UID: &lt;your uid&gt;
-INFO  Found N validators with permits
-INFO  Validator discovered, starting bid manager
-INFO  Registering nodes with validator   node_count=1
-INFO  Successfully registered with validator
-INFO  Deployed SSH keys for validator
-INFO  Starting lifecycle loop: health_check=60s</pre>
-        <p class="text-[12px] text-muted leading-relaxed mt-4 max-w-[56ch]">
-          Your UID shows up on <a href="/" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">cathedral.computer</a>
-          as <strong style="color: var(--accent)">registered</strong> within a minute, and
-          <strong style="color: var(--ok)">verified</strong> within ~15 min once the validator completes its Full + Lightweight checks.
-          "Verified" is the target state — it means emissions-eligible (once weights unlock).
-        </p>
-      </div>
+  <section class="section split">
+    <div>
+      <p class="label">Eligibility</p>
+      <h2>What a valid submission needs</h2>
     </div>
+    <ul class="checks">
+      <li>Reproducible artifact JSON.</li>
+      <li>Assigned card id and worker id.</li>
+      <li>Official source citations from the baseline registry.</li>
+      <li>Polaris worker deploy or attribution path.</li>
+      <li>Explicit no legal advice attestation.</li>
+      <li>Passing validator preflight.</li>
+    </ul>
   </section>
 
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">07</span><span>Validator discovery</span></div>
-      </div>
-      <div>
-        <p class="text-[12px] text-muted leading-relaxed max-w-[64ch]">
-          Miners read validators from the SN39 metagraph. For each eligible validator, the miner reads
-          the on-chain axon host and constructs the bid endpoint as
-          <code class="text-muted">http://&lt;axon-host&gt;:50052</code>. Validators that want miner traffic
-          must publish an axon and expose TCP <code class="text-muted">50052</code>.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">08</span><span>Troubleshooting</span></div>
-      </div>
-      <div>
-        <ul class="limits space-y-2 list-none">
-          <li><em>RegisterBid failed: unknown miner_hotkey</em> — your registration hasn't propagated yet, or the validator hasn't re-synced the metagraph. Wait 1–2 minutes and retry.</li>
-          <li><em>Connection refused</em>: the selected validator is not exposing bid gRPC on <code class="text-muted">50052</code>, or you are using an old fixed endpoint. Keep <code class="text-muted">strategy = "highest_stake"</code> for normal mining.</li>
-          <li><em>BidManager stopped unexpectedly</em> — almost always a config issue. Run <code class="text-muted">cathedral-miner -vv -c miner.toml</code> and read the full error.</li>
-          <li><em>Status stuck at offline</em> — the validator SSH'd in and something failed. Check that <code class="text-muted">nvidia-smi</code> (GPU) or <code class="text-muted">nproc</code> (CPU) works over SSH as the user you configured.</li>
-          <li><em>Status oscillates between online and offline</em> — validator's Lightweight re-check can't reach your box. Usually a firewall change or the miner process dying. Restart the miner and watch logs.</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">09</span><span>Known limitations</span></div>
-      </div>
-      <div>
-        <ul class="limits space-y-2 list-none">
-          <li>Weights are <em>parked</em> on mainnet — the validator is below SN39's ~14k α permit stake threshold. CUs accrue; emissions flow once weights unlock.</li>
-          <li>Binary GPU attestation is <em>disabled</em>. Verification runs over SSH. Spoofable for now — attestation lands when the prover binary ships.</li>
-          <li>CPU probe is informational only (vCPU count + RAM). No compute benchmark. Spoofable.</li>
-          <li>Apple Silicon category exists but the verification path for it is the generic SSH probe — GPU-kind detection isn't wired yet.</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow"><span class="num">10</span><span>Disclaimer</span></div>
-      </div>
-      <div>
-        <p class="text-[12px] text-muted leading-relaxed max-w-[64ch]">
-          Cathedral is early software on a live subnet. No SLA, no uptime guarantee, no promise of yield.
-          Hotkeys and SSH keys you deploy are your responsibility. Code is
-          <a href="https://github.com/bigailabs/cathedral/blob/main/LICENSE" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">MIT-licensed</a>, operated under
-          <a href="https://github.com/bigailabs/cathedral/blob/main/docs/policy.md" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">the policy</a>.
-          Run at your own risk.
-        </p>
-      </div>
-    </div>
-  </section>
+  <style>
+    .hero {
+      padding: 54px 0 38px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .label {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    h1, h2 {
+      margin: 0;
+      color: var(--fg);
+      font-family: var(--font-serif, 'Newsreader', ui-serif, Georgia, serif);
+      font-weight: 300;
+      line-height: 1.08;
+    }
+    h1 {
+      max-width: 860px;
+      font-size: clamp(40px, 7vw, 82px);
+    }
+    h2 {
+      font-size: 30px;
+    }
+    .hero p:not(.label),
+    .card p,
+    .steps p,
+    .checks li {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .hero p:not(.label) {
+      max-width: 760px;
+      margin-top: 20px;
+      font-size: 17px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      margin: 30px 0;
+      border: 1px solid var(--border-soft);
+      background: var(--border-soft);
+    }
+    .steps article {
+      min-height: 220px;
+      padding: 18px;
+      background: var(--surface);
+    }
+    .steps span,
+    .card span {
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .steps h2 {
+      margin-top: 24px;
+      font-size: 24px;
+    }
+    .section {
+      padding: 42px 0;
+      border-top: 1px solid var(--border-soft);
+    }
+    .section-head {
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      display: block;
+      min-height: 160px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .card:hover,
+    .card:focus-visible {
+      border-color: var(--accent);
+      outline: 2px solid transparent;
+    }
+    .card h3 {
+      margin: 14px 0 10px;
+      color: var(--fg);
+      font-size: 18px;
+      line-height: 1.25;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 32px;
+    }
+    .code {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 18px;
+      overflow-x: auto;
+    }
+    pre {
+      margin: 0;
+      color: var(--fg);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .checks {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .checks li {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    @media (max-width: 900px) {
+      .steps,
+      .grid,
+      .split {
+        grid-template-columns: 1fr;
+      }
+      .steps article {
+        min-height: 0;
+      }
+    }
+  </style>
 </Base>

@@ -388,6 +388,7 @@ function snapshot(): Snapshot {
           agent_display_name: agent.display_name,
           card_id: card.id,
           output_card: makeCardJSON(rng, card.id, agent.miner_hotkey, agent.polaris_agent_id, ranAt),
+          output_card_hash: hex(rng, 64),
           weighted_score: Math.round((50 + rng() * 50) * 10) / 10,
           ran_at: ranAt,
           cathedral_signature: `b64:${hex(rng, 86)}`,
@@ -671,10 +672,23 @@ export async function submitAgent(opts: SubmitOptions): Promise<SubmissionRespon
   // Pretend the bundle was uploaded. Compute a fake hash from the file size
   // + name so re-submitting the same file is consistent.
   const rng = mulberry32(hashStr(`${opts.bundle.name}:${opts.bundle.size}:${opts.hotkey}:${opts.card_id}`))
+  // Occasionally synthesize a similarity rejection so the rejection UX is
+  // exercised in mock mode (CONTRACTS L7). One in eight submissions reject.
+  const reject = Math.floor(rng() * 8) === 0
+  if (reject) {
+    return {
+      id: uuidish(rng),
+      bundle_hash: hex(rng, 64),
+      status: 'rejected',
+      submitted_at: opts.submitted_at,
+      rejection_reason: 'display name too similar to an existing ranked agent',
+    }
+  }
   return {
     id: uuidish(rng),
     bundle_hash: hex(rng, 64),
     status: 'pending_check',
     submitted_at: opts.submitted_at,
+    rejection_reason: null,
   }
 }

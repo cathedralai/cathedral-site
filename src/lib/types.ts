@@ -81,6 +81,7 @@ export type EvalOutput = {
   agent_display_name: string
   card_id: string
   output_card: CardJSON
+  output_card_hash: string // blake3 lowercase hex of canonical card bytes (CONTRACTS L8)
   weighted_score: number
   ran_at: string
   cathedral_signature: string
@@ -168,6 +169,9 @@ export type SubmissionResponse = {
   bundle_hash: string
   status: AgentSubmissionStatus
   submitted_at: string
+  // Per CONTRACTS L7: a 202 with status="rejected" carries the rejection_reason
+  // back to the client so we can render an inline failure without a 4xx.
+  rejection_reason?: string | null
 }
 
 export type MerkleAnchor = {

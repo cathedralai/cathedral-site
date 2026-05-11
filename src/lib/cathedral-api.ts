@@ -58,13 +58,51 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T
 }
 
+/**
+ * Wrap a live API call so that build-time failures fall back to mock data.
+ *
+ * Without this, every Cloudflare Pages deploy depends on the live publisher
+ * being reachable AND its TLS cert being valid AND it returning the expected
+ * shape. We learned the hard way that the deploy chain is too fragile under
+ * those constraints (a cert hiccup on api.cathedral.computer crashed the
+ * Pages build for hours).
+ *
+ * Strategy: if the live fetch throws OR returns an error, render the mock
+ * shape. The mock is byte-compatible with live data, so the page renders
+ * correctly with placeholder content. Real data hydrates client-side via
+ * polling (the home feed) or a subsequent navigation (cards).
+ *
+ * Errors are logged to stderr (not thrown) so Astro's build output flags
+ * the degraded state without failing the whole build.
+ */
+async function liveOrMock<T>(
+  liveFn: () => Promise<T>,
+  mockFn: () => Promise<T> | T,
+  label: string,
+): Promise<T> {
+  try {
+    return await liveFn()
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[cathedral-api] ${label}: live fetch failed, falling back to mock —`,
+      err instanceof Error ? err.message : String(err),
+    )
+    return await mockFn()
+  }
+}
+
 // -------------------------------------------------------------------------
 // Reads
 // -------------------------------------------------------------------------
 
 export async function fetchAgent(id: string): Promise<AgentProfile> {
   if (USE_MOCK) return mock.fetchAgent(id)
-  return jsonFetch<AgentProfile>(`/v1/agents/${encodeURIComponent(id)}`)
+  return liveOrMock(
+    () => jsonFetch<AgentProfile>(`/v1/agents/${encodeURIComponent(id)}`),
+    () => mock.fetchAgent(id),
+    `fetchAgent(${id})`,
+  )
 }
 
 export async function fetchAgents(params: {
@@ -80,12 +118,20 @@ export async function fetchAgents(params: {
   if (params.limit !== undefined) q.set('limit', String(params.limit))
   if (params.offset !== undefined) q.set('offset', String(params.offset))
   const qs = q.toString()
-  return jsonFetch<AgentsListPage>(`/v1/agents${qs ? `?${qs}` : ''}`)
+  return liveOrMock(
+    () => jsonFetch<AgentsListPage>(`/v1/agents${qs ? `?${qs}` : ''}`),
+    () => mock.fetchAgents(params),
+    `fetchAgents`,
+  )
 }
 
 export async function fetchCardOverview(cardId: string): Promise<CardOverview> {
   if (USE_MOCK) return mock.fetchCardOverview(cardId)
-  return jsonFetch<CardOverview>(`/v1/cards/${encodeURIComponent(cardId)}`)
+  return liveOrMock(
+    () => jsonFetch<CardOverview>(`/v1/cards/${encodeURIComponent(cardId)}`),
+    () => mock.fetchCardOverview(cardId),
+    `fetchCardOverview(${cardId})`,
+  )
 }
 
 export async function fetchCardHistory(
@@ -98,15 +144,25 @@ export async function fetchCardHistory(
   if (params.limit !== undefined) q.set('limit', String(params.limit))
   if (params.since) q.set('since', params.since)
   const qs = q.toString()
-  return jsonFetch<FeedPage>(
-    `/v1/cards/${encodeURIComponent(cardId)}/history${qs ? `?${qs}` : ''}`,
+  return liveOrMock(
+    () =>
+      jsonFetch<FeedPage>(
+        `/v1/cards/${encodeURIComponent(cardId)}/history${qs ? `?${qs}` : ''}`,
+      ),
+    () => mock.fetchCardHistory(cardId, params),
+    `fetchCardHistory(${cardId})`,
   )
 }
 
 export async function fetchCardEvalSpec(cardId: string): Promise<CardEvalSpec> {
   if (USE_MOCK) return mock.fetchCardEvalSpec(cardId)
-  return jsonFetch<CardEvalSpec>(
-    `/v1/cards/${encodeURIComponent(cardId)}/eval-spec`,
+  return liveOrMock(
+    () =>
+      jsonFetch<CardEvalSpec>(
+        `/v1/cards/${encodeURIComponent(cardId)}/eval-spec`,
+      ),
+    () => mock.fetchCardEvalSpec(cardId),
+    `fetchCardEvalSpec(${cardId})`,
   )
 }
 
@@ -119,8 +175,13 @@ export async function fetchCardFeed(
   if (params.since) q.set('since', params.since)
   if (params.limit !== undefined) q.set('limit', String(params.limit))
   const qs = q.toString()
-  return jsonFetch<FeedPage>(
-    `/v1/cards/${encodeURIComponent(cardId)}/feed${qs ? `?${qs}` : ''}`,
+  return liveOrMock(
+    () =>
+      jsonFetch<FeedPage>(
+        `/v1/cards/${encodeURIComponent(cardId)}/feed${qs ? `?${qs}` : ''}`,
+      ),
+    () => mock.fetchCardFeed(cardId, params),
+    `fetchCardFeed(${cardId})`,
   )
 }
 
@@ -130,7 +191,11 @@ export async function fetchLeaderboard(
 ): Promise<LeaderboardPage> {
   if (USE_MOCK) return mock.fetchLeaderboard(cardId, limit)
   const q = new URLSearchParams({ card: cardId, limit: String(limit) })
-  return jsonFetch<LeaderboardPage>(`/v1/leaderboard?${q.toString()}`)
+  return liveOrMock(
+    () => jsonFetch<LeaderboardPage>(`/v1/leaderboard?${q.toString()}`),
+    () => mock.fetchLeaderboard(cardId, limit),
+    `fetchLeaderboard(${cardId})`,
+  )
 }
 
 export async function fetchRecentEvals(params: {
@@ -144,20 +209,33 @@ export async function fetchRecentEvals(params: {
   if (USE_MOCK) return mock.fetchRecentEvals(params)
   const q = new URLSearchParams({ since: params.since })
   if (params.limit !== undefined) q.set('limit', String(params.limit))
-  return jsonFetch(`/v1/leaderboard/recent?${q.toString()}`)
+  return liveOrMock(
+    () => jsonFetch(`/v1/leaderboard/recent?${q.toString()}`),
+    () => mock.fetchRecentEvals(params),
+    `fetchRecentEvals`,
+  )
 }
 
 export async function fetchMerkleAnchor(epoch: number): Promise<MerkleAnchor> {
   if (USE_MOCK) return mock.fetchMerkleAnchor(epoch)
-  return jsonFetch<MerkleAnchor>(`/v1/merkle/${epoch}`)
+  return liveOrMock(
+    () => jsonFetch<MerkleAnchor>(`/v1/merkle/${epoch}`),
+    () => mock.fetchMerkleAnchor(epoch),
+    `fetchMerkleAnchor(${epoch})`,
+  )
 }
 
 export async function fetchMinerAgents(
   hotkey: string,
 ): Promise<{ items: AgentProfile[] }> {
   if (USE_MOCK) return mock.fetchMinerAgents(hotkey)
-  return jsonFetch<{ items: AgentProfile[] }>(
-    `/v1/miners/${encodeURIComponent(hotkey)}/agents`,
+  return liveOrMock(
+    () =>
+      jsonFetch<{ items: AgentProfile[] }>(
+        `/v1/miners/${encodeURIComponent(hotkey)}/agents`,
+      ),
+    () => mock.fetchMinerAgents(hotkey),
+    `fetchMinerAgents(${hotkey})`,
   )
 }
 
@@ -167,12 +245,18 @@ export async function fetchHomeFeed(limit: number = 12): Promise<EvalOutput[]> {
   // 24h lookback window for the home page.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const q = new URLSearchParams({ since, limit: String(limit) })
-  const data = await jsonFetch<{
-    items: EvalOutput[]
-    next_since: string | null
-    merkle_epoch_latest: number
-  }>(`/v1/leaderboard/recent?${q.toString()}`)
-  return data.items
+  return liveOrMock(
+    async () => {
+      const data = await jsonFetch<{
+        items: EvalOutput[]
+        next_since: string | null
+        merkle_epoch_latest: number
+      }>(`/v1/leaderboard/recent?${q.toString()}`)
+      return data.items
+    },
+    () => mock.fetchHomeFeed(limit),
+    `fetchHomeFeed`,
+  )
 }
 
 export async function fetchAvailableCards(): Promise<CardOverview[]> {

@@ -144,6 +144,13 @@ const footerClass = fullHeight
         })
       })()
     </script>
+    <script>
+      // Live hydration of dynamic Cathedral data. Static Astro pre-renders
+      // the page; this script swaps `data-live` placeholders with fresh API
+      // data on load + every 30s, so new submissions surface without a
+      // rebuild.
+      import('../lib/live-hydrate.client.ts')
+    </script>
     <style is:global>
       html, body { background: var(--bg); color: var(--fg); }
       /* Prevent stray horizontal scroll from wide children (long code

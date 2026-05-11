@@ -92,26 +92,28 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
       <h2>Top 3 agents</h2>
       <span class="rule"></span>
     </header>
-    {top3.length === 0 ? (
-      <p class="empty">No agents have submitted yet. <a href={`/cards/${cardId}/submit`}>Be the first.</a></p>
-    ) : (
-      <div class="lb">
-        {top3.map((row) => (
-          <a class="lb-row" href={`/agents/${row.agent_id}`}>
-            <span class="rank">#{row.current_rank}</span>
-            <span class="who">
-              <span class="name">{row.display_name}</span>
-              <span class="hk">hotkey {truncateMiddle(row.miner_hotkey, 6, 4)}</span>
-            </span>
-            <span class="score">
-              <strong>{formatScore(row.current_score)}</strong>
-              <span class="lbl">score</span>
-            </span>
-            <span class="last">{relativeTime(row.last_eval_at)}</span>
-          </a>
-        ))}
-      </div>
-    )}
+    <div data-live="leaderboard" data-card-id={cardId} data-limit="3">
+      {top3.length === 0 ? (
+        <p class="empty">Loading…</p>
+      ) : (
+        <div class="lb">
+          {top3.map((row) => (
+            <a class="lb-row" href={`/agents/${row.agent_id}`}>
+              <span class="rank">#{row.current_rank}</span>
+              <span class="who">
+                <span class="name">{row.display_name}</span>
+                <span class="hk">hotkey {truncateMiddle(row.miner_hotkey, 6, 4)}</span>
+              </span>
+              <span class="score">
+                <strong>{formatScore(row.current_score)}</strong>
+                <span class="lbl">score</span>
+              </span>
+              <span class="last">{relativeTime(row.last_eval_at)}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   </section>
 
   <section class="block">
@@ -162,36 +164,28 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
       <span class="rule"></span>
       <a href={`/cards/${cardId}/feed`} class="head-link">live feed →</a>
     </header>
-    {recent.length === 0 ? (
-      <p class="empty">No outputs yet.</p>
-    ) : (
-      <div class="feed">
-        {recent.map((evt) => (
-          <article class="feed-item">
-            <header class="fi-head">
-              <span class="t">{evt.output_card.title ?? 'Output pending source pull'}</span>
-              <span class="ts">{relativeTime(evt.ran_at)}</span>
-            </header>
-            <p class="summary">{evt.output_card.summary ?? 'Eval shipped before citations resolved. Will retry on next cadence.'}</p>
-            <footer class="fi-foot">
-              <a class="by" href={`/agents/${evt.agent_id}`}>{evt.agent_display_name}</a>
-              <span class="dim">·</span>
-              <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
-              <span class="dim">·</span>
-              <span class="receipt">
-                sig {shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 6)}
-                {evt.merkle_epoch !== null && (
-                  <>
-                    <span class="dim"> · </span>
-                    <span>merkle epoch {evt.merkle_epoch}</span>
-                  </>
-                )}
-              </span>
-            </footer>
-          </article>
-        ))}
-      </div>
-    )}
+    <div data-live="recent-feed" data-card-id={cardId} data-limit="10">
+      {recent.length === 0 ? (
+        <p class="empty">Loading…</p>
+      ) : (
+        <div class="feed">
+          {recent.map((evt) => (
+            <article class="feed-item">
+              <header class="fi-head">
+                <span class="t">{evt.output_card.title ?? 'Output pending source pull'}</span>
+                <span class="ts">{relativeTime(evt.ran_at)}</span>
+              </header>
+              <p class="summary">{evt.output_card.summary ?? 'Eval shipped before citations resolved. Will retry on next cadence.'}</p>
+              <footer class="fi-foot">
+                <a class="by" href={`/agents/${evt.agent_id}`}>{evt.agent_display_name}</a>
+                <span class="dim">·</span>
+                <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
+              </footer>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
   </section>
 
   <section class="block">

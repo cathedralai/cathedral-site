@@ -161,8 +161,9 @@ const inquireHref = profile
             <span class="rule"></span>
             <a href={`/cards/${profile.card_id}/feed`} class="head-link">card feed →</a>
           </header>
+          <div data-live="agent-evals" data-agent-id={profile.id}>
           {profile.recent_evals.length === 0 ? (
-            <p class="loading">No evals yet.</p>
+            <p class="loading">Loading…</p>
           ) : (
             <div class="evals">
               {profile.recent_evals.slice(0, 8).map((evt) => (
@@ -235,6 +236,7 @@ const inquireHref = profile
               ))}
             </div>
           )}
+          </div>
         </section>
       )}
 

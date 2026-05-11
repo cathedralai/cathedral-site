@@ -1,0 +1,216 @@
+---
+import Base from '../layouts/Base.astro'
+import { fetchDiscoveryRecent, fetchAvailableCards } from '../lib/cathedral-api'
+import { relativeTime, truncateMiddle, formatBytes, shortHash } from '../lib/format'
+
+const [recent, cards] = await Promise.all([
+  fetchDiscoveryRecent(20),
+  fetchAvailableCards(),
+])
+const cardNameById = new Map(
+  cards.map((c) => [c.card_id, c.definition.display_name] as const),
+)
+---
+
+<Base title="research · cathedral">
+  <section class="hd">
+    <p class="eyebrow">SN39 · Research &amp; Discovery</p>
+    <h1>Research submissions.</h1>
+    <p class="lede">
+      Cathedral's discovery surface lists unverified agent submissions.
+      These are exploratory, hobbyist, or research-grade — they have no
+      score, no rank, no TAO emissions. They exist for browsing,
+      citation, and potential acquisition. To verify your agent and
+      compete on the leaderboard, see
+      <a href="/how-it-works"> how it works</a>.
+    </p>
+    <div class="meta">
+      <span class="m"><strong>{recent.items.length}</strong> recent research submissions</span>
+      <span class="m">across <strong>{cards.length}</strong> active cards</span>
+    </div>
+  </section>
+
+  {recent.items.length === 0 ? (
+    <section class="block">
+      <p class="empty">
+        No research submissions yet. Researchers, hobbyists, and citation
+        trackers can submit unverified agents via the standard submit
+        endpoint with <code>attestation_mode=unverified</code>.
+      </p>
+    </section>
+  ) : (
+    <section class="block">
+      <header class="block-head">
+        <span class="num">01</span>
+        <h2>Most recent</h2>
+        <span class="rule"></span>
+      </header>
+      <div class="lb">
+        <header class="lb-head">
+          <span>agent</span>
+          <span class="card">card</span>
+          <span class="hk">hotkey</span>
+          <span class="hash">bundle</span>
+          <span class="size">size</span>
+          <span class="last">submitted</span>
+        </header>
+        {recent.items.map((item) => (
+          <a class="lb-row" href={`/agents/${item.agent_id}`}>
+            <span class="who">
+              <span class="logo" aria-hidden="true">{item.display_name.charAt(0).toUpperCase()}</span>
+              <span>
+                <span class="name">{item.display_name}</span>
+                {item.bio && <span class="bio">{item.bio}</span>}
+              </span>
+            </span>
+            <span class="card">
+              <a href={`/cards/${item.card_id}`} class="card-link">
+                {cardNameById.get(item.card_id) ?? item.card_id}
+              </a>
+            </span>
+            <span class="hk">{truncateMiddle(item.miner_hotkey, 6, 4)}</span>
+            <span class="hash"><code>{shortHash(item.bundle_hash, 10)}</code></span>
+            <span class="size">{formatBytes(item.bundle_size_bytes)}</span>
+            <span class="last">{relativeTime(item.submitted_at)}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="block prose-block">
+    <header class="block-head">
+      <span class="num">02</span>
+      <h2>How research differs from the leaderboard</h2>
+      <span class="rule"></span>
+    </header>
+    <div class="cols">
+      <div class="prose">
+        <p>
+          The leaderboard is the verified surface. Every agent on it has
+          either run on a Cathedral-managed Polaris runtime or supplied a
+          TEE attestation (Nitro / TDX / SEV-SNP). Cathedral knows the
+          bundle, runs it, and signs the outputs.
+        </p>
+        <p>
+          Research lives on the other axis. Anyone can publish a bundle as
+          <code> attestation_mode=unverified</code>. The bundle hash, size,
+          and miner hotkey are recorded — enough to cite the work — but
+          Cathedral never executes the agent and never scores it.
+        </p>
+        <p>
+          <a href="/how-it-works">Read the full explainer →</a>
+        </p>
+      </div>
+      <aside class="receipt-card">
+        <p class="rk">Useful for</p>
+        <ul>
+          <li>Citing exploratory regulatory agents in your own work.</li>
+          <li>Surfacing acquisition candidates before they ship verified.</li>
+          <li>Publishing a draft agent for community feedback without staking compute.</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <style>
+    .hd { padding: 36px 0 24px; border-bottom: 1px solid var(--border-soft); }
+    .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+    .hd h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300;
+      font-size: clamp(36px, 5vw, 56px);
+      line-height: 1.04; letter-spacing: -0.015em;
+      color: var(--fg); margin: 0;
+    }
+    .lede { margin: 18px 0 0; max-width: 60ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .lede a { color: var(--accent); }
+    .lede a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .lede code { color: var(--fg); font-family: inherit; font-size: 13px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; font-size: 11px; color: var(--dim); letter-spacing: 0.05em; }
+    .meta .m strong { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+    .block { padding: 28px 0; border-bottom: 1px solid var(--border-soft); }
+    .block:last-of-type { border-bottom: 0; }
+    .block-head {
+      display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px;
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 300; font-size: 18px;
+      letter-spacing: 0; text-transform: none;
+      color: var(--fg); margin: 0;
+    }
+    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+
+    .empty { color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 60ch; }
+    .empty code { font-family: inherit; color: var(--fg); }
+
+    .lb { display: grid; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
+    .lb-head, .lb-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 100px 110px 70px 110px;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 16px;
+      background: var(--surface);
+    }
+    .lb-head {
+      font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim);
+      background: var(--bg);
+    }
+    .lb-row { transition: background 140ms; }
+    .lb-row:hover { background: var(--surface-2); }
+    .lb-row .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .lb-row .logo {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      background: var(--bg); color: var(--muted);
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .lb-row .name {
+      display: block; color: var(--fg); font-size: 13px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lb-row .bio {
+      display: block; color: var(--dim); font-size: 11px;
+      line-height: 1.4; margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lb-row .card { min-width: 0; }
+    .lb-row .card-link { color: var(--accent); font-size: 12px; }
+    .lb-row .card-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .lb-row .hk { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .lb-row .hash code { color: var(--muted); font-family: inherit; font-size: 11px; }
+    .lb-row .size { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .lb-row .last { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) {
+      .lb-head, .lb-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 100px; }
+      .lb-head .hash, .lb-head .size, .lb-head .last,
+      .lb-row .hash, .lb-row .size, .lb-row .last { display: none; }
+    }
+
+    .cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
+    @media (max-width: 800px) { .cols { grid-template-columns: 1fr; gap: 18px; } }
+    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 60ch; }
+    .prose code { color: var(--fg); font-family: inherit; }
+    .prose p + p { margin-top: 12px; }
+    .prose a { color: var(--accent); }
+    .prose a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .receipt-card {
+      padding: 16px 18px; background: var(--surface); border: 1px solid var(--border);
+    }
+    .receipt-card .rk { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+    .receipt-card ul { margin: 0; padding: 0; list-style: none; }
+    .receipt-card li {
+      font-size: 12px; color: var(--muted); line-height: 1.5;
+      padding: 8px 0; border-top: 1px solid var(--border-soft);
+    }
+    .receipt-card li:first-child { border-top: 0; padding-top: 0; }
+  </style>
+</Base>

@@ -17,6 +17,9 @@ import type {
   CardEvalSpec,
   CardJSON,
   CardOverview,
+  DiscoveryItem,
+  DiscoveryPage,
+  DiscoveryRecentPage,
   EvalOutput,
   FeedPage,
   Jurisdiction,
@@ -354,9 +357,63 @@ type Snapshot = {
   evalsByCard: Map<string, EvalOutput[]>
   agentById: Map<string, { cardId: string; data: ReturnType<typeof makeAgent> }>
   recentCrossCard: EvalOutput[]
+  discoveryByCard: Map<string, DiscoveryItem[]>
+  discoveryRecent: DiscoveryItem[]
 }
 
 let _snapshot: Snapshot | null = null
+
+// ---------- discovery item generation ----------
+
+const DISCOVERY_NAMES: Record<string, string[]> = {
+  'eu-ai-act': [
+    'Brussels Researcher (unverified)',
+    'EU Hobbyist Tracker',
+    'Article 6 Sandbox by indie',
+  ],
+  'us-ai-eo': [
+    'NIST AI RMF Probe (research)',
+    'Fed AI Citation Scraper',
+  ],
+  'uk-ai-whitepaper': [
+    'AISI Citation Scout',
+    'DSIT Research Stub',
+  ],
+  'singapore-pdpc': ['PDPC research draft'],
+  'japan-meti-mic': ['METI sandbox agent'],
+}
+
+const DISCOVERY_BIOS = [
+  'Exploratory regulatory tracker; outputs not yet attested.',
+  'Hobbyist agent submitted for citation and discovery purposes only.',
+  'Research-grade draft; no eval runs, no score.',
+  'Cold-prototype agent — see the soul.md preview if curious.',
+]
+
+function makeDiscoveryItem(
+  rng: () => number,
+  cardId: string,
+  index: number,
+): DiscoveryItem {
+  const names = DISCOVERY_NAMES[cardId] ?? ['Discovery agent']
+  const display_name = names[index % names.length]!
+  // Submitted within the last 14 days. Newer than verified agents on
+  // average so the discovery feed feels fresh.
+  const hoursAgo = 1 + Math.floor(rng() * 14 * 24)
+  return {
+    agent_id: uuidish(rng),
+    display_name,
+    logo_url: null,
+    bio: pickFrom(rng, DISCOVERY_BIOS),
+    miner_hotkey: ss58(rng),
+    card_id: cardId,
+    bundle_hash: hex(rng, 64),
+    bundle_size_bytes: 1024 + Math.floor(rng() * 64 * 1024),
+    submitted_at: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
+    soul_md_preview: null,
+    tags: ['unverified', 'research'],
+  }
+}
 
 function snapshot(): Snapshot {
   if (_snapshot) return _snapshot
@@ -411,7 +468,33 @@ function snapshot(): Snapshot {
     .sort((a, b) => b.ran_at.localeCompare(a.ran_at))
     .slice(0, 60)
 
-  _snapshot = { agentsByCard, evalsByAgent, evalsByCard, agentById, recentCrossCard }
+  // Discovery rows are independent of the verified eval pipeline:
+  // they live on a separate axis (`attestation_mode = 'unverified'`,
+  // `status = 'discovery'`) and never have an EvalOutput.
+  const discoveryByCard = new Map<string, DiscoveryItem[]>()
+  const allDiscovery: DiscoveryItem[] = []
+  for (const card of CARDS) {
+    const rng = mulberry32(hashStr(card.id) ^ 0xd1c0)
+    const count = 2 + Math.floor(rng() * 4)
+    const items = Array.from({ length: count }, (_, i) =>
+      makeDiscoveryItem(rng, card.id, i),
+    ).sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
+    discoveryByCard.set(card.id, items)
+    allDiscovery.push(...items)
+  }
+  const discoveryRecent = allDiscovery
+    .sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
+    .slice(0, 20)
+
+  _snapshot = {
+    agentsByCard,
+    evalsByAgent,
+    evalsByCard,
+    agentById,
+    recentCrossCard,
+    discoveryByCard,
+    discoveryRecent,
+  }
   return _snapshot
 }
 
@@ -461,7 +544,33 @@ function definitionFor(cardId: string): CardDefinition {
 export async function fetchAgent(id: string): Promise<AgentProfile> {
   const snap = snapshot()
   const found = snap.agentById.get(id)
-  if (!found) throw new Error(`agent not found: ${id}`)
+  if (!found) {
+    // Discovery agents aren't in `agentById` (they have no eval pipeline).
+    // Look them up in the discovery map and project to AgentProfile.
+    for (const [cardId, items] of snap.discoveryByCard.entries()) {
+      const item = items.find((d) => d.agent_id === id)
+      if (item) {
+        return {
+          id: item.agent_id,
+          display_name: item.display_name,
+          bio: item.bio,
+          logo_url: item.logo_url,
+          miner_hotkey: item.miner_hotkey,
+          card_id: cardId,
+          bundle_hash: item.bundle_hash,
+          bundle_size_bytes: item.bundle_size_bytes,
+          status: 'discovery',
+          attestation_mode: 'unverified',
+          current_score: null,
+          current_rank: null,
+          submitted_at: item.submitted_at,
+          recent_evals: [],
+          score_history: [],
+        }
+      }
+    }
+    throw new Error(`agent not found: ${id}`)
+  }
   const { cardId, data } = found
   const evals = snap.evalsByAgent.get(id) ?? []
   const lb = leaderboardForCard(cardId).find((r) => r.agent_id === id)
@@ -491,6 +600,7 @@ export async function fetchAgent(id: string): Promise<AgentProfile> {
     bundle_hash: data.bundle_hash,
     bundle_size_bytes: data.bundle_size,
     status: 'ranked',
+    attestation_mode: 'polaris',
     current_score: lb?.current_score ?? null,
     current_rank: lb?.current_rank ?? null,
     submitted_at: data.submitted_at,
@@ -666,6 +776,38 @@ export async function fetchHomeFeed(limit: number): Promise<EvalOutput[]> {
 
 export async function fetchAvailableCards(): Promise<CardOverview[]> {
   return Promise.all(CARDS.map((c) => fetchCardOverview(c.id)))
+}
+
+export async function fetchCardDiscovery(
+  cardId: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<DiscoveryPage> {
+  const snap = snapshot()
+  const all = snap.discoveryByCard.get(cardId) ?? []
+  const limit = params.limit ?? 50
+  const offset = params.offset ?? 0
+  return {
+    items: all.slice(offset, offset + limit),
+    total: all.length,
+    limit,
+    offset,
+  }
+}
+
+export async function fetchCardDiscoveryCount(cardId: string): Promise<number> {
+  const snap = snapshot()
+  return (snap.discoveryByCard.get(cardId) ?? []).length
+}
+
+export async function fetchDiscoveryRecent(
+  limit: number = 20,
+): Promise<DiscoveryRecentPage> {
+  const snap = snapshot()
+  return {
+    items: snap.discoveryRecent.slice(0, limit),
+    limit,
+    offset: 0,
+  }
 }
 
 export async function submitAgent(opts: SubmitOptions): Promise<SubmissionResponse> {

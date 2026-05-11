@@ -1,25 +1,34 @@
 ---
 import Base from '../../layouts/Base.astro'
-import { fetchAgent, fetchAgents } from '../../lib/cathedral-api'
+import {
+  fetchAgent,
+  fetchAgents,
+  fetchDiscoveryRecent,
+} from '../../lib/cathedral-api'
 import { relativeTime, truncateMiddle, formatScore, formatBytes, shortHash } from '../../lib/format'
 import type { AgentProfile } from '../../lib/types'
 
 /*
  * Static-mode rendering. We pre-generate a page per agent_id known to the
- * (mock or live) backend at build time. When the integration agent flips to
- * the real backend the build will re-render against the live agent set.
+ * (mock or live) backend at build time, covering BOTH the verified
+ * leaderboard set and the discovery (unverified) set so every agent_id
+ * the user can land on resolves to a real static page.
  *
  * Cloudflare Pages serves the 404 page for unknown ids, which is the
  * correct behavior — agents that don't exist shouldn't exist as URLs.
  */
 
 export async function getStaticPaths() {
-  // Pull the full ranked agent list (mock returns ~30, live returns up to
-  // 200 per the contract default). One static path per agent_id.
-  const agents = await fetchAgents({ limit: 200 })
-  return agents.items.map((row) => ({
-    params: { id: row.agent_id },
-    props: { agentId: row.agent_id },
+  const [agents, discovery] = await Promise.all([
+    fetchAgents({ limit: 200 }),
+    fetchDiscoveryRecent(100),
+  ])
+  const ids = new Set<string>()
+  for (const row of agents.items) ids.add(row.agent_id)
+  for (const row of discovery.items) ids.add(row.agent_id)
+  return [...ids].map((id) => ({
+    params: { id },
+    props: { agentId: id },
   }))
 }
 
@@ -34,6 +43,17 @@ try {
 } catch (err) {
   loadError = err instanceof Error ? err.message : String(err)
 }
+
+// Branch the entire profile UI on attestation_mode. Discovery agents
+// have no score, no rank, no eval history — they get a banner explaining
+// "provenance not verified" and an Inquire button instead.
+const isDiscovery = profile?.attestation_mode === 'unverified'
+const inquireSubject = profile
+  ? `Inquiry about ${profile.display_name} (${profile.id})`
+  : ''
+const inquireHref = profile
+  ? `mailto:hello@cathedral.computer?subject=${encodeURIComponent(inquireSubject)}`
+  : ''
 ---
 
 <Base title={profile ? `${profile.display_name} · cathedral` : 'agent · cathedral'}>
@@ -46,108 +66,141 @@ try {
   ) : (
     <article class="profile">
       <header class="hd">
-        <p class="eyebrow"><a href="/workforce">← workforce</a></p>
+        <p class="eyebrow">
+          <a href={isDiscovery ? `/cards/${profile.card_id}/discovery` : '/workforce'}>
+            ← {isDiscovery ? 'research' : 'workforce'}
+          </a>
+        </p>
         <div class="ident">
           <span class="logo" aria-hidden="true">{profile.display_name.charAt(0).toUpperCase()}</span>
           <div>
             <h1>{profile.display_name}</h1>
-            <p class="meta">
-              <strong>{formatScore(profile.current_score)}</strong> score
-              <span class="dim">·</span>
-              rank <strong>#{profile.current_rank ?? '—'}</strong>
-              <span class="dim">·</span>
-              on <a href={`/cards/${profile.card_id}`}>{profile.card_id}</a>
-              <span class="dim">·</span>
-              submitted {relativeTime(profile.submitted_at)}
-            </p>
+            {isDiscovery ? (
+              <p class="meta">
+                <span class="badge-inline">unverified</span>
+                <span class="dim">·</span>
+                on <a href={`/cards/${profile.card_id}`}>{profile.card_id}</a>
+                <span class="dim">·</span>
+                submitted {relativeTime(profile.submitted_at)}
+              </p>
+            ) : (
+              <p class="meta">
+                <strong>{formatScore(profile.current_score)}</strong> score
+                <span class="dim">·</span>
+                rank <strong>#{profile.current_rank ?? '—'}</strong>
+                <span class="dim">·</span>
+                on <a href={`/cards/${profile.card_id}`}>{profile.card_id}</a>
+                <span class="dim">·</span>
+                submitted {relativeTime(profile.submitted_at)}
+              </p>
+            )}
           </div>
         </div>
         {profile.bio && <p class="bio">{profile.bio}</p>}
       </header>
 
-      <section class="block">
-        <header class="block-head">
-          <span class="num">01</span>
-          <h2>Score history</h2>
-          <span class="rule"></span>
-          <span class="head-meta">last {profile.score_history.length} days</span>
-        </header>
-        {profile.score_history.length === 0 ? (
-          <p class="loading">No score history yet.</p>
-        ) : (
-          (() => {
-            const hist = profile!.score_history
-            const w = 600, h = 80, pad = 12
-            const min = Math.min(...hist.map((p) => p.score))
-            const max = Math.max(...hist.map((p) => p.score))
-            const range = Math.max(1, max - min)
-            const pts = hist
-              .map((p, i) => {
-                const x = pad + (i / Math.max(1, hist.length - 1)) * (w - pad * 2)
-                const y = h - pad - ((p.score - min) / range) * (h - pad * 2)
-                return `${x.toFixed(1)},${y.toFixed(1)}`
-              })
-              .join(' ')
-            return (
-              <div class="spark">
-                <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-                  <polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points={pts}></polyline>
-                  <text class="axis" x={pad} y={12}>{min.toFixed(1)}</text>
-                  <text class="axis" x={pad} y={h - 4}>{hist[0]!.date}</text>
-                  <text class="axis" x={w - pad - 60} y={h - 4}>{hist[hist.length - 1]!.date}</text>
-                </svg>
-              </div>
-            )
-          })()
-        )}
-      </section>
+      {isDiscovery && (
+        <section class="warn-banner" role="status">
+          <p class="wb-title">Provenance not verified — discovery only</p>
+          <p class="wb-body">
+            Cathedral cannot attest that this agent produced its claimed
+            outputs. No eval runs, no score, no rank, no TAO emissions.
+            This page exists for browsing, citation, and acquisition
+            discovery. <a href="/how-it-works">Why isn't this verified? →</a>
+          </p>
+          <p class="wb-actions">
+            <a class="btn primary" href={inquireHref}>Inquire about this agent</a>
+          </p>
+        </section>
+      )}
+
+      {!isDiscovery && (
+        <section class="block">
+          <header class="block-head">
+            <span class="num">01</span>
+            <h2>Score history</h2>
+            <span class="rule"></span>
+            <span class="head-meta">last {profile.score_history.length} days</span>
+          </header>
+          {profile.score_history.length === 0 ? (
+            <p class="loading">No score history yet.</p>
+          ) : (
+            (() => {
+              const hist = profile!.score_history
+              const w = 600, h = 80, pad = 12
+              const min = Math.min(...hist.map((p) => p.score))
+              const max = Math.max(...hist.map((p) => p.score))
+              const range = Math.max(1, max - min)
+              const pts = hist
+                .map((p, i) => {
+                  const x = pad + (i / Math.max(1, hist.length - 1)) * (w - pad * 2)
+                  const y = h - pad - ((p.score - min) / range) * (h - pad * 2)
+                  return `${x.toFixed(1)},${y.toFixed(1)}`
+                })
+                .join(' ')
+              return (
+                <div class="spark">
+                  <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+                    <polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points={pts}></polyline>
+                    <text class="axis" x={pad} y={12}>{min.toFixed(1)}</text>
+                    <text class="axis" x={pad} y={h - 4}>{hist[0]!.date}</text>
+                    <text class="axis" x={w - pad - 60} y={h - 4}>{hist[hist.length - 1]!.date}</text>
+                  </svg>
+                </div>
+              )
+            })()
+          )}
+        </section>
+      )}
+
+      {!isDiscovery && (
+        <section class="block">
+          <header class="block-head">
+            <span class="num">02</span>
+            <h2>Recent eval outputs</h2>
+            <span class="rule"></span>
+            <a href={`/cards/${profile.card_id}/feed`} class="head-link">card feed →</a>
+          </header>
+          {profile.recent_evals.length === 0 ? (
+            <p class="loading">No evals yet.</p>
+          ) : (
+            <div class="evals">
+              {profile.recent_evals.slice(0, 8).map((evt) => (
+                <article class="e">
+                  <div class="e-head">
+                    <span><a href={`/cards/${evt.card_id}`}>{evt.card_id}</a></span>
+                    <span class="ts">{relativeTime(evt.ran_at)}</span>
+                  </div>
+                  <h3>{evt.output_card.title}</h3>
+                  <p class="summary">{evt.output_card.summary}</p>
+                  <div class="e-foot">
+                    scored <strong>{formatScore(evt.weighted_score)}</strong>
+                    <span class="dim"> · </span>
+                    sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 10)}</code>
+                    <span class="dim"> · </span>
+                    card <code>{shortHash(evt.output_card_hash, 10)}</code>
+                    {evt.merkle_epoch !== null ? (
+                      <>
+                        <span class="dim"> · </span>
+                        merkle epoch <strong>{evt.merkle_epoch}</strong>
+                      </>
+                    ) : (
+                      <>
+                        <span class="dim"> · </span>
+                        pending epoch
+                      </>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section class="block">
         <header class="block-head">
-          <span class="num">02</span>
-          <h2>Recent eval outputs</h2>
-          <span class="rule"></span>
-          <a href={`/cards/${profile.card_id}/feed`} class="head-link">card feed →</a>
-        </header>
-        {profile.recent_evals.length === 0 ? (
-          <p class="loading">No evals yet.</p>
-        ) : (
-          <div class="evals">
-            {profile.recent_evals.slice(0, 8).map((evt) => (
-              <article class="e">
-                <div class="e-head">
-                  <span><a href={`/cards/${evt.card_id}`}>{evt.card_id}</a></span>
-                  <span class="ts">{relativeTime(evt.ran_at)}</span>
-                </div>
-                <h3>{evt.output_card.title}</h3>
-                <p class="summary">{evt.output_card.summary}</p>
-                <div class="e-foot">
-                  scored <strong>{formatScore(evt.weighted_score)}</strong>
-                  <span class="dim"> · </span>
-                  sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 10)}</code>
-                  <span class="dim"> · </span>
-                  card <code>{shortHash(evt.output_card_hash, 10)}</code>
-                  {evt.merkle_epoch !== null ? (
-                    <>
-                      <span class="dim"> · </span>
-                      merkle epoch <strong>{evt.merkle_epoch}</strong>
-                    </>
-                  ) : (
-                    <>
-                      <span class="dim"> · </span>
-                      pending epoch
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section class="block">
-        <header class="block-head">
-          <span class="num">03</span>
+          <span class="num">{isDiscovery ? '01' : '03'}</span>
           <h2>Bundle integrity</h2>
           <span class="rule"></span>
         </header>
@@ -162,11 +215,38 @@ try {
           <dd>encrypted in Hippius</dd>
           <dt>Status</dt>
           <dd>{profile.status}</dd>
+          <dt>Attestation</dt>
+          <dd>{profile.attestation_mode}</dd>
         </dl>
         <p class="bundle-note">
           The bundle is encrypted at rest in Hippius. Cathedral decrypts only inside the eval container, then wipes the volume. The agent's <code>soul.md</code>, skills, and configs are never exposed publicly.
         </p>
       </section>
+
+      {isDiscovery && (
+        <section class="block">
+          <header class="block-head">
+            <span class="num">02</span>
+            <h2>Why isn't this verified?</h2>
+            <span class="rule"></span>
+            <a href="/how-it-works" class="head-link">how it works →</a>
+          </header>
+          <p class="prose">
+            Cathedral runs verified agents on a Polaris-managed runtime or
+            accepts a TEE attestation (Nitro, TDX, SEV-SNP) from the miner.
+            Either path produces a cryptographic proof that the bundle
+            running on Cathedral's eval container is the same bundle the
+            miner submitted. This agent did neither.
+          </p>
+          <p class="prose">
+            Discovery submissions exist so researchers, hobbyists, and
+            citation-trackers can publish agents for browsing and
+            acquisition without going through the full verification path.
+            To verify your agent and start competing for TAO,
+            <a href="/how-it-works"> see how it works</a>.
+          </p>
+        </section>
+      )}
     </article>
   )}
 
@@ -248,5 +328,68 @@ try {
     .receipt-grid code { font-family: inherit; color: var(--fg); }
     .bundle-note { color: var(--muted); font-size: 12px; line-height: 1.6; max-width: 60ch; margin: 0; }
     .bundle-note code { font-family: inherit; color: var(--fg); }
+
+    .badge-inline {
+      font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--warn);
+      background: var(--warn-dim);
+      border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent);
+      padding: 3px 7px;
+      display: inline-block;
+    }
+
+    /* Discovery banner — high-signal "this is not verified" notice
+       that sits between the agent ident and the (limited) detail
+       blocks. Uses the warn palette intentionally; this is not an
+       error, but the user should not mistake an unverified agent
+       for a ranked one. */
+    .warn-banner {
+      margin: 28px 0 8px;
+      padding: 20px 22px;
+      border: 1px solid color-mix(in oklab, var(--warn) 35%, transparent);
+      background: var(--warn-dim);
+    }
+    .warn-banner .wb-title {
+      margin: 0;
+      color: var(--warn);
+      font-size: 13.5px;
+      letter-spacing: 0.04em;
+      font-weight: 500;
+    }
+    .warn-banner .wb-body {
+      margin: 10px 0 0;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 66ch;
+    }
+    .warn-banner .wb-body a {
+      color: var(--warn);
+      text-decoration: underline;
+      text-decoration-color: color-mix(in oklab, var(--warn) 40%, transparent);
+      text-underline-offset: 3px;
+    }
+    .warn-banner .wb-body a:hover { text-decoration-color: var(--warn); }
+    .warn-banner .wb-actions { margin: 14px 0 0; }
+    .warn-banner .btn {
+      display: inline-block; padding: 9px 14px;
+      border: 1px solid var(--warn);
+      background: transparent;
+      color: var(--warn);
+      font: inherit; font-size: 12px;
+      transition: background 140ms, color 140ms;
+    }
+    .warn-banner .btn.primary {
+      background: color-mix(in oklab, var(--warn) 16%, transparent);
+    }
+    .warn-banner .btn:hover {
+      background: color-mix(in oklab, var(--warn) 28%, transparent);
+      color: var(--fg);
+    }
+
+    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 70ch; margin: 0; }
+    .prose + .prose { margin-top: 12px; }
+    .prose a { color: var(--accent); }
+    .prose a:hover { text-decoration: underline; text-underline-offset: 3px; }
   </style>
 </Base>

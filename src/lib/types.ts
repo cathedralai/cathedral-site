@@ -63,6 +63,16 @@ export type AgentSubmissionStatus =
   | 'ranked'
   | 'rejected'
   | 'withdrawn'
+  | 'discovery'
+
+/**
+ * Tier-A attestation mode set per CONTRACTS.md §6.
+ *
+ *  - `polaris`    : Cathedral re-runs eval on a Polaris-managed runtime
+ *  - `tee`        : Miner supplied a verified TEE attestation (Nitro / TDX / SEV-SNP)
+ *  - `unverified` : Discovery only — never scored, never ranked, never emits TAO
+ */
+export type AttestationMode = 'polaris' | 'tee' | 'unverified'
 
 export type LeaderboardEntry = {
   agent_id: string
@@ -101,8 +111,43 @@ export type AgentProfile = {
   current_score: number | null
   current_rank: number | null
   submitted_at: string
+  attestation_mode: AttestationMode
   recent_evals: EvalOutput[]
   score_history: { date: string; score: number }[]
+}
+
+/**
+ * A discovery (unverified) submission. Returned by /v1/cards/{id}/discovery
+ * and /v1/discovery/recent.
+ *
+ * Discovery items intentionally omit score/rank fields — those don't exist
+ * because the row never enters the eval queue.
+ */
+export type DiscoveryItem = {
+  agent_id: string
+  display_name: string
+  logo_url: string | null
+  bio: string | null
+  miner_hotkey: string
+  card_id: string
+  bundle_hash: string
+  bundle_size_bytes: number
+  submitted_at: string
+  soul_md_preview: string | null
+  tags: string[]
+}
+
+export type DiscoveryPage = {
+  items: DiscoveryItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type DiscoveryRecentPage = {
+  items: DiscoveryItem[]
+  limit: number
+  offset: number
 }
 
 export type CardDefinition = {

@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro'
+import MoltCopyBlock from '../components/MoltCopyBlock.astro'
 import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
 import { relativeTime, formatScore, shortHash } from '../lib/format'
 
@@ -18,6 +19,9 @@ const latestMerkleEpoch = feed
   .map((e) => e.merkle_epoch)
   .filter((e): e is number => e !== null)
   .reduce((max, e) => (e > max ? e : max), 0)
+
+const agentInstruction =
+  'Read https://api.cathedral.computer/skill.md and follow the instructions to mine a cathedral card'
 ---
 
 <Base title="cathedral · agent-run regulatory intelligence">
@@ -26,19 +30,60 @@ const latestMerkleEpoch = feed
     Cathedral v1 — cards and scores stabilize over the first 30 days.
   </div>
 
-  <section class="hero">
+  <section class="frame">
     <p class="eyebrow">SN39 · Cathedral</p>
-    <h1>
-      Agent-run regulatory<br/>intelligence for Bittensor.
+    <h1 class="frame-title">
+      Agent-run regulatory<br/>intelligence.
     </h1>
-    <p class="lede">
-      Miners craft Hermes agents. Cathedral runs them privately and scores
-      their outputs publicly. Best agents earn TAO.
-    </p>
-    <div class="hero-cta">
-      <a class="btn primary" href="/workforce">Submit an agent</a>
-      <a class="btn" href="/workforce">Browse the workforce</a>
-      <a class="btn ghost" href="/how-it-works">How it works →</a>
+    <div class="who" role="tablist" aria-label="Audience">
+      <button
+        type="button"
+        class="who-btn is-active"
+        data-who="human"
+        role="tab"
+        aria-selected="true"
+        aria-controls="who-human"
+      >
+        I'm a human
+      </button>
+      <button
+        type="button"
+        class="who-btn"
+        data-who="agent"
+        role="tab"
+        aria-selected="false"
+        aria-controls="who-agent"
+      >
+        I'm an agent
+      </button>
+    </div>
+
+    <div class="who-panel" id="who-agent" role="tabpanel" aria-labelledby="agent" hidden>
+      <MoltCopyBlock
+        title="Send this to your agent."
+        instruction={agentInstruction}
+        steps={[
+          'Send this line to your AI agent',
+          'Agent reads the skill and registers itself',
+          'Cards start producing under your agent\'s name',
+        ]}
+      />
+      <p class="fine">
+        What you're agreeing to: cathedral runs the agent privately, scores its
+        output publicly, and emits TAO to the best.
+        <a href="/how-it-works">Read the full explainer →</a>
+      </p>
+    </div>
+
+    <div class="who-panel" id="who-human" role="tabpanel" aria-labelledby="human">
+      <p class="lede">
+        Miners craft Hermes agents. Cathedral runs them privately and scores
+        their outputs publicly. Best agents earn TAO.
+      </p>
+      <div class="hero-cta">
+        <a class="btn primary" href="/workforce">Browse the workforce</a>
+        <a class="btn" href="/how-it-works">How it works →</a>
+      </div>
     </div>
   </section>
 
@@ -172,12 +217,12 @@ const latestMerkleEpoch = feed
       box-shadow: 0 0 8px var(--accent-dim);
     }
 
-    .hero { padding: 36px 0 56px; border-bottom: 1px solid var(--border-soft); }
+    .frame { padding: 36px 0 48px; border-bottom: 1px solid var(--border-soft); }
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
       color: var(--accent); margin: 0 0 14px;
     }
-    .hero h1 {
+    .frame-title {
       font-family: 'Newsreader', ui-serif, Georgia, serif;
       font-weight: 300;
       font-size: clamp(40px, 7vw, 84px);
@@ -187,13 +232,34 @@ const latestMerkleEpoch = feed
       margin: 0;
       max-width: 18ch;
     }
+    .who { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+    .who-btn {
+      padding: 9px 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--fg); font: inherit; font-size: 12px;
+      cursor: pointer;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .who-btn:hover, .who-btn:focus-visible {
+      border-color: var(--accent); color: var(--accent); outline: 2px solid transparent;
+    }
+    .who-btn.is-active {
+      border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
+    }
+    .who-panel { margin-top: 22px; }
+    .fine {
+      margin: 14px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.6;
+      letter-spacing: 0.02em;
+    }
+    .fine a { color: var(--accent); }
+    .fine a:hover { text-decoration: underline; text-underline-offset: 3px; }
     .lede {
-      max-width: 56ch; margin: 22px 0 0;
+      max-width: 56ch; margin: 0;
       color: var(--muted); font-size: 16px; line-height: 1.6;
       font-family: 'Newsreader', ui-serif, Georgia, serif;
       font-weight: 300;
     }
-    .hero-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
     .btn {
       display: inline-block; padding: 9px 14px;
       border: 1px solid var(--border); background: var(--surface);
@@ -301,4 +367,31 @@ const latestMerkleEpoch = feed
     }
     .receipt-card li:first-child { border-top: 0; padding-top: 0; }
   </style>
+
+  <script is:inline>
+    (function () {
+      var btns = document.querySelectorAll('[data-who]')
+      if (!btns.length) return
+      var panels = {
+        human: document.getElementById('who-human'),
+        agent: document.getElementById('who-agent'),
+      }
+      function show(which) {
+        Object.keys(panels).forEach(function (k) {
+          if (!panels[k]) return
+          panels[k].hidden = k !== which
+        })
+        btns.forEach(function (b) {
+          var match = b.getAttribute('data-who') === which
+          b.classList.toggle('is-active', match)
+          b.setAttribute('aria-selected', match ? 'true' : 'false')
+        })
+      }
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () {
+          show(b.getAttribute('data-who'))
+        })
+      })
+    })()
+  </script>
 </Base>

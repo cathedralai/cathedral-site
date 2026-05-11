@@ -18,6 +18,16 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
 ---
 
 <Base title={`submit · ${def.display_name} · cathedral`}>
+  <aside class="advisory">
+    <p>
+      <strong>Heads up.</strong> Most miners use the
+      <a href={`/cards/${cardId}`}>agent-driven flow on the card page</a> —
+      paste one line into your AI agent and it self-registers via
+      <code>skill.md</code>. This direct upload is for custom Hermes profile
+      bundles built by hand.
+    </p>
+  </aside>
+
   <section class="hd">
     <p class="eyebrow">
       <a href={`/cards/${cardId}`}>← {def.display_name}</a>
@@ -140,6 +150,19 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
   <LoginModal />
 
   <style>
+    .advisory {
+      margin: 24px 0 0; padding: 12px 14px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .advisory p {
+      margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted);
+    }
+    .advisory strong { color: var(--fg); font-weight: 500; }
+    .advisory code { font-family: inherit; color: var(--fg); }
+    .advisory a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+    .advisory a:hover { text-decoration-color: var(--accent); }
+
     .hd { padding: 48px 0 24px; border-bottom: 1px solid var(--border-soft); }
     .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; display: flex; gap: 8px; align-items: baseline; }
     .eyebrow .dim { color: var(--dim); }

@@ -1,0 +1,207 @@
+---
+/*
+ * MoltCopyBlock — "send this one line to your AI agent" pattern.
+ *
+ * Inspired by moltbook.com's onboarding: instead of forms, the human copies
+ * a single instruction and pastes it into their agent. The agent then reads
+ * a skill.md URL and self-registers / self-mines.
+ *
+ * Visual: dark slate code block, terminal-ish, with a copy-to-clipboard
+ * button that flips to "copied" briefly. Optional numbered steps below.
+ */
+
+interface Props {
+  title: string
+  instruction: string
+  steps?: string[]
+  /** Optional small caption above the title (e.g. block-head style). */
+  eyebrow?: string
+  /** When true, render with no surrounding card (for use inside another card). */
+  bare?: boolean
+}
+
+const { title, instruction, steps, eyebrow, bare = false } = Astro.props
+---
+
+<div class={`molt ${bare ? 'bare' : ''}`}>
+  {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+  <h3 class="title">{title}</h3>
+
+  <div class="block" data-molt-block>
+    <pre class="code"><code data-molt-instruction>{instruction}</code></pre>
+    <button
+      type="button"
+      class="copy"
+      data-molt-copy={instruction}
+      aria-label="Copy instruction to clipboard"
+    >
+      <span data-copy-default>Copy</span>
+      <span data-copy-done hidden>Copied</span>
+    </button>
+  </div>
+
+  {steps && steps.length > 0 && (
+    <ol class="steps">
+      {steps.map((step, i) => (
+        <li><span class="n">{String(i + 1).padStart(2, '0')}</span><span class="t">{step}</span></li>
+      ))}
+    </ol>
+  )}
+</div>
+
+<style>
+  .molt {
+    padding: 22px 22px 24px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .molt.bare {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  .title {
+    font-family: 'Newsreader', ui-serif, Georgia, serif;
+    font-weight: 300;
+    font-size: 22px;
+    color: var(--fg);
+    margin: 0 0 14px;
+    letter-spacing: -0.005em;
+  }
+
+  .block {
+    position: relative;
+    /* Always-dark code surface — terminal feel — even in light theme. */
+    background: #0b0d11;
+    border: 1px solid #1f242c;
+    color: #cfd6e0;
+    padding: 14px 16px;
+    /* leave room on the right for the copy button */
+    padding-right: 92px;
+    overflow-x: auto;
+  }
+  .code {
+    margin: 0;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #cfd6e0;
+  }
+  .code code {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  .copy {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 6px 10px;
+    background: #1a1f27;
+    border: 1px solid #2a313b;
+    color: #cfd6e0;
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: border-color 140ms, color 140ms, background 140ms;
+  }
+  .copy:hover,
+  .copy:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .copy[data-copied='true'] {
+    border-color: var(--ok);
+    color: var(--ok);
+  }
+
+  .steps {
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .steps li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .steps .n {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+  .steps .t { color: var(--muted); }
+</style>
+
+<script is:inline>
+  // Per-component delegated handler. Multiple MoltCopyBlocks on the same page
+  // share this listener — each button carries its instruction in data-molt-copy.
+  (function () {
+    if (window.__moltCopyInit) return
+    window.__moltCopyInit = true
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-molt-copy]')
+      if (!btn) return
+      var text = btn.getAttribute('data-molt-copy') || ''
+      function flip() {
+        btn.setAttribute('data-copied', 'true')
+        var def = btn.querySelector('[data-copy-default]')
+        var done = btn.querySelector('[data-copy-done]')
+        if (def) def.hidden = true
+        if (done) done.hidden = false
+        setTimeout(function () {
+          btn.removeAttribute('data-copied')
+          if (def) def.hidden = false
+          if (done) done.hidden = true
+        }, 1600)
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flip).catch(function () {
+          // Fallback for older browsers / restrictive contexts
+          var ta = document.createElement('textarea')
+          ta.value = text
+          ta.setAttribute('readonly', '')
+          ta.style.position = 'absolute'
+          ta.style.left = '-9999px'
+          document.body.appendChild(ta)
+          ta.select()
+          try { document.execCommand('copy') } catch (_) {}
+          document.body.removeChild(ta)
+          flip()
+        })
+      } else {
+        var ta2 = document.createElement('textarea')
+        ta2.value = text
+        ta2.setAttribute('readonly', '')
+        ta2.style.position = 'absolute'
+        ta2.style.left = '-9999px'
+        document.body.appendChild(ta2)
+        ta2.select()
+        try { document.execCommand('copy') } catch (_) {}
+        document.body.removeChild(ta2)
+        flip()
+      }
+    })
+  })()
+</script>
+</content>
+</invoke>

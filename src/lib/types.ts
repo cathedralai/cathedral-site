@@ -1,7 +1,7 @@
 /*
  * Cathedral v1 wire types.
  *
- * Mirrors `cathedralsubnet/src/cathedral/types.py`. Field names, casing,
+ * Mirrors `cathedral/src/cathedral/types.py`. Field names, casing,
  * and value sets MUST match byte-for-byte. See CONTRACTS.md §1.
  */
 

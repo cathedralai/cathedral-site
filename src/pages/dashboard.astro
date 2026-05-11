@@ -297,7 +297,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
           '<span class="status-pill ' + a.status + '">' + a.status.replace('_', ' ') + '</span>' +
           '<div class="actions">' +
           '<a href="/agents/' + encodeURIComponent(a.id) + '">view</a>' +
-          '<a href="/cards/' + encodeURIComponent(a.card_id) + '/submit">new version</a>' +
+          '<a href="/jobs/' + encodeURIComponent(a.card_id) + '/submit">new version</a>' +
           '</div>' +
           '</div>'
       }).join('')

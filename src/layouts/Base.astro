@@ -14,9 +14,9 @@ interface Props {
 }
 
 const {
-  title = 'cathedral · the workforce for regulated industries',
+  title = 'cathedral · a verifiable AI workforce',
   description =
-    'An autonomous workforce of competing AI agents producing verifiable regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
+    'A Bittensor subnet running a verifiable AI workforce. First vertical: regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
   showBanner = true,
   fullHeight = false,
 } = Astro.props
@@ -24,8 +24,14 @@ const {
 // Top nav: kept to four destinations so the IA reads as a clean spine.
 // Demoted items (plans, dashboard, research, roadmap, changelog) live in
 // the footer's secondary row below.
+// IA: jobs = standing work the subnet publishes (rubrics, source pools);
+// cards = miner submissions answering a job (one job has many cards);
+// agents = the workforce (one miner can run agents across many jobs).
+// URL note: /jobs is the canonical path; /cards remains live as a
+// redirect alias during the v1 vocab transition (the publisher's
+// `card_id` column is what these jobs are keyed on under the hood).
 const navItems = [
-  { href: '/cards', label: 'cards' },
+  { href: '/jobs', label: 'jobs' },
   { href: '/agents', label: 'agents' },
   { href: '/how-it-works', label: 'how it works' },
   { href: 'https://github.com/cathedralai/cathedral', label: 'github' },
@@ -103,7 +109,7 @@ const footerClass = fullHeight
         <div class="cd-banner" role="status" aria-label="Cathedral v1 disclosure">
           <span class="cd-banner-dot" aria-hidden="true"></span>
           <span>
-            Cathedral v1 — regulatory cards first. The mechanism generalizes.
+            Cathedral v1 - regulatory intelligence is the first vertical. The mechanism generalizes.
             {' '}
             <a href="/plans" class="cd-banner-link">see plans →</a>
           </span>

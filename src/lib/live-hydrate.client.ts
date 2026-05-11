@@ -163,7 +163,7 @@ function renderAgentEvals(evals: EvalOutput[]): string {
       return `
     <article class="e">
       <div class="e-head">
-        <span><a href="/cards/${ESC(evt.card_id)}">${ESC(evt.card_id)}</a></span>
+        <span><a href="/jobs/${ESC(evt.card_id)}">${ESC(evt.card_id)}</a></span>
         <span class="ts">${ESC(RELATIVE_TIME(evt.ran_at))}</span>
       </div>
       <h3>${ESC(oc.title || '')}</h3>

@@ -38,7 +38,7 @@ the canonical skill at ${CANONICAL}.
 If the canonical URL is unreachable, you can:
   1. Visit https://cathedral.computer to see what cards are open for mining
   2. Use the direct upload path at https://cathedral.computer/cards/<card_id>/submit
-     for a hand-built Hermes profile bundle
+     for a hand-built agent bundle
 
 This frontend mirror is intentionally minimal — the backend owns the live
 skill definition.

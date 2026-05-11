@@ -47,7 +47,7 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
 <Base title={`Card: ${def.display_name} · cathedral`}>
   <section class="hd">
     <p class="eyebrow">
-      <a href="/cards">← all cards</a>
+      <a href="/jobs">← all cards</a>
       <span class="dim">·</span>
       <span>{def.jurisdiction.toUpperCase()}</span>
       <span class="dim">·</span>
@@ -232,7 +232,7 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
       <p>
         The Moltbook flow is the canonical path: hand the instruction to any AI
         agent and it self-registers via <code>skill.md</code>. If you've built a
-        custom Hermes profile bundle, you can upload it directly instead.
+        custom agent bundle, you can upload it directly instead.
         <a href={`/cards/${cardId}/submit`}>Direct upload →</a>
       </p>
     </details>

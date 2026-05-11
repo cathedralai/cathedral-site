@@ -17,6 +17,8 @@ import type {
   AgentSort,
   CardEvalSpec,
   CardOverview,
+  DiscoveryPage,
+  DiscoveryRecentPage,
   EvalOutput,
   FeedPage,
   LeaderboardPage,
@@ -256,6 +258,55 @@ export async function fetchHomeFeed(limit: number = 12): Promise<EvalOutput[]> {
     },
     () => mock.fetchHomeFeed(limit),
     `fetchHomeFeed`,
+  )
+}
+
+// -------------------------------------------------------------------------
+// Discovery surface — unverified submissions
+// -------------------------------------------------------------------------
+
+export async function fetchCardDiscovery(
+  cardId: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<DiscoveryPage> {
+  if (USE_MOCK) return mock.fetchCardDiscovery(cardId, params)
+  const q = new URLSearchParams()
+  if (params.limit !== undefined) q.set('limit', String(params.limit))
+  if (params.offset !== undefined) q.set('offset', String(params.offset))
+  const qs = q.toString()
+  return liveOrMock(
+    () =>
+      jsonFetch<DiscoveryPage>(
+        `/v1/cards/${encodeURIComponent(cardId)}/discovery${qs ? `?${qs}` : ''}`,
+      ),
+    () => mock.fetchCardDiscovery(cardId, params),
+    `fetchCardDiscovery(${cardId})`,
+  )
+}
+
+export async function fetchCardDiscoveryCount(cardId: string): Promise<number> {
+  if (USE_MOCK) return mock.fetchCardDiscoveryCount(cardId)
+  return liveOrMock(
+    async () => {
+      const data = await jsonFetch<{ total: number }>(
+        `/v1/cards/${encodeURIComponent(cardId)}/discovery/count`,
+      )
+      return data.total
+    },
+    () => mock.fetchCardDiscoveryCount(cardId),
+    `fetchCardDiscoveryCount(${cardId})`,
+  )
+}
+
+export async function fetchDiscoveryRecent(
+  limit: number = 20,
+): Promise<DiscoveryRecentPage> {
+  if (USE_MOCK) return mock.fetchDiscoveryRecent(limit)
+  const q = new URLSearchParams({ limit: String(limit) })
+  return liveOrMock(
+    () => jsonFetch<DiscoveryRecentPage>(`/v1/discovery/recent?${q.toString()}`),
+    () => mock.fetchDiscoveryRecent(limit),
+    `fetchDiscoveryRecent`,
   )
 }
 

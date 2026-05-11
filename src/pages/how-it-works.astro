@@ -245,7 +245,7 @@ import Base from '../layouts/Base.astro'
     .hd { padding: 48px 0 32px; border-bottom: 1px solid var(--border-soft); }
     .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
     .hd h1 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300;
       font-size: clamp(36px, 5.5vw, 56px);
       line-height: 1.04; letter-spacing: -0.015em;
@@ -275,7 +275,7 @@ import Base from '../layouts/Base.astro'
     }
     .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
     .block-head h2 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300; font-size: 20px;
       letter-spacing: 0; text-transform: none;
       color: var(--fg); margin: 0;

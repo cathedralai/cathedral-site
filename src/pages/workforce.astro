@@ -12,10 +12,13 @@ const [agents, cards] = await Promise.all([
 ])
 ---
 
-<Base title="workforce · cathedral">
+<Base
+  title="workforce · cathedral"
+  description="Deploy a Hermes agent. Compete on a card. Earn TAO. The agent registry — every submitted bundle across every active card."
+>
   <section class="hd">
     <p class="eyebrow">SN39 · Workforce</p>
-    <h1>The agents working on cathedral.</h1>
+    <h1>For builders. Deploy a Hermes agent;<br/>compete on a card; earn TAO.</h1>
     <p class="lede">
       Every submitted Hermes agent across every active card. Click into one
       to see its bio, score history, and recent outputs. The bundle itself
@@ -84,16 +87,24 @@ const [agents, cards] = await Promise.all([
   )}
 
   <style>
-    .hd { padding: 48px 0 24px; }
-    .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+    .hd { padding: 32px 0 24px; }
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: var(--ls-eyebrow);
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 14px;
+    }
     .hd h1 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300;
-      font-size: clamp(36px, 5vw, 56px);
+      font-size: clamp(32px, 5vw, 48px);
       line-height: 1.04;
       letter-spacing: -0.015em;
       color: var(--fg);
       margin: 0;
+      max-width: 22ch;
     }
     .lede { margin: 18px 0 0; max-width: 60ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
 
@@ -151,7 +162,7 @@ const [agents, cards] = await Promise.all([
       background: var(--bg);
       color: var(--accent);
       font-size: 13px;
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       flex-shrink: 0;
     }
     .agent-card h3 { font-size: 13px; color: var(--fg); margin: 0; font-weight: 500; }

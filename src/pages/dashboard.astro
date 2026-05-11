@@ -67,7 +67,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     .hd { padding: 48px 0 28px; }
     .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
     .hd h1 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300; font-size: clamp(36px, 5vw, 56px);
       line-height: 1.04; letter-spacing: -0.015em;
       color: var(--fg); margin: 0;
@@ -78,7 +78,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     .gate-card { padding: 24px 26px; border: 1px solid var(--border); background: var(--surface); }
     .gate-card .rk { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
     .gate-card h2 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300; font-size: 22px; color: var(--fg); margin: 0 0 8px;
     }
     .gate-card p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 60ch; }
@@ -90,7 +90,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     }
     .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
     .block-head h2 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300; font-size: 18px;
       letter-spacing: 0; text-transform: none;
       color: var(--fg); margin: 0;

@@ -1,0 +1,139 @@
+/* =============================================================
+   CATHEDRAL — design tokens (slate canonical)
+   Single source of truth for color, type, scale, motion.
+
+   Components may consume tokens two ways:
+   - via Tailwind utilities (color tokens are exposed in
+     tailwind.config.mjs as theme.extend.colors)
+   - via var(--token) directly in scoped <style> blocks
+
+   Ported from cathedral-design-system handoff
+   (handoff/03-design-system.md, slate kit). Do not duplicate
+   palette values in components — read from these vars.
+   ============================================================= */
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Background system (dark canonical) */
+  --bg: #0e0f12;             /* page */
+  --surface: #15171c;        /* tiles, panels */
+  --surface-2: #1a1d23;      /* hover state */
+  --code-bg: #0a0b0e;        /* code blocks */
+  --code-fg: #c8d1de;
+  --code-border: #1d2027;
+
+  /* Borders */
+  --border: #2a2e36;         /* strong rule */
+  --border-soft: #1f2229;    /* hairline grid */
+
+  /* Foreground */
+  --fg: #e9ebef;             /* primary text */
+  --muted: #aab2bd;          /* secondary */
+  --dim: #6b7480;            /* tertiary, captions */
+  --faint: #3a4048;          /* separators inside text */
+
+  /* Accent (slate blue) */
+  --accent: #7ea8d0;
+  --accent-dim: rgba(126, 168, 208, 0.14);
+  --glow-accent: 0 0 8px rgba(126, 168, 208, 0.45);
+
+  /* Semantic */
+  --ok: #89b890;
+  --ok-dim: rgba(137, 184, 144, 0.14);
+  --warn: #d8a765;
+  --warn-dim: rgba(216, 167, 101, 0.12);
+  --err: #d97a6c;
+  --err-dim: rgba(217, 122, 108, 0.12);
+
+  /* Scrollbar */
+  --scrollbar-thumb: #2a2e36;
+  --scrollbar-thumb-hover: #3a3f48;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f3f1eb;
+  --surface: #ecebe3;
+  --surface-2: #e5e4db;
+  --code-bg: #ede9df;
+  --code-fg: #2a2d35;
+  --code-border: #d8d5c9;
+
+  --border: #d8d5c9;
+  --border-soft: #e3e1d6;
+
+  --fg: #1c1d1f;
+  --muted: #5a6069;
+  --dim: #85899a;
+  --faint: #b6b2a2;
+
+  --accent: #3a5d82;
+  --accent-dim: rgba(58, 93, 130, 0.12);
+  --glow-accent: 0 0 6px rgba(58, 93, 130, 0.25);
+
+  --ok: #4a7a54;
+  --ok-dim: rgba(74, 122, 84, 0.10);
+  --warn: #8c5a1e;
+  --warn-dim: rgba(140, 90, 30, 0.10);
+  --err: #8a342a;
+  --err-dim: rgba(138, 52, 42, 0.10);
+
+  --scrollbar-thumb: #cdc9bb;
+  --scrollbar-thumb-hover: #b6b2a2;
+}
+
+/* Shared scale, type, motion, geometry (theme-invariant). */
+:root {
+  /* Type families */
+  --serif: 'Newsreader', ui-serif, Georgia, serif;
+  --sans: 'Inter Tight', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  /* Type scale */
+  --t-display: clamp(40px, 7vw, 84px);
+  --t-h1: clamp(36px, 5vw, 56px);
+  --t-h2: 22px;
+  --t-h3: 18px;
+  --t-h4: 14px;
+  --t-body: 13.5px;
+  --t-small: 12px;
+  --t-nano: 10px;
+
+  /* Letter-spacing */
+  --ls-display: -0.02em;
+  --ls-h1: -0.015em;
+  --ls-h2: -0.01em;
+  --ls-body: 0;
+  --ls-nano: 0.18em;
+  --ls-eyebrow: 0.22em;
+  --ls-mono-meta: 0.04em;
+
+  /* Line-height */
+  --lh-display: 0.98;
+  --lh-h1: 1.04;
+  --lh-prose: 1.7;
+  --lh-body: 1.6;
+  --lh-tight: 1.3;
+
+  /* Motion */
+  --dur: 220ms;
+  --dur-tick: 1.6s;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* Geometry */
+  --shell-w: 1180px;
+  --content-w: 960px;
+  --block-pad-y: 36px;
+  --radius-pill: 999px;
+}
+
+@keyframes cd-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes cd-draw {
+  to { stroke-dashoffset: 0; }
+}

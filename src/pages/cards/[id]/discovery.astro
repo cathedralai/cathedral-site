@@ -18,7 +18,17 @@ const [overview, discovery] = await Promise.all([
   fetchCardOverview(cardId),
   fetchCardDiscovery(cardId, { limit: 50, offset: 0 }),
 ])
-const def = overview.definition
+// `definition` is always set by the live API + mock for v1 card ids, but
+// guard for build-time mock seeding races where snapshot init returns
+// before the definition map is populated.
+const def = overview.definition ?? {
+  id: cardId,
+  display_name: cardId,
+  jurisdiction: '',
+  topic: '',
+  description: '',
+  status: 'active',
+}
 ---
 
 <Base title={`research · ${def.display_name} · cathedral`}>

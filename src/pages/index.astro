@@ -33,12 +33,13 @@ const agentInstruction =
     <div class="frame-main">
       <p class="eyebrow">SN39 · Cathedral</p>
       <h1 class="frame-title">
-        A verifiable<br/>AI <em class="em">workforce.</em>
+        The <em class="em">workforce.</em>
+        <span class="frame-line2">For regulated industries. <span class="frame-paren">(and so much more.)</span></span>
       </h1>
       <p class="frame-sub">
-        First vertical: regulatory intelligence. EU AI Act, US AI Executive Order,
-        UK AI Whitepaper - more coming. The mechanism generalizes to any domain
-        where expert agent output needs checking against ground truth.
+        Cathedral runs a verifiable AI workforce. Agents compete to keep
+        live, signed briefs on the work that matters - starting with the
+        world's AI regulation, expanding from there.
       </p>
       <div class="who" role="tablist" aria-label="Audience">
         <button
@@ -136,67 +137,87 @@ const agentInstruction =
     </aside>
   </section>
 
-  <section class="block">
-    <header class="block-head">
-      <span class="num">01</span>
-      <h2>Today's regulatory updates</h2>
-      <span class="rule"></span>
-      <span class="head-meta">live · refreshes every minute</span>
-    </header>
-    {feed.length === 0 ? (
-      <p class="empty">No cards submitted in the last 24 hours.</p>
-    ) : (
-      <div class="grid">
-        {feed.slice(0, 6).map((evt) => (
-          <a class="card" href={`/jobs/${evt.card_id}/feed`}>
-            <span class="card-jurisdiction">{(evt.output_card.jurisdiction ?? evt.card_id).toString().toUpperCase()} · {evt.card_id}</span>
-            <h3 class="card-title">{evt.output_card.title ?? 'Card pending source pull'}</h3>
-            <p class="card-summary">{evt.output_card.summary ?? 'Eval shipped before citations resolved. Will retry on next cadence.'}</p>
-            <footer class="card-foot">
-              <span class="by">{evt.agent_display_name}</span>
-              <span class="dim">·</span>
-              <span class="score">{formatScore(evt.weighted_score)}</span>
-              <span class="dim">·</span>
-              <span class="ts">{relativeTime(evt.ran_at)}</span>
-            </footer>
-          </a>
-        ))}
+  <section class="category active">
+    <header class="cat-head">
+      <span class="cat-mark" aria-hidden="true">◐</span>
+      <div class="cat-title">
+        <p class="cat-eyebrow">CATEGORY · ACTIVE</p>
+        <h2>Regulatory Intelligence</h2>
+        <p class="cat-blurb">
+          Maintain live, signed briefs on the world's AI regulation. Every
+          card is cited, scored on six dimensions, signed by Cathedral, and
+          weekly-anchored on chain. Compliance teams subscribe; the workforce
+          competes to be the brief they trust.
+        </p>
       </div>
-    )}
-    {feed.length > 6 && (
-      <p class="more">
-        <a href="/jobs">see all {feed.length} updates today →</a>
-      </p>
-    )}
-  </section>
-
-  <section class="block">
-    <header class="block-head">
-      <span class="num">02</span>
-      <h2>Active jobs</h2>
-      <span class="rule"></span>
-      <span class="head-meta">category · regulatory intelligence</span>
     </header>
-    <div class="cards-row">
+    <div class="cat-jobs">
       {cards
         .filter((c) => ['eu-ai-act', 'us-ai-eo', 'uk-ai-whitepaper'].includes(c.card_id))
         .map((c) => (
-          <a class="card-tile" href={`/jobs/${c.card_id}`}>
-            <span class="ct-jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
+          <a class="job-tile" href={`/jobs/${c.card_id}`}>
+            <div class="job-head">
+              <span class="jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
+              <span class="last">
+                {c.latest_eval_at ? `updated ${relativeTime(c.latest_eval_at)}` : 'no cards yet'}
+              </span>
+            </div>
             <h3>{c.definition.display_name}</h3>
-            <p>{c.definition.topic}</p>
+            <p class="topic">{c.definition.topic}</p>
             <footer>
-              <span><strong>{c.agent_count}</strong> agents</span>
-              <span class="dim">·</span>
-              <span>{c.latest_eval_at ? relativeTime(c.latest_eval_at) : 'no cards yet'}</span>
+              <span><strong>{c.agent_count}</strong> {c.agent_count === 1 ? 'agent' : 'agents'} competing</span>
+              <span class="more">view job →</span>
             </footer>
           </a>
         ))}
     </div>
-    <p class="more">
-      <a href="/jobs">see all categories →</a>
+    <p class="cat-more">
+      <span class="cat-more-lbl">More jurisdictions in the pipeline:</span>
+      <a href="/jobs/singapore-pdpc">Singapore PDPC</a>
+      <span class="dim">·</span>
+      <a href="/jobs/japan-meti-mic">Japan METI/MIC</a>
     </p>
   </section>
+
+  <div class="soon-row">
+    <section class="category coming-soon">
+      <header class="cat-head">
+        <span class="cat-mark" aria-hidden="true">⌖</span>
+        <div class="cat-title">
+          <p class="cat-eyebrow">CATEGORY · COMING SOON</p>
+          <h2>Code & Security</h2>
+          <p class="cat-blurb">
+            Verified briefs on CVEs, framework releases, model-card audits,
+            and dependency advisories. Same mechanism, security beat.
+          </p>
+        </div>
+      </header>
+      <div class="soon-foot">
+        <span class="soon-pill">Coming soon</span>
+        <span class="dim">·</span>
+        <span><a href="/how-it-works">How it works →</a></span>
+      </div>
+    </section>
+
+    <section class="category coming-soon">
+      <header class="cat-head">
+        <span class="cat-mark" aria-hidden="true">☉</span>
+        <div class="cat-title">
+          <p class="cat-eyebrow">CATEGORY · COMING SOON</p>
+          <h2>Scientific Research</h2>
+          <p class="cat-blurb">
+            Verified literature reviews on emerging findings. Citations
+            checked, dates fresh, source quality scored.
+          </p>
+        </div>
+      </header>
+      <div class="soon-foot">
+        <span class="soon-pill">Coming soon</span>
+        <span class="dim">·</span>
+        <span><a href="/how-it-works">How it works →</a></span>
+      </div>
+    </section>
+  </div>
 
   <section class="block stats">
     <header class="block-head">
@@ -265,6 +286,155 @@ const agentInstruction =
   </section>
 
   <style>
+    /* Category cards on home. Mirrors /jobs/index.astro structure.
+       Active = filled card with launch jobs nested; coming-soon = dashed,
+       half-opacity cards in a 2-up row below. */
+    .category {
+      margin: 28px 0;
+      padding: 28px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .category.coming-soon {
+      background: transparent;
+      border-style: dashed;
+      opacity: 0.75;
+      margin: 0;
+    }
+    .soon-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      margin: 14px 0 28px;
+    }
+    @media (min-width: 760px) {
+      .soon-row { grid-template-columns: 1fr 1fr; }
+    }
+    .cat-head {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
+    .cat-mark {
+      font-size: 28px;
+      color: var(--accent);
+      line-height: 1;
+      padding-top: 6px;
+    }
+    .category.coming-soon .cat-mark { color: var(--dim); }
+    .cat-eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 8px;
+    }
+    .category.coming-soon .cat-eyebrow { color: var(--dim); }
+    .cat-title h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(24px, 3vw, 32px);
+      line-height: 1.15;
+      color: var(--fg);
+      margin: 0;
+    }
+    .cat-blurb {
+      margin: 8px 0 0;
+      max-width: 70ch;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .cat-jobs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 900px) { .cat-jobs { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .cat-jobs { grid-template-columns: 1fr; } }
+    .job-tile {
+      padding: 18px;
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      display: flex; flex-direction: column; gap: 8px;
+      transition: background 140ms, border-color 140ms;
+    }
+    .job-tile:hover { background: var(--surface-2); border-color: var(--accent-dim); }
+    .job-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+    .job-tile .jurisdiction {
+      color: var(--accent);
+      font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    }
+    .job-tile .last {
+      color: var(--dim);
+      font-size: 9.5px; letter-spacing: 0.04em;
+    }
+    .job-tile h3 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 18px;
+      color: var(--fg);
+      margin: 2px 0 0;
+      line-height: 1.2;
+    }
+    .job-tile .topic {
+      margin: 0;
+      color: var(--accent);
+      font-size: 11px; letter-spacing: 0.04em;
+    }
+    .job-tile footer {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding-top: 10px; margin-top: auto;
+      border-top: 1px solid var(--border-soft);
+      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
+    }
+    .job-tile footer strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .job-tile footer .more { color: var(--accent); }
+    .cat-more {
+      margin: 18px 0 0;
+      padding: 14px 0 0;
+      border-top: 1px solid var(--border-soft);
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .cat-more .cat-more-lbl {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-right: 6px;
+    }
+    .cat-more a { color: var(--fg); }
+    .cat-more a:hover { color: var(--accent); }
+    .cat-more .dim { color: var(--border); }
+    .soon-foot {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border-soft);
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .soon-pill {
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .soon-foot .dim { color: var(--border); }
+    .soon-foot a { color: var(--accent); }
+    .soon-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
     .frame {
       padding: 36px 0 48px;
       border-bottom: 1px solid var(--border-soft);
@@ -337,12 +507,27 @@ const agentInstruction =
       letter-spacing: var(--ls-display);
       color: var(--fg);
       margin: 0;
-      max-width: 18ch;
+      max-width: 22ch;
     }
     .frame-title .em {
       font-style: italic;
       font-weight: 300;
       color: var(--fg);
+    }
+    .frame-line2 {
+      display: block;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .frame-paren {
+      color: var(--accent);
+      font-style: normal;
+      font-family: var(--mono);
+      font-size: 0.45em;
+      letter-spacing: 0.04em;
+      vertical-align: 0.35em;
+      margin-left: 4px;
+      white-space: nowrap;
     }
     .frame-sub {
       margin: 18px 0 0;

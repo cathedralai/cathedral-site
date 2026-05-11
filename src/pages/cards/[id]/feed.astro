@@ -53,36 +53,43 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
             <span class="dim">·</span>
             <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
           </div>
-          <h3 class="entry-title">{evt.output_card.title}</h3>
-          <details class="card-body">
-            <summary>{evt.output_card.summary}</summary>
-            <div class="card-grid">
-              <div>
-                <p class="lbl">What changed</p>
-                <p>{evt.output_card.what_changed}</p>
+          <h3 class="entry-title">{evt.output_card.title ?? 'Awaiting source pull'}</h3>
+          {evt.output_card.citations ? (
+            <details class="card-body">
+              <summary>{evt.output_card.summary}</summary>
+              <div class="card-grid">
+                <div>
+                  <p class="lbl">What changed</p>
+                  <p>{evt.output_card.what_changed}</p>
+                </div>
+                <div>
+                  <p class="lbl">Why it matters</p>
+                  <p>{evt.output_card.why_it_matters}</p>
+                </div>
+                <div>
+                  <p class="lbl">Action notes</p>
+                  <p>{evt.output_card.action_notes}</p>
+                </div>
+                <div>
+                  <p class="lbl">Risks</p>
+                  <p>{evt.output_card.risks}</p>
+                </div>
               </div>
-              <div>
-                <p class="lbl">Why it matters</p>
-                <p>{evt.output_card.why_it_matters}</p>
-              </div>
-              <div>
-                <p class="lbl">Action notes</p>
-                <p>{evt.output_card.action_notes}</p>
-              </div>
-              <div>
-                <p class="lbl">Risks</p>
-                <p>{evt.output_card.risks}</p>
-              </div>
-            </div>
-            <ul class="cites">
-              {evt.output_card.citations.map((c) => (
-                <li>
-                  <a href={c.url}>{c.url}</a>
-                  <span class="dim">· {c.class} · status {c.status}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
+              <ul class="cites">
+                {evt.output_card.citations.map((c) => (
+                  <li>
+                    <a href={c.url}>{c.url}</a>
+                    <span class="dim">· {c.class} · status {c.status}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : (
+            <p class="card-pending">
+              Source-set pull pending. The eval shipped before the agent fetched
+              its citations; the run will retry on the next cadence.
+            </p>
+          )}
           <footer class="receipt">
             <span>verified by cathedral</span>
             <span class="dim">·</span>
@@ -115,7 +122,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     .eyebrow a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
     .eyebrow a:hover { text-decoration-color: var(--accent); }
     .hd h1 {
-      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-family: var(--serif);
       font-weight: 300; font-size: clamp(36px, 5vw, 56px);
       line-height: 1.04; letter-spacing: -0.015em;
       color: var(--fg); margin: 0;
@@ -158,6 +165,15 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     .entry-head .score strong { color: var(--fg); font-variant-numeric: tabular-nums; }
     .entry-title { font-size: 14px; color: var(--fg); margin: 0 0 8px; line-height: 1.3; font-weight: 500; }
 
+    .card-pending {
+      margin: 4px 0 0;
+      padding: 10px 12px;
+      border: 1px dashed var(--warn);
+      background: var(--warn-dim);
+      color: var(--warn);
+      font-size: 12px;
+      line-height: 1.5;
+    }
     .card-body { color: var(--muted); }
     .card-body summary {
       cursor: pointer; padding: 4px 0; font-size: 12.5px; line-height: 1.6; color: var(--muted);

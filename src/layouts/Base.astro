@@ -1,14 +1,25 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
 import AuthBootstrap from '../components/AuthBootstrap.astro'
+import '../styles/tokens.css'
 
 interface Props {
   title?: string
+  description?: string
+  /** Pass false to omit the platform-whisper banner (e.g. on /plans itself,
+   *  where the link would point back to the same page). */
+  showBanner?: boolean
   /** When true, the page fills the viewport exactly — use for the log dashboard. */
   fullHeight?: boolean
 }
 
-const { title = 'cathedral', fullHeight = false } = Astro.props
+const {
+  title = 'cathedral · the workforce for regulated industries',
+  description =
+    'An autonomous workforce of competing AI agents producing verifiable regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
+  showBanner = true,
+  fullHeight = false,
+} = Astro.props
 
 const shellClass = fullHeight
   ? 'mx-auto max-w-[1180px] h-screen flex flex-col px-4 py-4 sm:px-5'
@@ -31,10 +42,16 @@ const footerClass = fullHeight
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/rose-window.svg" />
+    <meta name="twitter:card" content="summary" />
     <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script is:inline>
       (function () {
@@ -58,9 +75,10 @@ const footerClass = fullHeight
         </a>
         <span class="text-dim">·</span>
         <a href="/workforce" class="hover:text-fg transition-colors">workforce</a>
-        <a href="/research" class="hover:text-fg transition-colors">research</a>
         <a href="/how-it-works" class="hover:text-fg transition-colors">how it works</a>
+        <a href="/plans" class="hover:text-fg transition-colors">plans</a>
         <a href="/dashboard" class="hover:text-fg transition-colors">dashboard</a>
+        <a href="/research" class="hover:text-fg transition-colors">research</a>
         <a href="/afrotensor" class="hover:text-fg transition-colors">afrotensor</a>
         <a href="/roadmap" class="hover:text-fg transition-colors">roadmap</a>
         <a href="/changelog" class="hover:text-fg transition-colors">changelog</a>
@@ -77,6 +95,16 @@ const footerClass = fullHeight
         </button>
         <span class="text-dim">sn39 · finney</span>
       </header>
+      {showBanner && (
+        <div class="cd-banner" role="status" aria-label="Cathedral v1 disclosure">
+          <span class="cd-banner-dot" aria-hidden="true"></span>
+          <span>
+            Cathedral v1 — regulatory cards first. The mechanism generalizes.
+            {' '}
+            <a href="/plans" class="cd-banner-link">see plans →</a>
+          </span>
+        </div>
+      )}
       <main class={mainClass}>
         <slot />
       </main>
@@ -117,51 +145,6 @@ const footerClass = fullHeight
       })()
     </script>
     <style is:global>
-      /* Slate palette, inspired by the Cathedral Subnet design drop.
-         oklch-first, with hex fallbacks handled by CSS variables being read
-         directly into hex-compatible Tailwind tokens. */
-      html[data-theme='dark'] {
-        color-scheme: dark;
-        --bg: #0e0f12;
-        --surface: #16181c;
-        --surface-2: #1b1e23;
-        --border: #23262d;
-        --border-soft: #1c1f25;
-        --fg: #e6e9ef;
-        --muted: #9ba2ae;
-        --dim: #6a7380;
-        --accent: #7ea8d0;          /* slate-blue — quiet, confident */
-        --accent-dim: rgba(126, 168, 208, 0.14);
-        --warn: #d8a765;
-        --warn-dim: rgba(216, 167, 101, 0.12);
-        --err: #d97a6c;
-        --err-dim: rgba(217, 122, 108, 0.12);
-        --ok: #89b890;                /* muted sage — verified, good, quiet */
-        --ok-dim: rgba(137, 184, 144, 0.14);
-        --scrollbar-thumb: #2a2e36;
-        --scrollbar-thumb-hover: #3a3f48;
-      }
-      html[data-theme='light'] {
-        color-scheme: light;
-        --bg: #f3f1eb;
-        --surface: #ecebe3;
-        --surface-2: #e5e4db;
-        --border: #d8d5c9;
-        --border-soft: #e3e1d6;
-        --fg: #1c1d1f;
-        --muted: #5a6069;
-        --dim: #85899a;
-        --accent: #3a5d82;
-        --accent-dim: rgba(58, 93, 130, 0.12);
-        --warn: #8c5a1e;
-        --warn-dim: rgba(140, 90, 30, 0.10);
-        --err: #8a342a;
-        --err-dim: rgba(138, 52, 42, 0.10);
-        --ok: #4a7a54;                /* darker sage for light theme */
-        --ok-dim: rgba(74, 122, 84, 0.10);
-        --scrollbar-thumb: #cdc9bb;
-        --scrollbar-thumb-hover: #b6b2a2;
-      }
       html, body { background: var(--bg); color: var(--fg); }
       /* Prevent stray horizontal scroll from wide children (long code
          strings, grid-internal overflow) on narrow viewports. Individual
@@ -172,11 +155,86 @@ const footerClass = fullHeight
       a { text-decoration: none; }
       body { font-feature-settings: 'calt' 1, 'ss01' 1, 'ss02' 1, 'zero' 1, 'tnum' 1; }
       /* Serif for display copy — Newsreader paired with mono body. */
-      .font-serif { font-family: 'Newsreader', ui-serif, Georgia, serif; }
+      .font-serif { font-family: var(--serif); }
+      .font-sans-tight { font-family: var(--sans); }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+      /* ---- platform-whisper banner ---------------------------------- */
+      .cd-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 18px;
+        padding: 7px 12px;
+        border: 1px solid var(--border-soft);
+        background: var(--surface);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        align-self: flex-start;
+        max-width: 100%;
+      }
+      .cd-banner-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: var(--glow-accent);
+        animation: cd-pulse var(--dur-tick) ease-in-out infinite;
+        flex-shrink: 0;
+      }
+      .cd-banner-link {
+        color: var(--accent);
+        margin-left: 4px;
+      }
+      .cd-banner-link:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      /* ---- shared eyebrow / numbered-section primitives ------------- */
+      .cd-eyebrow {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: var(--ls-eyebrow);
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 14px;
+      }
+      .cd-block-head {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 18px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: var(--ls-nano);
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .cd-block-head .num {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-block-head h2 {
+        font-family: var(--serif);
+        font-weight: 300;
+        font-size: 18px;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--fg);
+        margin: 0;
+      }
+      .cd-block-head .rule {
+        flex: 1;
+        height: 1px;
+        background: var(--border-soft);
+        margin-left: 6px;
+      }
     </style>
   </body>
 </html>

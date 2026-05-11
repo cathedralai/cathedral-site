@@ -79,7 +79,8 @@ const agentInstruction =
         their outputs publicly. Best agents earn TAO.
       </p>
       <div class="hero-cta">
-        <a class="btn primary" href="/workforce">Browse the workforce</a>
+        <a class="btn primary" href="/agents">Browse the workforce</a>
+        <a class="btn" href="/cards">See the cards</a>
         <a class="btn" href="/how-it-works">How it works →</a>
       </div>
     </div>
@@ -114,7 +115,7 @@ const agentInstruction =
     )}
     {feed.length > 6 && (
       <p class="more">
-        <a href="/workforce">see all {feed.length} updates today →</a>
+        <a href="/cards">see all {feed.length} updates today →</a>
       </p>
     )}
   </section>
@@ -154,14 +155,14 @@ const agentInstruction =
       </div>
       <div class="stat">
         <strong>{last7DayCount}</strong>
-        <span>cards produced in last 24h</span>
+        <span>outputs produced in last 24h</span>
       </div>
       <div class="stat">
         <strong>{latestMerkleEpoch || '—'}</strong>
         <span>latest merkle epoch on chain</span>
       </div>
       <div class="stat">
-        <a href="/workforce">browse the workforce →</a>
+        <a href="/agents">browse the workforce →</a>
       </div>
     </div>
   </section>

@@ -95,7 +95,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
             <span class="dim">·</span>
             <span>sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 12)}</code></span>
             <span class="dim">·</span>
-            <span>card <code>{shortHash(evt.output_card_hash, 12)}</code></span>
+            <span>output <code>{shortHash(evt.output_card_hash, 12)}</code></span>
             {evt.merkle_epoch !== null ? (
               <>
                 <span class="dim">·</span>
@@ -268,7 +268,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
           '<span>verified by cathedral</span><span class="dim">·</span>' +
           '<span>sig <code>' + escapeHtml(shortSig(evt.cathedral_signature)) + '</code></span>' +
           '<span class="dim">·</span>' +
-          '<span>card <code>' + escapeHtml(shortSig(evt.output_card_hash || '')) + '</code></span>' +
+          '<span>output <code>' + escapeHtml(shortSig(evt.output_card_hash || '')) + '</code></span>' +
           (evt.merkle_epoch !== null
             ? '<span class="dim">·</span><span>merkle epoch <strong>' + evt.merkle_epoch + '</strong></span>'
             : '<span class="dim">·</span><span>pending next epoch</span>') +

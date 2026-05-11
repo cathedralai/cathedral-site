@@ -1,13 +1,13 @@
+/cards
+  Cache-Control: no-store
+
 /cards/*
   Cache-Control: no-store
 
+/agents
+  Cache-Control: no-store
+
 /agents/*
-  Cache-Control: no-store
-
-/workforce
-  Cache-Control: no-store
-
-/workforce/*
   Cache-Control: no-store
 
 /ledger

@@ -1,8 +1,8 @@
 ---
 /*
- * Auth bootstrap. Mirrors the Supabase + Polaris pattern used in
- * src/pages/afrotensor.astro so a session created on either page works on
- * both. Exposes window.__cathedralAuth for the rest of the page.
+ * Auth bootstrap. Wires the Supabase + Polaris session pattern across
+ * the cathedral surface so a sign-in on any page is honored on the rest.
+ * Exposes window.__cathedralAuth for the rest of the page.
  *
  * Loaded into <head> via Base.astro so all client scripts can call it.
  */

@@ -283,7 +283,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     function renderAgents(items) {
       counter.textContent = items.length + (items.length === 1 ? ' agent' : ' agents')
       if (!items.length) {
-        agentsEl.innerHTML = '<p class="status">No agents under this hotkey yet. <a href="/workforce">Browse the workforce.</a></p>'
+        agentsEl.innerHTML = '<p class="status">No agents under this hotkey yet. <a href="/agents">Browse the workforce.</a></p>'
         return
       }
       agentsEl.innerHTML = items.map(function (a) {

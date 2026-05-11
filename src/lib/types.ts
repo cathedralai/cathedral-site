@@ -157,6 +157,10 @@ export type CardDefinition = {
   topic: string
   description: string // markdown
   status: 'active' | 'archived'
+  // v2: when buyer-posted cards land, this will be 'cathedral' for the
+  // launch set and a buyer id for everything else. The /cards index and
+  // /cards/[id] page can grow an owner badge without restructuring.
+  // owner?: 'cathedral' | string
 }
 
 export type CardOverview = {

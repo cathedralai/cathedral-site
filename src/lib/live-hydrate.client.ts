@@ -8,7 +8,7 @@
  * them with fresh data from the publisher API.
  *
  * Each placeholder has:
- *   - `data-live="leaderboard|card-overview|recent-feed|workforce|agent-profile"`
+ *   - `data-live="leaderboard|card-overview-stats|recent-feed|agent-evals|cards-index"`
  *   - `data-card-id` (for card-scoped surfaces)
  *   - `data-agent-id` (for agent-scoped surfaces)
  *   - `data-limit` (optional)
@@ -199,7 +199,7 @@ function renderAgentEvals(evals: EvalOutput[]): string {
         <span class="dim"> · </span>
         sig <code>${ESC(SHORT_HASH((evt.cathedral_signature || '').replace(/^b64:/, ''), 6))}</code>
         <span class="dim"> · </span>
-        card <code>${ESC(SHORT_HASH(evt.output_card_hash, 6))}</code>
+        output <code>${ESC(SHORT_HASH(evt.output_card_hash, 6))}</code>
         ${
           evt.merkle_epoch !== null && evt.merkle_epoch !== undefined
             ? `<span class="dim"> · </span>merkle epoch <strong>${evt.merkle_epoch}</strong>`
@@ -272,6 +272,32 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
       document.querySelectorAll<HTMLElement>('[data-live-rank]').forEach((s) => {
         s.textContent = d.current_rank == null ? '—' : `#${d.current_rank}`
       })
+    } else if (kind === 'cards-index') {
+      // The cards index page renders each tile with [data-card-id]. We
+      // refresh just the per-tile agent count + last-update label so new
+      // submissions show up between deploys without re-rendering layout.
+      const tiles = el.querySelectorAll<HTMLElement>('[data-card-id]')
+      await Promise.all(
+        Array.from(tiles).map(async (tile) => {
+          const cardId = tile.dataset.cardId
+          if (!cardId) return
+          try {
+            const d = await fetchJSON<CardOverview>(
+              `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}`,
+            )
+            const countEl = tile.querySelector<HTMLElement>('[data-agent-count]')
+            if (countEl) countEl.textContent = String(d.agent_count)
+            const lastEl = tile.querySelector<HTMLElement>('[data-last-eval]')
+            if (lastEl) {
+              lastEl.textContent = d.latest_eval_at
+                ? `last update ${RELATIVE_TIME(d.latest_eval_at)}`
+                : 'no outputs yet'
+            }
+          } catch (e) {
+            console.warn('[live-hydrate] cards-index', cardId, e)
+          }
+        }),
+      )
     }
   } catch (e) {
     // Surface failures inline so they're debuggable; the static fallback

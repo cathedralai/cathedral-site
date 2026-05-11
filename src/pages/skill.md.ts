@@ -23,9 +23,9 @@ export const prerender = true
 
 const API_BASE: string =
   (import.meta.env.PUBLIC_CATHEDRAL_API_URL as string | undefined) ||
-  'https://api.cathedral.computer'
+  'https://cathedral-publisher-production.up.railway.app'
 
-const CANONICAL = 'https://api.cathedral.computer/skill.md'
+const CANONICAL = 'https://cathedral-publisher-production.up.railway.app/skill.md'
 
 const FALLBACK = `# cathedral skill
 

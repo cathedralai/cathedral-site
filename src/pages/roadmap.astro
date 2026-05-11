@@ -21,7 +21,7 @@ async function fetchIssues(): Promise<{ issues: Issue[]; ok: boolean }> {
     const headers: Record<string, string> = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'cathedral-site' }
     const token = import.meta.env.GITHUB_TOKEN || process.env.GITHUB_TOKEN
     if (token) headers.Authorization = `Bearer ${token}`
-    const r = await fetch('https://api.github.com/repos/bigailabs/cathedral/issues?state=all&per_page=100', { headers })
+    const r = await fetch('https://api.github.com/repos/cathedralai/cathedral/issues?state=all&per_page=100', { headers })
     if (!r.ok) return { issues: [], ok: false }
     const data = (await r.json()) as Issue[]
     return { issues: data.filter((i) => !i.pull_request), ok: true }
@@ -112,7 +112,7 @@ const openCount = issues.filter((i) => i.state === 'open').length
         <p class="lede">Three acts, in rough order.<br/><em>Foundation, then walls, then the yard.</em></p>
         <p class="text-[12px] text-muted leading-relaxed mt-4 max-w-[56ch]">
           The arc we think the work wants to take. Scope shifts as we learn. Live from
-          <a href="https://github.com/bigailabs/cathedral/issues" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">GitHub issues</a>.
+          <a href="https://github.com/cathedralai/cathedral/issues" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">GitHub issues</a>.
         </p>
         {total > 0 && (
           <p class="text-[11px] text-dim mt-3 tabular-nums">
@@ -130,7 +130,7 @@ const openCount = issues.filter((i) => i.state === 'open').length
         <div class="border border-border bg-surface px-4 py-3">
           <p class="text-[12px] text-muted leading-relaxed">
             GitHub's API rate-limited our build. Source of truth is
-            <a href="https://github.com/bigailabs/cathedral/issues" class="text-fg hover:text-accent underline underline-offset-2 decoration-dim ml-1">the issue tracker</a>.
+            <a href="https://github.com/cathedralai/cathedral/issues" class="text-fg hover:text-accent underline underline-offset-2 decoration-dim ml-1">the issue tracker</a>.
           </p>
         </div>
       </div>
@@ -207,7 +207,7 @@ const openCount = issues.filter((i) => i.state === 'open').length
     <div class="wrap">
       <div></div>
       <p class="text-[11px] text-dim leading-relaxed">
-        Something missing? <a href="https://github.com/bigailabs/cathedral/issues/new" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">File it</a>.
+        Something missing? <a href="https://github.com/cathedralai/cathedral/issues/new" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">File it</a>.
       </p>
     </div>
   </section>

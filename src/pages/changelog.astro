@@ -7,7 +7,7 @@ async function fetchChangelog(): Promise<{ md: string; ok: boolean }> {
     const headers: Record<string, string> = { 'Accept': 'application/vnd.github.v3.raw', 'User-Agent': 'cathedral-site' }
     const token = import.meta.env.GITHUB_TOKEN || process.env.GITHUB_TOKEN
     if (token) headers.Authorization = `Bearer ${token}`
-    const r = await fetch('https://api.github.com/repos/bigailabs/cathedral/contents/CHANGELOG.md', { headers })
+    const r = await fetch('https://api.github.com/repos/cathedralai/cathedral/contents/CHANGELOG.md', { headers })
     if (!r.ok) return { md: '', ok: false }
     const md = await r.text()
     return { md, ok: true }
@@ -70,9 +70,9 @@ const html = ok ? marked.parse(cleaned) : ''
         <p class="stone-line">Each entry is a stone laid.</p>
         <p class="text-[12px] text-muted leading-relaxed mt-4 max-w-[56ch]">
           Source of truth is
-          <a href="https://github.com/bigailabs/cathedral/blob/main/CHANGELOG.md" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">CHANGELOG.md</a>
+          <a href="https://github.com/cathedralai/cathedral/blob/main/CHANGELOG.md" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">CHANGELOG.md</a>
           on the cathedral repo. Releases are tagged
-          <a href="https://github.com/bigailabs/cathedral/releases" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">there</a>.
+          <a href="https://github.com/cathedralai/cathedral/releases" class="text-muted hover:text-fg underline underline-offset-2 decoration-dim">there</a>.
         </p>
       </div>
     </div>
@@ -85,7 +85,7 @@ const html = ok ? marked.parse(cleaned) : ''
         <div class="border border-border bg-surface px-4 py-3">
           <p class="text-[12px] text-muted leading-relaxed">
             Couldn't reach GitHub at build time. Read the canonical
-            <a href="https://github.com/bigailabs/cathedral/blob/main/CHANGELOG.md" class="text-fg hover:text-accent underline underline-offset-2 decoration-dim ml-1">CHANGELOG.md</a>.
+            <a href="https://github.com/cathedralai/cathedral/blob/main/CHANGELOG.md" class="text-fg hover:text-accent underline underline-offset-2 decoration-dim ml-1">CHANGELOG.md</a>.
           </p>
         </div>
       </div>

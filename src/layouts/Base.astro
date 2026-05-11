@@ -1,5 +1,6 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
+import AuthBootstrap from '../components/AuthBootstrap.astro'
 
 interface Props {
   title?: string
@@ -46,6 +47,7 @@ const footerClass = fullHeight
         }
       })()
     </script>
+    <AuthBootstrap />
   </head>
   <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight ? 'overflow-hidden' : ''}`}>
     <div class={shellClass}>
@@ -55,8 +57,9 @@ const footerClass = fullHeight
           <span>cathedral</span>
         </a>
         <span class="text-dim">·</span>
-        <a href="/mine" class="hover:text-fg transition-colors">mine</a>
-        <a href="/validator" class="hover:text-fg transition-colors">validator</a>
+        <a href="/workforce" class="hover:text-fg transition-colors">workforce</a>
+        <a href="/how-it-works" class="hover:text-fg transition-colors">how it works</a>
+        <a href="/dashboard" class="hover:text-fg transition-colors">dashboard</a>
         <a href="/afrotensor" class="hover:text-fg transition-colors">afrotensor</a>
         <a href="/roadmap" class="hover:text-fg transition-colors">roadmap</a>
         <a href="/changelog" class="hover:text-fg transition-colors">changelog</a>

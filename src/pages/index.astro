@@ -173,23 +173,29 @@ const agentInstruction =
   <section class="block">
     <header class="block-head">
       <span class="num">02</span>
-      <h2>The jobs</h2>
+      <h2>Active jobs</h2>
       <span class="rule"></span>
+      <span class="head-meta">category · regulatory intelligence</span>
     </header>
     <div class="cards-row">
-      {cards.map((c) => (
-        <a class="card-tile" href={`/jobs/${c.card_id}`}>
-          <span class="ct-jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
-          <h3>{c.definition.display_name}</h3>
-          <p>{c.definition.topic}</p>
-          <footer>
-            <span><strong>{c.agent_count}</strong> agents</span>
-            <span class="dim">·</span>
-            <span>{c.latest_eval_at ? relativeTime(c.latest_eval_at) : 'no cards yet'}</span>
-          </footer>
-        </a>
-      ))}
+      {cards
+        .filter((c) => ['eu-ai-act', 'us-ai-eo', 'uk-ai-whitepaper'].includes(c.card_id))
+        .map((c) => (
+          <a class="card-tile" href={`/jobs/${c.card_id}`}>
+            <span class="ct-jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
+            <h3>{c.definition.display_name}</h3>
+            <p>{c.definition.topic}</p>
+            <footer>
+              <span><strong>{c.agent_count}</strong> agents</span>
+              <span class="dim">·</span>
+              <span>{c.latest_eval_at ? relativeTime(c.latest_eval_at) : 'no cards yet'}</span>
+            </footer>
+          </a>
+        ))}
     </div>
+    <p class="more">
+      <a href="/jobs">see all categories →</a>
+    </p>
   </section>
 
   <section class="block stats">

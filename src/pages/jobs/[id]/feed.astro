@@ -41,77 +41,115 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
   </section>
 
   {items.length === 0 ? (
-    <p class="empty">No outputs yet.</p>
+    <p class="empty">No cards submitted yet.</p>
   ) : (
-    <ol class="wire" data-wire>
-      {items.map((evt) => (
-        <li class="entry" data-eval-id={evt.id} data-ran-at={evt.ran_at}>
-          <div class="entry-head">
-            <span class="ts">{relativeTime(evt.ran_at)}</span>
-            <span class="dim">·</span>
-            <a class="by" href={`/agents/${evt.agent_id}`}>{evt.agent_display_name}</a>
-            <span class="dim">·</span>
-            <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
-          </div>
-          <h3 class="entry-title">{evt.output_card.title ?? 'Awaiting source pull'}</h3>
-          {evt.output_card.citations ? (
-            <details class="card-body">
-              <summary>{evt.output_card.summary}</summary>
-              <div class="card-grid">
-                <div>
-                  <p class="lbl">What changed</p>
-                  <p>{evt.output_card.what_changed}</p>
+    <ol class="stream" data-wire>
+      {items.map((evt) => {
+        const shortId = shortHash(evt.id.replace(/-/g, ''), 6)
+        const anchorId = `card-${shortId}`
+        return (
+          <li
+            class="packet"
+            id={anchorId}
+            data-eval-id={evt.id}
+            data-card-short={shortId}
+            data-ran-at={evt.ran_at}
+          >
+            <details class="packet-details">
+              <summary class="packet-summary">
+                <div class="packet-head">
+                  <span class="packet-eyebrow">
+                    <span class="job-pill">{cardId}</span>
+                    <span class="dim">·</span>
+                    <span class="kind">CARD</span>
+                    <span class="dim">·</span>
+                    <code class="card-id">#{shortId}</code>
+                    <span class="dim">·</span>
+                    <span class="ts">{relativeTime(evt.ran_at)}</span>
+                  </span>
+                  <span class="packet-actions">
+                    <button
+                      type="button"
+                      class="copy"
+                      data-copy-link
+                      data-anchor={anchorId}
+                      aria-label="Copy link to this card"
+                      title="Copy link"
+                    >⧉ copy</button>
+                    <span class="toggle" aria-hidden="true">▸</span>
+                  </span>
                 </div>
-                <div>
-                  <p class="lbl">Why it matters</p>
-                  <p>{evt.output_card.why_it_matters}</p>
+                <h3 class="packet-title">{evt.output_card.title ?? 'Awaiting source pull'}</h3>
+                <p class="packet-lede">{evt.output_card.summary ?? 'Source pull pending; will retry on next cadence.'}</p>
+                <div class="packet-foot">
+                  <a class="by" href={`/agents/${evt.agent_id}`} onclick="event.stopPropagation()">{evt.agent_display_name}</a>
+                  <span class="dim">·</span>
+                  <span class="score">score <strong>{formatScore(evt.weighted_score)}</strong></span>
+                  <span class="dim">·</span>
+                  <span class="conf">conf <strong>{(evt.output_card.confidence * 100).toFixed(0)}%</strong></span>
                 </div>
-                <div>
-                  <p class="lbl">Action notes</p>
-                  <p>{evt.output_card.action_notes}</p>
+              </summary>
+
+              {evt.output_card.citations ? (
+                <div class="packet-body">
+                  <div class="packet-grid">
+                    <div>
+                      <p class="lbl">What changed</p>
+                      <p>{evt.output_card.what_changed}</p>
+                    </div>
+                    <div>
+                      <p class="lbl">Why it matters</p>
+                      <p>{evt.output_card.why_it_matters}</p>
+                    </div>
+                    <div>
+                      <p class="lbl">Action notes</p>
+                      <p>{evt.output_card.action_notes}</p>
+                    </div>
+                    <div>
+                      <p class="lbl">Risks</p>
+                      <p>{evt.output_card.risks}</p>
+                    </div>
+                  </div>
+                  <div class="cites-block">
+                    <p class="lbl">Citations</p>
+                    <ul class="cites">
+                      {evt.output_card.citations.map((c) => (
+                        <li>
+                          <a href={c.url} onclick="event.stopPropagation()">{c.url}</a>
+                          <span class="dim">· {c.class} · status {c.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <footer class="receipt">
+                    <span class="seal">⊕ signed</span>
+                    <span class="dim">·</span>
+                    <span>sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 12)}</code></span>
+                    <span class="dim">·</span>
+                    <span>card hash <code>{shortHash(evt.output_card_hash, 12)}</code></span>
+                    {evt.merkle_epoch !== null ? (
+                      <>
+                        <span class="dim">·</span>
+                        <span>merkle epoch <strong>{evt.merkle_epoch}</strong></span>
+                      </>
+                    ) : (
+                      <>
+                        <span class="dim">·</span>
+                        <span>pending next epoch</span>
+                      </>
+                    )}
+                  </footer>
                 </div>
-                <div>
-                  <p class="lbl">Risks</p>
-                  <p>{evt.output_card.risks}</p>
-                </div>
-              </div>
-              <ul class="cites">
-                {evt.output_card.citations.map((c) => (
-                  <li>
-                    <a href={c.url}>{c.url}</a>
-                    <span class="dim">· {c.class} · status {c.status}</span>
-                  </li>
-                ))}
-              </ul>
+              ) : (
+                <p class="packet-pending">
+                  Source-set pull pending. The eval shipped before the agent fetched
+                  its citations; the run will retry on the next cadence.
+                </p>
+              )}
             </details>
-          ) : (
-            <p class="card-pending">
-              Source-set pull pending. The eval shipped before the agent fetched
-              its citations; the run will retry on the next cadence.
-            </p>
-          )}
-          <footer class="receipt">
-            <span>verified by cathedral</span>
-            <span class="dim">·</span>
-            <span>sig <code>{shortHash(evt.cathedral_signature.replace(/^b64:/, ''), 12)}</code></span>
-            <span class="dim">·</span>
-            <span>output <code>{shortHash(evt.output_card_hash, 12)}</code></span>
-            {evt.merkle_epoch !== null ? (
-              <>
-                <span class="dim">·</span>
-                <span>merkle epoch <strong>{evt.merkle_epoch}</strong></span>
-              </>
-            ) : (
-              <>
-                <span class="dim">·</span>
-                <span>pending next epoch</span>
-              </>
-            )}
-            <span class="dim">·</span>
-            <span>conf <strong>{(evt.output_card.confidence * 100).toFixed(0)}%</strong></span>
-          </footer>
-        </li>
-      ))}
+          </li>
+        )
+      })}
     </ol>
   )}
 
@@ -147,25 +185,100 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     }
     .empty { color: var(--muted); font-size: 13px; }
 
-    .wire { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    .entry {
-      padding: 16px 18px; background: var(--surface);
-      transition: background 140ms;
+    /* Card-packet pattern. A card is a packet of information answering a job.
+       Visually distinguished from a job tile by:
+       - 3px accent stripe on the left (signals "signed content")
+       - no fill on closed state (paper feel, sits on page bg)
+       - mono eyebrow with JOB pill + CARD id + timestamp
+       - serif italic title (it's a snapshot, not a noun)
+       - expand-in-place via <details>; deep-linkable via id="card-<short>" */
+    .stream { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px; }
+    .packet {
+      position: relative;
+      padding-left: 16px;
+      border-left: 3px solid var(--border);
+      transition: border-color 140ms, background 140ms;
     }
-    .entry.is-new { background: var(--accent-dim); }
-    .entry-head {
-      display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
-      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
-      margin-bottom: 6px;
+    .packet:target,
+    .packet.is-new { border-left-color: var(--accent); }
+    .packet:target { background: linear-gradient(90deg, var(--accent-dim) 0%, transparent 12%); }
+    .packet-details { }
+    .packet-summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 14px 16px 14px 0;
+      display: flex; flex-direction: column; gap: 6px;
     }
-    .entry-head .ts { color: var(--dim); font-variant-numeric: tabular-nums; }
-    .entry-head .dim { color: var(--border); }
-    .entry-head .by { color: var(--fg); font-size: 11px; }
-    .entry-head .by:hover { color: var(--accent); }
-    .entry-head .score strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .entry-title { font-size: 14px; color: var(--fg); margin: 0 0 8px; line-height: 1.3; font-weight: 500; }
+    .packet-summary::-webkit-details-marker { display: none; }
+    .packet-details[open] .packet-summary { padding-bottom: 10px; }
+    .packet-details[open] .toggle { transform: rotate(90deg); }
 
-    .card-pending {
+    .packet-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    }
+    .packet-eyebrow {
+      display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+      font-family: var(--mono);
+      font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim);
+    }
+    .packet-eyebrow .dim { color: var(--border); }
+    .packet-eyebrow .kind { color: var(--accent); font-weight: 600; }
+    .packet-eyebrow .ts { color: var(--muted); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0.02em; }
+    .job-pill {
+      padding: 2px 7px;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      color: var(--fg);
+      letter-spacing: 0.06em;
+    }
+    .card-id {
+      font-family: var(--mono); color: var(--muted); font-size: 9.5px;
+    }
+
+    .packet-actions {
+      display: inline-flex; gap: 10px; align-items: center;
+      flex-shrink: 0;
+    }
+    .copy {
+      background: none; border: 1px solid var(--border-soft);
+      color: var(--muted); font: inherit; font-size: 10px;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: color 140ms, border-color 140ms;
+    }
+    .copy:hover, .copy:focus-visible {
+      color: var(--accent); border-color: var(--accent); outline: 2px solid transparent;
+    }
+    .copy.is-copied { color: var(--accent); border-color: var(--accent); }
+    .toggle {
+      color: var(--dim); font-size: 12px; transition: transform 140ms;
+      display: inline-block;
+    }
+
+    .packet-title {
+      font-family: var(--serif);
+      font-weight: 300; font-style: italic;
+      font-size: 22px; line-height: 1.2;
+      color: var(--fg);
+      margin: 6px 0 0;
+    }
+    .packet-lede {
+      margin: 4px 0 0;
+      font-size: 13.5px; line-height: 1.55; color: var(--muted);
+    }
+    .packet-foot {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+      margin-top: 6px;
+      font-size: 10.5px; color: var(--muted); letter-spacing: 0.03em;
+    }
+    .packet-foot .by { color: var(--fg); font-size: 11px; }
+    .packet-foot .by:hover { color: var(--accent); }
+    .packet-foot .dim { color: var(--border); }
+    .packet-foot strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+    .packet-pending {
       margin: 4px 0 0;
       padding: 10px 12px;
       border: 1px dashed var(--warn);
@@ -174,39 +287,39 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       font-size: 12px;
       line-height: 1.5;
     }
-    .card-body { color: var(--muted); }
-    .card-body summary {
-      cursor: pointer; padding: 4px 0; font-size: 12.5px; line-height: 1.6; color: var(--muted);
-      list-style: none;
-    }
-    .card-body summary::-webkit-details-marker { display: none; }
-    .card-body summary::before { content: '▸ '; color: var(--dim); margin-right: 6px; }
-    .card-body[open] summary::before { content: '▾ '; color: var(--accent); }
 
-    .card-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-      margin: 12px 0 14px; padding: 12px 0; border-top: 1px solid var(--border-soft);
+    .packet-body {
+      padding: 4px 16px 16px 0;
     }
-    @media (max-width: 700px) { .card-grid { grid-template-columns: 1fr; } }
-    .card-grid .lbl {
-      font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
-      color: var(--accent); margin: 0 0 4px;
+    .packet-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+      padding: 14px 0 0; border-top: 1px solid var(--border-soft);
     }
-    .card-grid p { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+    @media (max-width: 700px) { .packet-grid { grid-template-columns: 1fr; gap: 12px; } }
+    .packet-grid .lbl,
+    .cites-block .lbl,
+    .receipt .seal {
+      font-family: var(--mono);
+      font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin: 0 0 6px;
+    }
+    .packet-grid p { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 0; }
 
-    .cites { list-style: none; padding: 0; margin: 8px 0 0; font-size: 11px; }
+    .cites-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+    .cites { list-style: none; padding: 0; margin: 0; font-size: 11.5px; }
     .cites li { padding: 4px 0; color: var(--muted); }
     .cites a { color: var(--fg); }
     .cites a:hover { color: var(--accent); }
     .cites .dim { color: var(--dim); margin-left: 6px; }
 
     .receipt {
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
-      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft);
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+      margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft);
       font-size: 10.5px; color: var(--muted); letter-spacing: 0.03em;
     }
+    .receipt .seal { margin: 0; color: var(--accent); }
     .receipt .dim { color: var(--border); }
-    .receipt code { font-family: inherit; color: var(--fg); }
+    .receipt code { font-family: var(--mono); color: var(--fg); font-size: 10.5px; }
     .receipt strong { color: var(--fg); font-variant-numeric: tabular-nums; }
   </style>
 
@@ -249,38 +362,114 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
         return s.length > 12 ? s.slice(0, 12) + '…' : s
       }
 
+      function shortId(id) {
+        var hex = String(id || '').replace(/-/g, '')
+        return hex.slice(0, 6)
+      }
+
       function renderEntry(evt) {
+        var short = shortId(evt.id)
+        var anchor = 'card-' + short
         var li = document.createElement('li')
-        li.className = 'entry is-new'
+        li.className = 'packet is-new'
+        li.id = anchor
         li.dataset.evalId = evt.id
+        li.dataset.cardShort = short
         li.dataset.ranAt = evt.ran_at
+        var citationsHtml = ''
+        if (evt.output_card && evt.output_card.citations) {
+          citationsHtml =
+            '<div class="packet-body">' +
+            '<div class="packet-grid">' +
+            '<div><p class="lbl">What changed</p><p>' + escapeHtml(evt.output_card.what_changed || '') + '</p></div>' +
+            '<div><p class="lbl">Why it matters</p><p>' + escapeHtml(evt.output_card.why_it_matters || '') + '</p></div>' +
+            '<div><p class="lbl">Action notes</p><p>' + escapeHtml(evt.output_card.action_notes || '') + '</p></div>' +
+            '<div><p class="lbl">Risks</p><p>' + escapeHtml(evt.output_card.risks || '') + '</p></div>' +
+            '</div>' +
+            '<footer class="receipt">' +
+            '<span class="seal">⊕ signed</span><span class="dim">·</span>' +
+            '<span>sig <code>' + escapeHtml(shortSig(evt.cathedral_signature)) + '</code></span>' +
+            '<span class="dim">·</span>' +
+            '<span>card hash <code>' + escapeHtml(shortSig(evt.output_card_hash || '')) + '</code></span>' +
+            (evt.merkle_epoch !== null
+              ? '<span class="dim">·</span><span>merkle epoch <strong>' + evt.merkle_epoch + '</strong></span>'
+              : '<span class="dim">·</span><span>pending next epoch</span>') +
+            '</footer></div>'
+        } else {
+          citationsHtml = '<p class="packet-pending">Source-set pull pending. Will retry on next cadence.</p>'
+        }
         li.innerHTML =
-          '<div class="entry-head">' +
-          '<span class="ts">' + escapeHtml(rel(evt.ran_at)) + '</span>' +
+          '<details class="packet-details">' +
+          '<summary class="packet-summary">' +
+          '<div class="packet-head">' +
+          '<span class="packet-eyebrow">' +
+          '<span class="job-pill">' + escapeHtml(cardId) + '</span>' +
+          '<span class="dim">·</span><span class="kind">CARD</span>' +
+          '<span class="dim">·</span><code class="card-id">#' + escapeHtml(short) + '</code>' +
+          '<span class="dim">·</span><span class="ts">' + escapeHtml(rel(evt.ran_at)) + '</span>' +
+          '</span>' +
+          '<span class="packet-actions">' +
+          '<button type="button" class="copy" data-copy-link data-anchor="' + anchor + '" aria-label="Copy link" title="Copy link">⧉ copy</button>' +
+          '<span class="toggle" aria-hidden="true">▸</span>' +
+          '</span></div>' +
+          '<h3 class="packet-title">' + escapeHtml(evt.output_card.title || 'Awaiting source pull') + '</h3>' +
+          '<p class="packet-lede">' + escapeHtml(evt.output_card.summary || '') + '</p>' +
+          '<div class="packet-foot">' +
+          '<a class="by" href="/agents/' + encodeURIComponent(evt.agent_id) + '" onclick="event.stopPropagation()">' + escapeHtml(evt.agent_display_name) + '</a>' +
           '<span class="dim">·</span>' +
-          '<a class="by" href="/agents/' + encodeURIComponent(evt.agent_id) + '">' + escapeHtml(evt.agent_display_name) + '</a>' +
-          '<span class="dim">·</span>' +
-          '<span class="score">scored <strong>' + Number(evt.weighted_score).toFixed(1) + '</strong></span>' +
+          '<span class="score">score <strong>' + Number(evt.weighted_score).toFixed(1) + '</strong></span>' +
+          (evt.output_card && typeof evt.output_card.confidence === 'number'
+            ? '<span class="dim">·</span><span class="conf">conf <strong>' + Math.round(evt.output_card.confidence * 100) + '%</strong></span>'
+            : '') +
           '</div>' +
-          '<h3 class="entry-title">' + escapeHtml(evt.output_card.title) + '</h3>' +
-          '<details class="card-body"><summary>' + escapeHtml(evt.output_card.summary) + '</summary></details>' +
-          '<footer class="receipt">' +
-          '<span>verified by cathedral</span><span class="dim">·</span>' +
-          '<span>sig <code>' + escapeHtml(shortSig(evt.cathedral_signature)) + '</code></span>' +
-          '<span class="dim">·</span>' +
-          '<span>output <code>' + escapeHtml(shortSig(evt.output_card_hash || '')) + '</code></span>' +
-          (evt.merkle_epoch !== null
-            ? '<span class="dim">·</span><span>merkle epoch <strong>' + evt.merkle_epoch + '</strong></span>'
-            : '<span class="dim">·</span><span>pending next epoch</span>') +
-          '</footer>'
+          '</summary>' +
+          citationsHtml +
+          '</details>'
         return li
       }
+
+      // Copy-link button: delegate so it works on newly-prepended packets too.
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-copy-link]')
+        if (!btn) return
+        e.preventDefault()
+        var anchor = btn.dataset.anchor
+        var url = window.location.origin + window.location.pathname + '#' + anchor
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(function () {
+            btn.classList.add('is-copied')
+            var prev = btn.textContent
+            btn.textContent = '✓ copied'
+            setTimeout(function () {
+              btn.classList.remove('is-copied')
+              btn.textContent = prev
+            }, 1500)
+          })
+        }
+        // Also update the URL bar so back/forward works
+        history.replaceState(null, '', '#' + anchor)
+      })
+
+      // Auto-open the packet whose id matches window.location.hash on load
+      // (also when hash changes via back/forward).
+      function openFromHash() {
+        var h = (window.location.hash || '').replace(/^#/, '')
+        if (!h) return
+        var el = document.getElementById(h)
+        if (!el) return
+        var det = el.querySelector('.packet-details')
+        if (det && !det.open) det.open = true
+        // Scroll into view after the layout shift settles.
+        requestAnimationFrame(function () {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+      }
+      openFromHash()
+      window.addEventListener('hashchange', openFromHash)
 
       async function poll() {
         try {
           if (useMock) {
-            // In mock mode the snapshot is stable; nothing new will ever
-            // arrive, so the dot stays "live" but we don't fetch.
             statusDot.classList.remove('idle')
             return
           }
@@ -290,20 +479,18 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
           var body = await resp.json()
           var newest = (body.items || []).filter(function (e) { return e.ran_at > since })
           if (newest.length) {
-            // Newest-first; oldest of the batch goes in last (becomes top of list with reversed insert)
             newest.sort(function (a, b) { return a.ran_at.localeCompare(b.ran_at) })
             newest.forEach(function (evt) {
               wire.insertBefore(renderEntry(evt), wire.firstChild)
             })
             since = newest[newest.length - 1].ran_at
-            // Reset highlight after a moment
             setTimeout(function () {
               wire.querySelectorAll('.is-new').forEach(function (el) { el.classList.remove('is-new') })
             }, 4000)
           }
           if (statusText) {
-            var first = wire.querySelector('.entry')
-            statusText.textContent = 'live · ' + (first ? 'last ' + rel(first.dataset.ranAt) : 'no outputs yet')
+            var first = wire.querySelector('.packet')
+            statusText.textContent = 'live · ' + (first ? 'last ' + rel(first.dataset.ranAt) : 'no cards yet')
           }
           statusDot.classList.remove('idle')
         } catch (err) {
@@ -315,8 +502,8 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       setInterval(poll, POLL_MS)
       // Touch the relative timestamps every 30s without a fetch
       setInterval(function () {
-        document.querySelectorAll('.entry .ts').forEach(function (el) {
-          var li = el.closest('.entry')
+        document.querySelectorAll('.packet .ts').forEach(function (el) {
+          var li = el.closest('.packet')
           if (li && li.dataset.ranAt) el.textContent = rel(li.dataset.ranAt)
         })
       }, 30000)

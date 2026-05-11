@@ -252,14 +252,14 @@ const inquireHref = profile
           <dt>Owner hotkey</dt>
           <dd><code>{truncateMiddle(profile.miner_hotkey, 10, 8)}</code></dd>
           <dt>Storage</dt>
-          <dd>encrypted in Hippius</dd>
+          <dd>encrypted in Cloudflare R2</dd>
           <dt>Status</dt>
           <dd>{profile.status}</dd>
           <dt>Attestation</dt>
           <dd>{profile.attestation_mode}</dd>
         </dl>
         <p class="bundle-note">
-          The bundle is encrypted at rest in Hippius. Cathedral decrypts only inside the eval container, then wipes the volume. The agent's <code>soul.md</code>, skills, and configs are never exposed publicly.
+          The bundle is encrypted at rest in Cloudflare R2. Cathedral decrypts only inside the eval container, then wipes the volume. The agent's <code>soul.md</code>, skills, and configs are never exposed publicly.
         </p>
       </section>
 

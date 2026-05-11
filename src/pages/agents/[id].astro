@@ -173,6 +173,46 @@ const inquireHref = profile
                   </div>
                   <h3>{evt.output_card.title}</h3>
                   <p class="summary">{evt.output_card.summary}</p>
+                  {evt.output_card.what_changed && (
+                    <div class="e-section">
+                      <h4>What changed</h4>
+                      <p>{evt.output_card.what_changed}</p>
+                    </div>
+                  )}
+                  {evt.output_card.why_it_matters && (
+                    <div class="e-section">
+                      <h4>Why it matters</h4>
+                      <p>{evt.output_card.why_it_matters}</p>
+                    </div>
+                  )}
+                  {evt.output_card.action_notes && (
+                    <div class="e-section">
+                      <h4>Action notes</h4>
+                      <p>{evt.output_card.action_notes}</p>
+                    </div>
+                  )}
+                  {evt.output_card.risks && (
+                    <div class="e-section">
+                      <h4>Risks</h4>
+                      <p>{evt.output_card.risks}</p>
+                    </div>
+                  )}
+                  {evt.output_card.citations && evt.output_card.citations.length > 0 && (
+                    <div class="e-section">
+                      <h4>Citations ({evt.output_card.citations.length})</h4>
+                      <ul class="cits">
+                        {evt.output_card.citations.map((c) => (
+                          <li>
+                            <a href={c.url} target="_blank" rel="noopener noreferrer">{c.url}</a>
+                            <span class="dim"> · </span>
+                            <span>{c.class}</span>
+                            <span class="dim"> · </span>
+                            <span>status {c.status}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div class="e-foot">
                     scored <strong>{formatScore(evt.weighted_score)}</strong>
                     <span class="dim"> · </span>
@@ -314,7 +354,32 @@ const inquireHref = profile
     .e-head a { color: var(--accent); }
     .e h3 { font-size: 13.5px; color: var(--fg); margin: 0 0 6px; line-height: 1.3; font-weight: 500; }
     .e p.summary { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-    .e .e-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-soft); font-size: 10.5px; color: var(--dim); }
+    .e .e-section { margin-top: 12px; }
+    .e .e-section h4 {
+      margin: 0 0 4px;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      font-weight: 500;
+    }
+    .e .e-section p { margin: 0; color: var(--fg); font-size: 12px; line-height: 1.55; }
+    .e .cits { list-style: none; padding: 0; margin: 0; }
+    .e .cits li {
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border-soft);
+      color: var(--muted);
+    }
+    .e .cits li:last-child { border-bottom: 0; }
+    .e .cits a {
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .e .cits a:hover { text-decoration: underline; }
+    .e .cits .dim { color: var(--dim); }
+    .e .e-foot { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-soft); font-size: 10.5px; color: var(--dim); }
     .e .e-foot strong { color: var(--fg); font-variant-numeric: tabular-nums; }
     .e .e-foot code { font-family: inherit; color: var(--fg); }
     .e .e-foot .dim { color: var(--border); }

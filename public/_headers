@@ -1,0 +1,20 @@
+/cards/*
+  Cache-Control: no-store
+
+/agents/*
+  Cache-Control: no-store
+
+/workforce
+  Cache-Control: no-store
+
+/workforce/*
+  Cache-Control: no-store
+
+/ledger
+  Cache-Control: no-store
+
+/ledger/*
+  Cache-Control: no-store
+
+/
+  Cache-Control: no-store

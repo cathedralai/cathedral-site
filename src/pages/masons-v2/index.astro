@@ -1,0 +1,698 @@
+---
+// Prototype of the Digg-grammar treatment for /masons.
+// Label-on-border section boxes · warm paper/ink palette · rank pills ·
+// stat-unit pattern · serif display headings on mono body.
+// Data pull is identical to /masons; this is a pure visual-layer study.
+import Base from '../../layouts/Base.astro'
+---
+
+<Base title="masons · cathedral · v2">
+  <style is:global>
+    /* -----------------------------------------------------------------
+       Palette override, local to this page. Warm ink on warm paper.
+       Cream in light, warm black in dark. Sage/teal for labels,
+       terracotta for role tags, saturated blue for rank pills.
+       ----------------------------------------------------------------- */
+    /* v2 uses the site's own theme tokens. Map the local vars onto them
+       so every surface honors dark/light and the accent the user has
+       selected sitewide. */
+    .v2-page {
+      --v2-paper: var(--bg);
+      --v2-ink: var(--fg);
+      --v2-ink-soft: var(--muted);
+      --v2-ink-dim: var(--dim);
+      --v2-border: var(--border);
+      --v2-border-soft: var(--border-soft);
+      --v2-label: var(--accent);
+      --v2-accent: var(--accent);
+      --v2-accent-fg: var(--bg);
+      --v2-tag-role-fg: var(--warn);
+      --v2-tag-role-bg: var(--warn-dim);
+      --v2-tag-rank-fg: var(--ok);
+      --v2-tag-rank-bg: var(--ok-dim);
+      background: var(--v2-paper);
+      color: var(--v2-ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 40px 40px 80px;
+      min-height: 100vh;
+      /* Break out of Base.astro's 1180px shell so the page fills edge-to-edge. */
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      width: 100vw;
+    }
+    .v2-inner { max-width: 1180px; margin: 0 auto; }
+    @media (max-width: 700px) {
+      .v2-page { padding: 28px 20px 56px; }
+    }
+
+    /* -----------------------------------------------------------------
+       Display heading — subtle serif, heavy, stands out from mono body.
+       ----------------------------------------------------------------- */
+    .v2-h1 {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(32px, 5vw, 56px);
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin: 0 0 10px 0;
+      color: var(--v2-ink);
+    }
+    .v2-subtitle {
+      color: var(--v2-ink-soft);
+      max-width: 70ch;
+      font-size: 14px;
+      margin: 0 0 40px 0;
+    }
+    .v2-timestamp {
+      float: right;
+      font-size: 12px;
+      color: var(--v2-ink-dim);
+      margin-top: 10px;
+    }
+
+    /* -----------------------------------------------------------------
+       Boxed section with label on the top border (fieldset-legend style).
+       ----------------------------------------------------------------- */
+    .v2-section {
+      position: relative;
+      border: 1px solid var(--v2-border);
+      border-radius: 12px;
+      padding: 32px 28px 28px;
+      margin: 28px 0;
+      background: var(--v2-paper);
+    }
+    .v2-section .v2-label {
+      position: absolute;
+      top: -7px;
+      left: 18px;
+      padding: 0 10px;
+      background: var(--v2-paper);
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--v2-label);
+      font-weight: 500;
+    }
+    .v2-section + .v2-section { margin-top: 18px; }
+
+    /* -----------------------------------------------------------------
+       Filter bar — search + two selects, matching Digg's affordance.
+       ----------------------------------------------------------------- */
+    .v2-filters {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 14px;
+      margin: 8px 0 24px 0;
+    }
+    @media (max-width: 700px) {
+      .v2-filters { grid-template-columns: 1fr; }
+    }
+    .v2-field {
+      position: relative;
+      border: 1px solid var(--v2-border);
+      border-radius: 8px;
+      background: var(--v2-paper);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .v2-field input, .v2-field select {
+      all: unset;
+      width: 100%;
+      color: var(--v2-ink);
+      font-family: inherit;
+      font-size: 14px;
+    }
+    .v2-field input::placeholder { color: var(--v2-ink-dim); }
+    .v2-field .chev {
+      color: var(--v2-ink-dim);
+      pointer-events: none;
+    }
+
+    /* -----------------------------------------------------------------
+       Register row — rank tile + avatar + name + stats + tag + quote.
+       ----------------------------------------------------------------- */
+    .v2-row {
+      display: grid !important;
+      grid-template-columns: 96px 1fr auto;
+      gap: 24px;
+      padding: 22px 10px;
+      border-top: 1px solid var(--v2-border-soft);
+      align-items: flex-start;
+    }
+    #v2-rows > .v2-row:first-child { border-top: 0; }
+
+    .v2-rank-tile {
+      width: 84px;
+      border-radius: 10px;
+      background: var(--v2-border-soft);
+      padding: 10px 10px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .v2-rank-avatar {
+      width: 64px; height: 64px;
+      border-radius: 8px;
+      background: var(--v2-paper);
+      border: 1px solid var(--v2-border);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--v2-ink-soft);
+      font-variant-numeric: tabular-nums;
+    }
+    .v2-rank-pill {
+      background: var(--v2-accent);
+      color: var(--v2-accent-fg);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      min-width: 44px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .v2-row .v2-body .v2-name {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--v2-ink);
+      letter-spacing: -0.01em;
+      margin: 0 0 4px 0;
+      line-height: 1.15;
+    }
+    .v2-row .v2-body .v2-handle {
+      color: var(--v2-ink-soft);
+      font-size: 13px;
+    }
+    .v2-row .v2-body .v2-handle .v2-dot {
+      color: var(--v2-ink-dim);
+      padding: 0 6px;
+    }
+    .v2-row .v2-body .v2-handle a.v2-ext {
+      color: var(--v2-ink-soft);
+      border-bottom: 1px dotted var(--v2-ink-dim);
+      padding-bottom: 1px;
+    }
+    .v2-row .v2-body .v2-handle a.v2-ext:hover { color: var(--v2-accent); border-bottom-color: var(--v2-accent); }
+    .v2-row .v2-body .v2-statline {
+      margin-top: 2px;
+      color: var(--v2-ink);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    .v2-row .v2-body .v2-statline .v2-num { font-weight: 700; }
+    .v2-row .v2-body .v2-statline .v2-unit {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--v2-ink-soft);
+      margin-left: 4px;
+      margin-right: 10px;
+    }
+    .v2-row .v2-body .v2-tags {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .v2-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .v2-tag-role {
+      background: var(--v2-tag-role-bg);
+      color: var(--v2-tag-role-fg);
+    }
+    .v2-tag-role .v2-tag-num {
+      font-weight: 700;
+      letter-spacing: 0;
+      background: rgba(0,0,0,0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .v2-tag-sub {
+      background: var(--v2-tag-rank-bg);
+      color: var(--v2-tag-rank-fg);
+    }
+    .v2-row .v2-body .v2-quote {
+      margin-top: 14px;
+      color: var(--v2-ink-soft);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 66ch;
+    }
+    .v2-row .v2-body .v2-quote::before {
+      content: "\201C";
+      color: var(--v2-ink-dim);
+      margin-right: 4px;
+      font-size: 18px;
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+    }
+    .v2-row .v2-chev {
+      align-self: center;
+      color: var(--v2-ink-dim);
+      font-size: 22px;
+      padding-left: 12px;
+      transition: color 120ms, transform 120ms;
+    }
+    .v2-row:hover .v2-chev { color: var(--v2-accent); transform: translateX(2px); }
+    .v2-row {
+      text-decoration: none;
+      color: inherit;
+    }
+    .v2-row:hover { background: rgba(0,0,0,0.03); }
+    html[data-theme='dark'] .v2-row:hover { background: rgba(255,255,255,0.02); }
+
+    /* -----------------------------------------------------------------
+       Hero stats triptych — big number + small-caps unit.
+       ----------------------------------------------------------------- */
+    .v2-triptych {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      padding: 18px 0 6px 0;
+    }
+    @media (max-width: 700px) {
+      .v2-triptych { grid-template-columns: 1fr; gap: 18px; }
+    }
+    .v2-stat .v2-stat-v {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-weight: 700;
+      font-size: 44px;
+      line-height: 1;
+      color: var(--v2-ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .v2-stat .v2-stat-u {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--v2-label);
+      margin-top: 10px;
+      font-weight: 500;
+    }
+    .v2-stat .v2-stat-sub {
+      font-size: 12px;
+      color: var(--v2-ink-dim);
+      margin-top: 4px;
+    }
+
+    /* Nav hint at top */
+    .v2-navhint {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--v2-ink-dim);
+      margin-bottom: 8px;
+    }
+    .v2-navhint a {
+      color: var(--v2-ink-soft);
+      border-bottom: 1px dotted var(--v2-border);
+    }
+    .v2-navhint a:hover { color: var(--v2-accent); border-bottom-color: var(--v2-accent); }
+
+    /* CTA band at the bottom */
+    .v2-cta {
+      text-align: center;
+      padding: 48px 0 8px;
+    }
+    .v2-cta .v2-cta-note {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+      font-style: italic;
+      font-weight: 300;
+      font-size: 17px;
+      color: var(--v2-ink-soft);
+      margin-bottom: 16px;
+    }
+    .v2-cta a {
+      display: inline-block;
+      border: 1px solid var(--v2-accent);
+      color: var(--v2-accent);
+      background: var(--v2-paper);
+      padding: 12px 22px;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 600;
+      border-radius: 8px;
+    }
+    .v2-cta a:hover { background: var(--v2-accent); color: var(--v2-accent-fg); }
+  </style>
+
+  <div class="v2-page">
+    <div class="v2-inner">
+    <div class="v2-navhint">
+      Prototype — visual grammar study.
+      Live page is <a href="/masons">/masons</a>.
+    </div>
+
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+      <h1 class="v2-h1">Masons of Cathedral</h1>
+      <div class="v2-timestamp">last verify: <span data-stat="last-verify">—</span></div>
+    </div>
+    <p class="v2-subtitle">
+      The register of hands laying stone on SN39. Ranked by verification order — the earlier you verified, the lower your seat number. Founding masons keep their seat for life.
+    </p>
+
+    <div class="v2-filters">
+      <div class="v2-field">
+        <span class="chev" aria-hidden="true">⌕</span>
+        <input id="v2-search" placeholder="Search uid or hotkey" autocomplete="off" />
+      </div>
+      <div class="v2-field">
+        <select id="v2-filter-state">
+          <option value="all">All masons</option>
+          <option value="founding">Founding only</option>
+          <option value="verified">Verified</option>
+          <option value="apprentice">Apprentices</option>
+        </select>
+        <span class="chev" aria-hidden="true">▾</span>
+      </div>
+      <div class="v2-field">
+        <select id="v2-sort">
+          <option value="rank">Seat number</option>
+          <option value="uid">UID ascending</option>
+        </select>
+        <span class="chev" aria-hidden="true">▾</span>
+      </div>
+    </div>
+
+    <section class="v2-section">
+      <span class="v2-label">Register totals</span>
+      <div class="v2-triptych">
+        <div class="v2-stat">
+          <div class="v2-stat-v" data-stat="verified-count">—</div>
+          <div class="v2-stat-u">Verified masons</div>
+          <div class="v2-stat-sub">SSH-confirmed by our validator</div>
+        </div>
+        <div class="v2-stat">
+          <div class="v2-stat-v" data-stat="apprentice-count">—</div>
+          <div class="v2-stat-u">Apprentices</div>
+          <div class="v2-stat-sub">Registered, awaiting first verify</div>
+        </div>
+        <div class="v2-stat">
+          <div class="v2-stat-v" data-stat="country-count">—</div>
+          <div class="v2-stat-u">Countries</div>
+          <div class="v2-stat-sub">Where stones are being laid</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v2-section">
+      <span class="v2-label">Rankings</span>
+      <div id="v2-rows"></div>
+    </section>
+
+    <div class="v2-cta">
+      <div class="v2-cta-note">Bring what you have. We keep the ledger.</div>
+      <a href="/afrotensor">Become an apprentice →</a>
+    </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function () {
+      const API_BASE = 'https://api.polaris.computer'
+      const POLL_MS = 15000
+      const FOUNDING_LIMIT = 10
+
+      function abbrev(s) {
+        if (!s || s.length < 10) return s || ''
+        return s.slice(0, 6) + '…' + s.slice(-4)
+      }
+      function countryFromLocation(loc) {
+        if (!loc) return null
+        const parts = loc.split('/').map((p) => p.trim()).filter(Boolean)
+        return parts.length ? parts[parts.length - 1] : null
+      }
+      async function fetchJson(url) {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 20000)
+        try {
+          const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal })
+          if (!r.ok) return null
+          return await r.json()
+        } catch (_) { return null } finally { clearTimeout(t) }
+      }
+
+      const state = { all: [], filter: 'all', sort: 'rank', query: '' }
+
+      function buildRow(m) {
+        const a = document.createElement('a')
+        a.className = 'v2-row'
+        a.href = '/mason?h=' + encodeURIComponent(m.hotkey || '')
+        a.style.textDecoration = 'none'
+        a.style.color = 'inherit'
+
+        const tile = document.createElement('div')
+        tile.className = 'v2-rank-tile'
+        const av = document.createElement('div')
+        av.className = 'v2-rank-avatar'
+        av.textContent = (m.uid != null ? m.uid : '—').toString()
+        tile.appendChild(av)
+        const pill = document.createElement('div')
+        pill.className = 'v2-rank-pill'
+        pill.textContent = '#' + m.seat
+        tile.appendChild(pill)
+        a.appendChild(tile)
+
+        const body = document.createElement('div')
+        body.className = 'v2-body'
+        const name = document.createElement('div')
+        name.className = 'v2-name'
+        name.textContent = m.nickname || ('Mason ' + (m.uid != null ? m.uid : '—'))
+        body.appendChild(name)
+
+        const handle = document.createElement('div')
+        handle.className = 'v2-handle'
+        const hk = document.createElement('span')
+        hk.textContent = abbrev(m.hotkey || '')
+        handle.appendChild(hk)
+        if (m.country) {
+          const dot = document.createElement('span')
+          dot.className = 'v2-dot'; dot.textContent = '·'
+          handle.appendChild(dot)
+          const loc = document.createElement('span')
+          loc.textContent = m.country
+          handle.appendChild(loc)
+        }
+        body.appendChild(handle)
+
+        const statline = document.createElement('div')
+        statline.className = 'v2-statline'
+        if (m.hardwareLabel) {
+          const hwSpan = document.createElement('span')
+          const hwN = document.createElement('span')
+          hwN.className = 'v2-num'
+          hwN.textContent = m.hardwareLabel
+          hwSpan.appendChild(hwN)
+          const hwU = document.createElement('span')
+          hwU.className = 'v2-unit'
+          hwU.textContent = 'Hardware'
+          hwSpan.appendChild(hwU)
+          statline.appendChild(hwSpan)
+        }
+        body.appendChild(statline)
+
+        const tags = document.createElement('div')
+        tags.className = 'v2-tags'
+        if (m.founding) {
+          const roleTag = document.createElement('span')
+          roleTag.className = 'v2-tag v2-tag-role'
+          roleTag.innerHTML = 'Founding <span class="v2-tag-num">#' + m.seat + '</span>'
+          tags.appendChild(roleTag)
+        } else if (m.validatorStatus === 'verified') {
+          const roleTag = document.createElement('span')
+          roleTag.className = 'v2-tag v2-tag-role'
+          roleTag.textContent = 'Mason'
+          tags.appendChild(roleTag)
+        } else {
+          const roleTag = document.createElement('span')
+          roleTag.className = 'v2-tag v2-tag-sub'
+          roleTag.textContent = 'Apprentice'
+          tags.appendChild(roleTag)
+        }
+        body.appendChild(tags)
+
+        const quote = document.createElement('div')
+        quote.className = 'v2-quote'
+        quote.textContent = m.bio || (m.validatorStatus === 'verified'
+          ? 'A stone at the wall.'
+          : 'Awaiting first verify.')
+        body.appendChild(quote)
+
+        a.appendChild(body)
+
+        const chev = document.createElement('div')
+        chev.className = 'v2-chev'
+        chev.textContent = '›'
+        a.appendChild(chev)
+
+        return a
+      }
+
+      function render() {
+        const rowsEl = document.getElementById('v2-rows')
+        if (!rowsEl) return
+        rowsEl.innerHTML = ''
+        let list = state.all.slice()
+        if (state.filter === 'founding') list = list.filter((m) => m.founding)
+        if (state.filter === 'verified') list = list.filter((m) => m.validatorStatus === 'verified')
+        if (state.filter === 'apprentice') list = list.filter((m) => m.validatorStatus !== 'verified')
+        if (state.query) {
+          const q = state.query.toLowerCase()
+          list = list.filter((m) => String(m.uid).includes(q) || (m.hotkey || '').toLowerCase().includes(q))
+        }
+        if (state.sort === 'uid') list.sort((a, b) => (a.uid ?? 0) - (b.uid ?? 0))
+        else list.sort((a, b) => a.seat - b.seat)
+        if (list.length === 0) {
+          const empty = document.createElement('div')
+          empty.style.padding = '32px 0'
+          empty.style.textAlign = 'center'
+          empty.style.color = 'var(--v2-ink-dim)'
+          empty.textContent = 'No masons match this filter.'
+          rowsEl.appendChild(empty)
+        } else {
+          for (const m of list) rowsEl.appendChild(buildRow(m))
+        }
+      }
+
+      async function refresh() {
+        const [stateData, registry, machines] = await Promise.all([
+          fetchJson(API_BASE + '/api/substrate/state'),
+          fetchJson(API_BASE + '/api/substrate/validator/registry'),
+          fetchJson(API_BASE + '/api/v1/cathedral/machines'),
+        ])
+
+        const miners = (stateData && stateData.miners) || []
+        const byUid = new Map(miners.map((m) => [m.uid, m]))
+        const regData = registry && registry.data ? registry.data : {}
+        const regMiners = Array.isArray(regData.miners) ? regData.miners : []
+        const machList = (machines && machines.machines) || []
+
+        const hwCards = machList.map((x) => {
+          const gpuLabel = x.is_cpu_only
+            ? (x.cpu_cores || 0) + ' vCPU · ' + (x.memory_gb || 0) + ' GB'
+            : (x.gpu_count || 0) + '× ' + (x.category || '—')
+          return { label: gpuLabel, location: x.location || '', country: countryFromLocation(x.location) }
+        })
+
+        const verified = regMiners.filter((r) => r.status === 'verified').sort((a, b) => a.uid - b.uid)
+        const apprentices = regMiners.filter((r) => r.status !== 'verified').sort((a, b) => a.uid - b.uid)
+
+        const enriched = []
+        let seat = 1
+        for (let i = 0; i < verified.length; i++) {
+          const r = verified[i]
+          const chain = byUid.get(r.uid) || {}
+          const hw = hwCards[i] || {}
+          enriched.push({
+            seat: seat++,
+            uid: r.uid,
+            hotkey: chain.hotkey || '',
+            validatorStatus: r.status,
+            hardwareLabel: hw.label || null,
+            country: hw.country || null,
+            founding: i < FOUNDING_LIMIT,
+            nickname: null, bio: null,
+          })
+        }
+        for (let i = 0; i < apprentices.length; i++) {
+          const r = apprentices[i]
+          const chain = byUid.get(r.uid) || {}
+          const hw = hwCards[verified.length + i] || {}
+          enriched.push({
+            seat: seat++,
+            uid: r.uid,
+            hotkey: chain.hotkey || '',
+            validatorStatus: r.status,
+            hardwareLabel: hw.label || null,
+            country: hw.country || null,
+            founding: false,
+            nickname: null, bio: null,
+          })
+        }
+
+        state.all = enriched
+
+        const setText = (sel, val) => {
+          const el = document.querySelector(sel)
+          if (el) el.textContent = val
+        }
+        setText('[data-stat="verified-count"]', verified.length.toString())
+        setText('[data-stat="apprentice-count"]', apprentices.length.toString())
+        const countries = new Set()
+        for (const m of enriched) { if (m.country) countries.add(m.country) }
+        setText('[data-stat="country-count"]', countries.size ? countries.size.toString() : '—')
+        setText('[data-stat="last-verify"]', new Date().toLocaleTimeString())
+
+        render()
+      }
+
+      document.getElementById('v2-search').addEventListener('input', (e) => {
+        state.query = e.target.value.trim()
+        render()
+      })
+      document.getElementById('v2-filter-state').addEventListener('change', (e) => {
+        state.filter = e.target.value
+        render()
+      })
+      document.getElementById('v2-sort').addEventListener('change', (e) => {
+        state.sort = e.target.value
+        render()
+      })
+
+      // Prototype-only demo seed — useful when the live API returns 0 rows so
+      // the visual grammar can be evaluated against realistic content. Toggle
+      // with ?demo=1. Remove before promoting to /masons.
+      const qp = new URLSearchParams(window.location.search)
+      const DEMO = qp.get('demo') === '1'
+
+      if (DEMO) {
+        const demo = [
+          { seat: 1, uid: 115, hotkey: '5FvW8nNqUb9k12345678901234567890AbCdEfGhIjKl', validatorStatus: 'verified', hardwareLabel: '1× RTX 5090', country: 'United States', founding: true, nickname: 'Bear Stone', bio: 'Running a 5090 out of my garage in Tennessee. Apprentice class of April 2026.' },
+          { seat: 2, uid: 155, hotkey: '5G9byaZbPH12345678901234567890AbCdEfGhIjKlMn', validatorStatus: 'verified', hardwareLabel: '1× RTX 3090 · 2× RTX 3060', country: 'United Kingdom', founding: true, nickname: 'McDee', bio: '3090 + two 3060s at home. Verified Apr 18.' },
+          { seat: 3, uid: 33, hotkey: '5DnvAgZhWPb12345678901234567890AbCdEfGhIjKlM', validatorStatus: 'verified', hardwareLabel: '4 vCPU · 16 GB', country: 'South Africa', founding: true, nickname: 'EPYC Testnet', bio: 'Cathedral testnet SN292, AMD EPYC CPU-only path. Scores 1.00.' },
+          { seat: 4, uid: 204, hotkey: '5HGKxsYnL12345678901234567890AbCdEfGhIjKlMnO', validatorStatus: 'verified', hardwareLabel: '1× Apple M3 Max', country: 'Nigeria', founding: true, nickname: 'Lagos Quiet', bio: 'Apple Silicon, 36 GB unified memory. Fifth registered mason.' },
+          { seat: 5, uid: 88, hotkey: '5EvkPQrSt12345678901234567890AbCdEfGhIjKlMnOp', validatorStatus: 'verified', hardwareLabel: '1× RTX 4090', country: 'Kenya', founding: true, nickname: null, bio: null },
+          { seat: 6, uid: 91, hotkey: '5FyTp8LmK12345678901234567890AbCdEfGhIjKlMnOpQr', validatorStatus: 'registered', hardwareLabel: '1× RTX 3080', country: 'Ghana', founding: false, nickname: null, bio: null },
+          { seat: 7, uid: 102, hotkey: '5GaXc2RnK12345678901234567890AbCdEfGhIjKlMnOpQrSt', validatorStatus: 'registered', hardwareLabel: '1× RTX 4070', country: 'Rwanda', founding: false, nickname: null, bio: null },
+          { seat: 8, uid: 119, hotkey: '5HBdQ7MvL12345678901234567890AbCdEfGhIjKlMnOpQrStUv', validatorStatus: 'online', hardwareLabel: '1× RTX 3060', country: null, founding: false, nickname: null, bio: null },
+        ]
+        state.all = demo
+        const countries = new Set(demo.filter((m) => m.country).map((m) => m.country))
+        setText('[data-stat="verified-count"]', demo.filter((m) => m.validatorStatus === 'verified').length.toString())
+        setText('[data-stat="apprentice-count"]', demo.filter((m) => m.validatorStatus !== 'verified').length.toString())
+        setText('[data-stat="country-count"]', countries.size.toString())
+        setText('[data-stat="last-verify"]', new Date().toLocaleTimeString())
+        render()
+      } else {
+        refresh()
+        setInterval(refresh, POLL_MS)
+      }
+
+      // setText helper needs to be reachable here; expose via closure
+      function setText(sel, val) {
+        const el = document.querySelector(sel)
+        if (el) el.textContent = val
+      }
+    })()
+  </script>
+</Base>

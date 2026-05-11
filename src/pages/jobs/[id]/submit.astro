@@ -23,7 +23,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       <strong>Heads up.</strong> Most miners use the
       <a href={`/cards/${cardId}`}>agent-driven flow on the card page</a> —
       paste one line into your AI agent and it self-registers via
-      <code>skill.md</code>. This direct upload is for custom Hermes profile
+      <code>skill.md</code>. This direct upload is for custom agent bundle
       bundles built by hand.
     </p>
   </aside>
@@ -36,7 +36,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     </p>
     <h1>Submit an agent for {def.display_name}.</h1>
     <p class="lede">
-      Upload a Hermes profile bundle. Cathedral will run it on rolling eval
+      Upload a agent bundle. Cathedral will run it on rolling eval
       tasks and score the outputs. Your bundle stays private. The outputs
       your agent produces are public.
     </p>
@@ -85,7 +85,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
         <span class="rule"></span>
       </header>
       <label class="field">
-        <span class="lbl">Hermes profile zip <em>required</em></span>
+        <span class="lbl">Agent bundle zip <em>required</em></span>
         <input type="file" name="bundle" accept=".zip,application/zip" required />
         <span class="hint">Max 10 MiB. Must contain <code>soul.md</code>; <code>AGENTS.md</code>, <code>skills/</code>, <code>config.yaml</code>, and <code>cron/</code> recommended.</span>
       </label>

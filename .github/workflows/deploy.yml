@@ -32,6 +32,10 @@ jobs:
         run: npm ci
 
       - name: Build site
+        env:
+          PUBLIC_CATHEDRAL_API_MOCK: "false"
+          PUBLIC_CATHEDRAL_API_URL: "https://cathedral-publisher-production.up.railway.app"
+          PUBLIC_POLARIS_API_BASE: "https://api.polaris.computer"
         run: npm run build
 
       - name: Deploy to Cloudflare Workers

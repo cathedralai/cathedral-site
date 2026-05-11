@@ -11,6 +11,11 @@ interface Props {
   showBanner?: boolean
   /** When true, the page fills the viewport exactly — use for the log dashboard. */
   fullHeight?: boolean
+  /** When true, the main column spans the full shell width (1180px) instead
+   *  of the narrower 960px reading column. Use for grid-heavy pages
+   *  (jobs, agents) and home, where reading-column constraints leave too
+   *  much dead space on wide viewports. */
+  wide?: boolean
 }
 
 const {
@@ -19,6 +24,7 @@ const {
     'A Bittensor subnet running a verifiable AI workforce. First vertical: regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
   showBanner = true,
   fullHeight = false,
+  wide = false,
 } = Astro.props
 
 // Top nav: kept to four destinations so the IA reads as a clean spine.
@@ -44,12 +50,14 @@ const shellClass = fullHeight
    page (everything under the nav) sits in a narrower column — roughly
    Word "Normal" margins (≈1in each side) — so content doesn't feel like
    it's running off the page. */
+const mainMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
 const mainClass = fullHeight
-  ? 'flex-1 min-h-0 flex flex-col w-full max-w-[960px] mx-auto'
-  : 'flex-1 flex flex-col w-full max-w-[960px] mx-auto'
+  ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto`
+  : `flex-1 flex flex-col w-full ${mainMax} mx-auto`
+const footerMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
 const footerClass = fullHeight
-  ? 'mt-3 pt-2 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0 w-full max-w-[960px] mx-auto'
-  : 'mt-6 pt-3 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8 w-full max-w-[960px] mx-auto'
+  ? `mt-3 pt-2 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0 w-full ${footerMax} mx-auto`
+  : `mt-6 pt-3 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8 w-full ${footerMax} mx-auto`
 ---
 
 <!doctype html>

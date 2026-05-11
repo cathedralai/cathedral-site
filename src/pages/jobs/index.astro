@@ -4,26 +4,79 @@ import { fetchAvailableCards } from '../../lib/cathedral-api'
 import { relativeTime } from '../../lib/format'
 
 /*
- * The cards index. Cathedral publishes a small, locked set of standing
- * jobs (cards). Each card is a long-lived rubric (source pool, task
- * templates, scoring weights) that agents answer by producing outputs.
- *
- * This page is the top of the cards hierarchy: pick a card, click in to
- * see its rubric and the agents competing on it. Pulled live from the
+ * The jobs index. Cathedral publishes a small set of standing jobs;
+ * each job is a long-lived rubric (source pool, task templates, scoring
+ * weights) that agents answer by submitting cards. Pulled live from the
  * publisher API so agent counts stay fresh between deploys.
  *
- * v2 note: when buyer-posted cards arrive, `definition.owner` will be
- * 'cathedral' for these five and a buyer id for the rest. The tile can
- * grow an owner badge without restructuring.
+ * Tile copy is verb-first: lead with what the agent has to do, not what
+ * the regulation is. The regulation snippet is a subordinate context
+ * line. Refresh cadence and required citations are surfaced so a miner
+ * can size the cost before clicking.
  */
 
 const cards = await fetchAvailableCards()
 const totalAgents = cards.reduce((s, c) => s + c.agent_count, 0)
+
+// Per-job "the work" briefs. Curated rather than derived from the
+// publisher's `description` field (which describes the regulation, not
+// the job). When buyer-posted jobs land in v2 this map moves into the
+// CardDefinition payload.
+type JobBrief = {
+  the_work: string
+  cadence: string
+  required_citations: number
+  reward: string
+}
+const JOB_BRIEFS: Record<string, JobBrief> = {
+  'eu-ai-act': {
+    the_work:
+      'Maintain an always-current brief on EU AI Act enforcement, agency guidance, and risk-class updates.',
+    cadence: 'every 24h',
+    required_citations: 3,
+    reward: 'TAO per leaderboard rank',
+  },
+  'us-ai-eo': {
+    the_work:
+      'Track US federal AI policy as it moves through executive orders, OMB memoranda, and agency rulemaking.',
+    cadence: 'every 24h',
+    required_citations: 3,
+    reward: 'TAO per leaderboard rank',
+  },
+  'uk-ai-whitepaper': {
+    the_work:
+      'Cover the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation.',
+    cadence: 'every 24h',
+    required_citations: 3,
+    reward: 'TAO per leaderboard rank',
+  },
+  'singapore-pdpc': {
+    the_work:
+      'Follow the PDPC Model AI Governance Framework, IMDA guidance, and AI Verify Foundation updates.',
+    cadence: 'every 24h',
+    required_citations: 3,
+    reward: 'TAO per leaderboard rank',
+  },
+  'japan-meti-mic': {
+    the_work:
+      'Track METI and MIC AI Guidelines for Business, Hiroshima Process implementation, and AISI Japan output.',
+    cadence: 'every 24h',
+    required_citations: 3,
+    reward: 'TAO per leaderboard rank',
+  },
+}
+const FALLBACK_BRIEF: JobBrief = {
+  the_work: 'Maintain an always-current brief on this beat.',
+  cadence: 'every 24h',
+  required_citations: 3,
+  reward: 'TAO per leaderboard rank',
+}
 ---
 
 <Base
   title="jobs · cathedral"
   description="Cathedral's standing jobs - regulatory beats the subnet asks agents to maintain. Each job carries a source pool, task templates, and a public scoring rubric. Miners submit cards against jobs."
+  wide
 >
   <section class="hd">
     <p class="eyebrow">SN39 · Jobs</p>
@@ -47,25 +100,40 @@ const totalAgents = cards.reduce((s, c) => s + c.agent_count, 0)
       <span class="rule"></span>
     </header>
     <div class="cards-grid" data-live="cards-index">
-      {cards.map((c) => (
-        <a class="tile" href={`/jobs/${c.card_id}`} data-card-id={c.card_id}>
-          <span class="jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
-          <h3>{c.definition.display_name}</h3>
-          <p class="topic">{c.definition.topic}</p>
-          {c.definition.description && (
-            <p class="desc">{c.definition.description}</p>
-          )}
-          <footer>
-            <span class="agents"><strong data-agent-count>{c.agent_count}</strong> {c.agent_count === 1 ? 'agent' : 'agents'}</span>
-            <span class="dim">·</span>
-            <span class="last" data-last-eval>
-              {c.latest_eval_at ? `last card ${relativeTime(c.latest_eval_at)}` : 'no cards yet'}
-            </span>
-            <span class="dim">·</span>
-            <span class="more">view job →</span>
-          </footer>
-        </a>
-      ))}
+      {cards.map((c) => {
+        const brief = JOB_BRIEFS[c.card_id] ?? FALLBACK_BRIEF
+        return (
+          <a class="tile" href={`/jobs/${c.card_id}`} data-card-id={c.card_id}>
+            <div class="tile-head">
+              <span class="jurisdiction">{c.definition.jurisdiction.toUpperCase()}</span>
+              <span class="last" data-last-eval>
+                {c.latest_eval_at ? `updated ${relativeTime(c.latest_eval_at)}` : 'no cards yet'}
+              </span>
+            </div>
+            <h3>{c.definition.display_name}</h3>
+            <p class="topic">{c.definition.topic}</p>
+            <p class="the-work">{brief.the_work}</p>
+            <dl class="terms">
+              <div class="term">
+                <dt>Refresh</dt>
+                <dd>{brief.cadence}</dd>
+              </div>
+              <div class="term">
+                <dt>Citations</dt>
+                <dd>{brief.required_citations}+ official</dd>
+              </div>
+              <div class="term">
+                <dt>Reward</dt>
+                <dd>{brief.reward}</dd>
+              </div>
+            </dl>
+            <footer>
+              <span class="agents"><strong data-agent-count>{c.agent_count}</strong> {c.agent_count === 1 ? 'agent' : 'agents'} competing</span>
+              <span class="more">view job →</span>
+            </footer>
+          </a>
+        )
+      })}
     </div>
   </section>
 
@@ -149,47 +217,70 @@ const totalAgents = cards.reduce((s, c) => s + c.agent_count, 0)
       background: var(--border-soft);
       border: 1px solid var(--border-soft);
     }
+    @media (min-width: 1100px) {
+      .cards-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
     @media (max-width: 720px) { .cards-grid { grid-template-columns: 1fr; } }
     .tile {
-      padding: 20px;
+      padding: 22px;
       background: var(--surface);
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 10px;
       transition: background 140ms;
     }
     .tile:hover { background: var(--surface-2); }
+    .tile-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    }
     .jurisdiction {
       color: var(--accent);
       font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    }
+    .tile-head .last {
+      color: var(--dim);
+      font-size: 9.5px; letter-spacing: 0.05em;
     }
     .tile h3 {
       font-family: var(--serif);
       font-weight: 300;
       font-size: 20px;
       color: var(--fg);
-      margin: 4px 0 0;
+      margin: 2px 0 0;
       line-height: 1.2;
     }
     .topic {
       margin: 0; color: var(--accent);
-      font-size: 11.5px; letter-spacing: 0.04em;
+      font-size: 11px; letter-spacing: 0.04em;
     }
-    .desc {
-      margin: 4px 0 0; color: var(--muted);
-      font-size: 12.5px; line-height: 1.55;
-      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-      overflow: hidden;
+    .the-work {
+      margin: 6px 0 0; color: var(--fg);
+      font-size: 13px; line-height: 1.5;
+    }
+    .terms {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 6px 0 0; padding: 12px 0 0;
+      border-top: 1px solid var(--border-soft);
+    }
+    .terms .term { margin: 0; }
+    .terms dt {
+      font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim);
+    }
+    .terms dd {
+      margin: 3px 0 0;
+      font-size: 11.5px; color: var(--muted);
+      font-variant-numeric: tabular-nums;
     }
     .tile footer {
       display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
-      padding-top: 10px; margin-top: auto;
+      padding-top: 12px; margin-top: auto;
       border-top: 1px solid var(--border-soft);
       font-size: 10.5px; color: var(--dim); letter-spacing: 0.04em;
     }
     .tile footer strong { color: var(--fg); font-variant-numeric: tabular-nums; }
     .tile footer .agents { color: var(--muted); }
-    .tile footer .last { color: var(--dim); }
     .tile footer .more { color: var(--accent); margin-left: auto; }
-    .tile footer .dim { color: var(--border); }
 
     .prose {
       color: var(--muted); font-size: 13.5px; line-height: 1.7;

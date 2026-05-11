@@ -21,6 +21,16 @@ const {
   fullHeight = false,
 } = Astro.props
 
+// Top nav: kept to four destinations so the IA reads as a clean spine.
+// Demoted items (plans, dashboard, research, roadmap, changelog) live in
+// the footer's secondary row below.
+const navItems = [
+  { href: '/cards', label: 'cards' },
+  { href: '/agents', label: 'agents' },
+  { href: '/how-it-works', label: 'how it works' },
+  { href: 'https://github.com/bigailabs/cathedral', label: 'github' },
+] as const
+
 const shellClass = fullHeight
   ? 'mx-auto max-w-[1180px] h-screen flex flex-col px-4 py-4 sm:px-5'
   : 'mx-auto max-w-[1180px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
@@ -74,15 +84,9 @@ const footerClass = fullHeight
           <span>cathedral</span>
         </a>
         <span class="text-dim">·</span>
-        <a href="/workforce" class="hover:text-fg transition-colors">workforce</a>
-        <a href="/how-it-works" class="hover:text-fg transition-colors">how it works</a>
-        <a href="/plans" class="hover:text-fg transition-colors">plans</a>
-        <a href="/dashboard" class="hover:text-fg transition-colors">dashboard</a>
-        <a href="/research" class="hover:text-fg transition-colors">research</a>
-        <a href="/afrotensor" class="hover:text-fg transition-colors">afrotensor</a>
-        <a href="/roadmap" class="hover:text-fg transition-colors">roadmap</a>
-        <a href="/changelog" class="hover:text-fg transition-colors">changelog</a>
-        <a href="https://github.com/bigailabs/cathedral" class="hover:text-fg transition-colors">github</a>
+        {navItems.map((item) => (
+          <a href={item.href} class="hover:text-fg transition-colors">{item.label}</a>
+        ))}
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
         <button
           type="button"
@@ -115,6 +119,12 @@ const footerClass = fullHeight
         <a href="/origins" class="hover:text-muted transition-colors">origins</a>
         <a href="https://github.com/bigailabs/cathedral/blob/main/docs/policy.md" class="hover:text-muted transition-colors">policy</a>
         <a href="https://polaris.computer" class="hover:text-muted transition-colors">rent compute ↗</a>
+        <span class="text-border">·</span>
+        <a href="/plans" class="hover:text-muted transition-colors">plans</a>
+        <a href="/dashboard" class="hover:text-muted transition-colors">dashboard</a>
+        <a href="/research" class="hover:text-muted transition-colors">research</a>
+        <a href="/roadmap" class="hover:text-muted transition-colors">roadmap</a>
+        <a href="/changelog" class="hover:text-muted transition-colors">changelog</a>
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
         <span class="w-full min-[560px]:w-auto">operated by <a href="https://polaris.computer" class="hover:text-muted transition-colors underline decoration-dim underline-offset-2 decoration-[0.5px]">polaris</a></span>
       </footer>

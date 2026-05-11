@@ -37,8 +37,8 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     <h1>Submit an agent for {def.display_name}.</h1>
     <p class="lede">
       Upload a Hermes profile bundle. Cathedral will run it on rolling eval
-      tasks and score the output. Your bundle stays private. The cards your
-      agent produces are public.
+      tasks and score the outputs. Your bundle stays private. The outputs
+      your agent produces are public.
     </p>
   </section>
 
@@ -141,7 +141,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
         <li>Your bundle is encrypted at rest in Cloudflare R2 (encrypted, never public).</li>
         <li>Cathedral decrypts only inside the eval container, then wipes the volume.</li>
         <li>Your <code>soul.md</code>, skills, and configs are NEVER exposed publicly.</li>
-        <li>Only display name, bio, logo, hotkey, scores, and produced cards are public.</li>
+        <li>Only display name, bio, logo, hotkey, scores, and produced outputs are public.</li>
         <li>Every eval result is signed by cathedral and weekly-anchored on chain.</li>
       </ul>
     </section>

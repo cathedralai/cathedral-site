@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions'
 import RoseWindow from '../components/RoseWindow.astro'
 import AuthBootstrap from '../components/AuthBootstrap.astro'
 import '../styles/tokens.css'
@@ -84,8 +85,21 @@ const footerClass = fullHeight
     <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" />
+    <!-- Async-load the webfont stylesheet so it doesn't block first paint.
+         The page renders immediately in system fonts; webfonts swap in
+         once available. font-display: swap inside the Google response
+         keeps the swap invisible after the first paint. -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" />
+    </noscript>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <ClientRouter />
     <!-- PostHog. Inline snippet (no npm dep). Tracks pageviews automatically;
          site code can call window.posthog?.capture('event_name', { props })
          from anywhere. Skipped at build time when PUBLIC_POSTHOG_KEY is
@@ -187,8 +201,9 @@ const footerClass = fullHeight
     </div>
     <!-- Lead-capture handler. Routes any form with [data-lead-form] into a
          posthog event + identify. Source-of-truth lives in PostHog until
-         we wire a publisher endpoint. -->
-    <script is:inline>
+         we wire a publisher endpoint. data-astro-rerun re-runs this on
+         every SPA navigation so newly-rendered footer forms get bound. -->
+    <script is:inline data-astro-rerun>
       (function () {
         var forms = document.querySelectorAll('[data-lead-form]')
         if (!forms.length) return
@@ -225,7 +240,7 @@ const footerClass = fullHeight
         })
       })()
     </script>
-    <script is:inline>
+    <script is:inline data-astro-rerun>
       (function () {
         var btn = document.querySelector('[data-theme-toggle]')
         if (!btn) return

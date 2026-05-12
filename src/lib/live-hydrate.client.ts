@@ -238,6 +238,14 @@ interface AgentProfileResponse {
   recent_evals?: EvalOutput[]
 }
 
+// Replace innerHTML only if the new markup differs from what's there.
+// Astro renders the same surface at build time; if the API returns the
+// same shape, we'd otherwise cause a visible flicker on every poll.
+function applyIfChanged(el: HTMLElement, next: string): void {
+  if (el.innerHTML.trim() === next.trim()) return
+  el.innerHTML = next
+}
+
 async function hydrateOne(el: HTMLElement): Promise<void> {
   const kind = el.dataset.live
   const cardId = el.dataset.cardId || ''
@@ -249,28 +257,30 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
       const d = await fetchJSON<LeaderboardPage>(
         `/api/cathedral/v1/leaderboard?card=${encodeURIComponent(cardId)}&limit=${limit}`,
       )
-      el.innerHTML = renderLeaderboard(d.items || [])
+      applyIfChanged(el, renderLeaderboard(d.items || []))
     } else if (kind === 'recent-feed' && cardId) {
       const d = await fetchJSON<FeedPage>(
         `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/feed?limit=${limit}`,
       )
-      el.innerHTML = renderRecentFeed(d.items || [])
+      applyIfChanged(el, renderRecentFeed(d.items || []))
     } else if (kind === 'card-overview-stats' && cardId) {
       const d = await fetchJSON<CardOverview>(
         `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}`,
       )
-      el.innerHTML = renderCardOverviewStats(d)
+      applyIfChanged(el, renderCardOverviewStats(d))
     } else if (kind === 'agent-evals' && agentId) {
       const d = await fetchJSON<AgentProfileResponse>(
         `/api/cathedral/v1/agents/${encodeURIComponent(agentId)}`,
       )
-      el.innerHTML = renderAgentEvals(d.recent_evals || [])
+      applyIfChanged(el, renderAgentEvals(d.recent_evals || []))
       // Also live-update the score/rank header if present.
       document.querySelectorAll<HTMLElement>('[data-live-score]').forEach((s) => {
-        s.textContent = SCORE(d.current_score)
+        const next = SCORE(d.current_score)
+        if (s.textContent !== next) s.textContent = next
       })
       document.querySelectorAll<HTMLElement>('[data-live-rank]').forEach((s) => {
-        s.textContent = d.current_rank == null ? '—' : `#${d.current_rank}`
+        const next = d.current_rank == null ? '—' : `#${d.current_rank}`
+        if (s.textContent !== next) s.textContent = next
       })
     } else if (kind === 'cards-index') {
       // The cards index page renders each tile with [data-card-id]. We
@@ -313,15 +323,66 @@ function hydrateAll() {
     .forEach((el) => void hydrateOne(el))
 }
 
-if (typeof window !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', hydrateAll, { once: true })
-  } else {
-    hydrateAll()
+// Module-scoped refresh state, so re-bootstraps from astro:page-load /
+// initial-load don't stack multiple timers + visibility listeners.
+let refreshTimer: number | null = null
+let visibilityBound = false
+
+function startRefreshLoop() {
+  function schedule(ms: number) {
+    if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+    refreshTimer = window.setTimeout(tick, ms)
   }
-  // Refresh every 30s while page is open so leaderboards stay current
-  // without a reload.
-  setInterval(hydrateAll, 30_000)
+  function tick() {
+    if (document.visibilityState === 'visible') hydrateAll()
+    schedule(30_000)
+  }
+  schedule(30_000)
+  if (!visibilityBound) {
+    visibilityBound = true
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        hydrateAll()
+        schedule(30_000)
+      }
+    })
+  }
+}
+
+// Schedule the first hydration off the critical path (idle callback,
+// falling back to a deferred timeout). Skip the whole script on pages
+// with zero data-live placeholders so we don't run a no-op refresh
+// timer on the blog, /leaderboard, /how-it-works, etc.
+function bootstrap() {
+  const targets = document.querySelectorAll('[data-live]')
+  if (targets.length === 0) {
+    if (refreshTimer !== null) {
+      window.clearTimeout(refreshTimer)
+      refreshTimer = null
+    }
+    return
+  }
+
+  const ric =
+    (window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+    }).requestIdleCallback ||
+    ((cb: () => void) => window.setTimeout(cb, 200))
+
+  ric(() => hydrateAll(), { timeout: 500 })
+  startRefreshLoop()
+}
+
+if (typeof window !== 'undefined') {
+  // Astro's ClientRouter fires `astro:page-load` after each SPA navigation,
+  // so we re-bootstrap on every page (including the initial load). Falls
+  // back to DOMContentLoaded / immediate run on environments without it.
+  document.addEventListener('astro:page-load', bootstrap)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap, { once: true })
+  } else {
+    bootstrap()
+  }
 }
 
 export {}

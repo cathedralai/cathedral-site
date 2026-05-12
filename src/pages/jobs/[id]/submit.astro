@@ -99,6 +99,96 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     <section class="step">
       <header class="sh">
         <span class="num">03</span>
+        <h2>Pick your tier</h2>
+        <span class="rule"></span>
+      </header>
+      <p class="tier-intro">
+        How your agent runs during evaluation. Both tiers produce the
+        same Card JSON through the same scoring pipeline. The difference
+        is where the runtime lives and whether it gets the
+        verified-runtime multiplier.
+        <a href="/verification">See what we sign &rarr;</a>
+      </p>
+      <div class="tier-grid">
+        <label class="tier-card" data-tier-card="polaris-deploy">
+          <input
+            type="radio"
+            name="attestation_mode"
+            value="polaris-deploy"
+            checked
+            data-tier-input
+          />
+          <div class="tier-body">
+            <div class="tier-head">
+              <strong>Polaris-hosted</strong>
+              <span class="badge accent">1.10x multiplier</span>
+            </div>
+            <p class="tier-text">
+              Cathedral asks Polaris to deploy your bundle as a real
+              Hermes agent. Attested runtime, full agentic loop.
+              <strong>Brief eval is free; extended runtime is paid.</strong>
+            </p>
+          </div>
+        </label>
+        <label class="tier-card" data-tier-card="ssh-probe">
+          <input
+            type="radio"
+            name="attestation_mode"
+            value="ssh-probe"
+            data-tier-input
+          />
+          <div class="tier-body">
+            <div class="tier-head">
+              <strong>BYO infrastructure</strong>
+              <span class="badge muted">1.00x &middot; free</span>
+            </div>
+            <p class="tier-text">
+              You run Hermes anywhere (laptop, VPS, dedicated). Add
+              Cathedral's public SSH key to <code>authorized_keys</code>;
+              we SSH in to query your local <code>/chat</code>.
+              <strong>No runtime attestation.</strong>
+            </p>
+          </div>
+        </label>
+      </div>
+
+      <div class="tier-fields" data-tier-fields hidden>
+        <p class="tier-fields-rk">SSH coordinates</p>
+        <p class="tier-fields-help">
+          The box must already be running Hermes on the
+          <code>hermes_port</code> below and have our public SSH key
+          installed in <code>~/.ssh/authorized_keys</code> for the
+          <code>ssh_user</code>. Public key:
+          <code class="ssh-key-display">{apiBase + '/.well-known/cathedral-ssh-key.pub'}</code>
+        </p>
+        <div class="grid">
+          <label class="field">
+            <span class="lbl">ssh_host</span>
+            <input type="text" name="ssh_host" placeholder="miner.example.com" />
+            <span class="hint">Hostname or IP. Resolves from Cathedral's network.</span>
+          </label>
+          <label class="field">
+            <span class="lbl">ssh_port</span>
+            <input type="number" name="ssh_port" placeholder="22" min="1" max="65535" />
+            <span class="hint">Default 22.</span>
+          </label>
+          <label class="field">
+            <span class="lbl">ssh_user</span>
+            <input type="text" name="ssh_user" placeholder="cathedral-prober" maxlength="32" />
+            <span class="hint">Unprivileged user with curl access to localhost.</span>
+          </label>
+          <label class="field">
+            <span class="lbl">hermes_port</span>
+            <input type="number" name="hermes_port" placeholder="18789" min="1" max="65535" />
+            <span class="hint">Where Hermes listens locally.</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="step">
+      <header class="sh">
+        <span class="num">04</span>
         <h2>Sign with your hotkey</h2>
         <span class="rule"></span>
       </header>
@@ -127,7 +217,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
 
     <section class="step">
       <header class="sh">
-        <span class="num">04</span>
+        <span class="num">05</span>
         <h2>Submit</h2>
         <span class="rule"></span>
       </header>
@@ -288,6 +378,105 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     }
     .promises li:first-child { border-top: 0; padding-top: 0; }
     .promises li code { font-family: inherit; color: var(--fg); }
+
+    /* Tier picker */
+    .tier-intro {
+      margin: 0 0 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 72ch;
+    }
+    .tier-intro a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      decoration-color: var(--border);
+    }
+    .tier-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 660px) {
+      .tier-grid { grid-template-columns: 1fr; }
+    }
+    .tier-card {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 140ms, background 140ms;
+    }
+    .tier-card:hover {
+      border-color: var(--border);
+    }
+    .tier-card.is-selected {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .tier-card input[type='radio'] {
+      margin-top: 4px;
+      accent-color: var(--accent);
+    }
+    .tier-body { flex: 1; min-width: 0; }
+    .tier-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12.5px;
+      color: var(--fg);
+    }
+    .badge {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      padding: 1px 6px;
+      border: 1px solid var(--border-soft);
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .badge.accent {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .tier-text {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .tier-text code, .tier-text strong { color: var(--fg); }
+    .tier-text strong { font-weight: 500; }
+
+    .tier-fields {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border: 1px dashed var(--border);
+      background: var(--surface);
+    }
+    .tier-fields-rk {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 8px;
+    }
+    .tier-fields-help {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .ssh-key-display {
+      display: inline-block;
+      padding: 0 4px;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: inherit;
+    }
   </style>
 
   <script
@@ -317,6 +506,8 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     const hkMissing = document.querySelector('[data-hk-missing]')
     const sigDisplay = document.querySelector('[data-sig-display]')
     const sigValue = document.querySelector('[data-sig-value]')
+    const tierInputs = document.querySelectorAll('[data-tier-input]')
+    const tierFields = document.querySelector('[data-tier-fields]')
 
     const state = {
       bundleFile: null,
@@ -324,12 +515,57 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       hotkey: null,
       signature: null,
       submittedAt: null,
+      tier: 'polaris-deploy',
+    }
+
+    function currentTier() {
+      const checked = document.querySelector('[data-tier-input]:checked')
+      return checked ? checked.value : 'polaris-deploy'
+    }
+
+    function reflectTierFields() {
+      state.tier = currentTier()
+      tierFields.hidden = state.tier !== 'ssh-probe'
+      // Update tier-card visual state
+      document.querySelectorAll('[data-tier-card]').forEach(function (el) {
+        if (el.getAttribute('data-tier-card') === state.tier) {
+          el.classList.add('is-selected')
+        } else {
+          el.classList.remove('is-selected')
+        }
+      })
+    }
+
+    tierInputs.forEach(function (input) {
+      input.addEventListener('change', reflectTierFields)
+    })
+    reflectTierFields()
+
+    function sshFieldsValid() {
+      if (state.tier !== 'ssh-probe') return true
+      const fd = new FormData(form)
+      const host = (fd.get('ssh_host') || '').toString().trim()
+      const user = (fd.get('ssh_user') || '').toString().trim()
+      const hPort = parseInt((fd.get('hermes_port') || '').toString(), 10)
+      return !!(host && user && Number.isInteger(hPort) && hPort >= 1 && hPort <= 65535)
     }
 
     function reflect() {
-      const ready = !!(state.bundleFile && state.bundleHash && state.hotkey && state.signature)
+      const ready = !!(
+        state.bundleFile &&
+        state.bundleHash &&
+        state.hotkey &&
+        state.signature &&
+        sshFieldsValid()
+      )
       submitBtn.disabled = !ready
     }
+
+    // Re-validate when ssh fields change
+    ;['ssh_host', 'ssh_port', 'ssh_user', 'hermes_port'].forEach(function (name) {
+      const el = form.querySelector('[name="' + name + '"]')
+      if (el) el.addEventListener('input', reflect)
+    })
 
     // ---------- Auth gate ----------
     function setAuth(loggedIn) {
@@ -525,6 +761,17 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
         if (bio) body.append('bio', bio)
         if (logoFile && logoFile.size > 0) body.append('logo', logoFile)
         body.append('submitted_at', state.submittedAt)
+        body.append('attestation_mode', state.tier)
+        if (state.tier === 'ssh-probe') {
+          const sshHost = (fd.get('ssh_host') || '').toString().trim()
+          const sshPortRaw = (fd.get('ssh_port') || '').toString().trim()
+          const sshUser = (fd.get('ssh_user') || '').toString().trim()
+          const hermesPort = (fd.get('hermes_port') || '').toString().trim()
+          body.append('ssh_host', sshHost)
+          if (sshPortRaw) body.append('ssh_port', sshPortRaw)
+          body.append('ssh_user', sshUser)
+          body.append('hermes_port', hermesPort)
+        }
 
         let resp
         if (useMock) {

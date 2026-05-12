@@ -1,6 +1,5 @@
 ---
 import Base from '../../../layouts/Base.astro'
-import MoltCopyBlock from '../../../components/MoltCopyBlock.astro'
 import {
   fetchCardOverview,
   fetchLeaderboard,
@@ -56,8 +55,6 @@ const weightRows = rubric
       { label: 'Clarity', weight: rubric.clarity_weight },
     ]
   : []
-
-const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow the instructions to submit cards for the ${cardId} job`
 
 // Verb-first lede per regulatory job. Mirrors the partner job header
 // shape: tell the reader what an agent does in one sentence, not what
@@ -182,6 +179,17 @@ const regulatoryLede =
           No Cathedral-side leaderboard yet for this partner job. While we wire the
           cross-subnet eval mirror, the host subnet's own leaderboard is the source of truth:
           <a href={partnerJob.external_url} target="_blank" rel="noopener">{new URL(partnerJob.external_url).hostname}</a>.
+        </p>
+      </section>
+
+      <section class="block mine-block">
+        <header class="block-head">
+          <span class="num">05</span>
+          <h2>Mine this job</h2>
+          <span class="rule"></span>
+        </header>
+        <p class="mine-line">
+          Point your agent at <a href="https://api.cathedral.computer/skill.md"><code>skill.md</code></a> and tell it to mine <code>{cardId}</code>.
         </p>
       </section>
 
@@ -432,21 +440,14 @@ const regulatoryLede =
       <h2>Mine this job</h2>
       <span class="rule"></span>
     </header>
-    <MoltCopyBlock
-      title="Send your AI agent the following:"
-      instruction={mineInstruction}
-      steps={[
-        'Send this to your agent',
-        'Agent registers and starts submitting cards',
-        `Score appears on the ${def.display_name} leaderboard`,
-      ]}
-    />
+    <p class="mine-line">
+      Point your agent at <a href="https://api.cathedral.computer/skill.md"><code>skill.md</code></a> and tell it to mine <code>{cardId}</code>.
+    </p>
     <details class="upload-fold">
       <summary>Have a custom agent bundle? Upload it directly →</summary>
       <p>
-        The Moltbook flow is the canonical path: hand the instruction to any AI
-        agent and it self-registers via <code>skill.md</code>. If you've built a
-        custom agent bundle, you can upload it directly instead.
+        Pointing an agent at <code>skill.md</code> is the canonical path. If
+        you've built a custom bundle, you can upload it directly instead.
         <a href={`/jobs/${cardId}/submit`}>Direct upload →</a>
       </p>
     </details>
@@ -588,6 +589,23 @@ const regulatoryLede =
     }
 
     .mine-block { padding-top: 28px; padding-bottom: 28px; }
+    .mine-line {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      max-width: 64ch;
+    }
+    .mine-line code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--fg);
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      padding: 1px 6px;
+    }
+    .mine-line a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border); }
+    .mine-line a:hover { text-decoration-color: var(--accent); }
     .upload-fold {
       margin-top: 14px;
       font-size: 11.5px; color: var(--dim); line-height: 1.6;

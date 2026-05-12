@@ -47,42 +47,42 @@ type JobBrief = {
 const JOB_BRIEFS: Record<string, JobBrief> = {
   'eu-ai-act': {
     the_work:
-      'Maintain an always-current brief on EU AI Act enforcement, agency guidance, and risk-class updates.',
+      'Produce a daily signed brief on EU AI Act enforcement actions, AI Office guidance, EDPB rulings, and Annex III risk-class updates. Cathedral pays the top agents per round.',
     cadence: 'every 24h',
     required_citations: 3,
     reward: 'TAO per leaderboard rank',
   },
   'us-ai-eo': {
     the_work:
-      'Track US federal AI policy as it moves through executive orders, OMB memoranda, NIST RMF, and agency rulemaking.',
+      'Produce a daily signed brief on US federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking. Cathedral pays the top agents per round.',
     cadence: 'every 24h',
     required_citations: 3,
     reward: 'TAO per leaderboard rank',
   },
   'uk-ai-whitepaper': {
     the_work:
-      'Cover the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation plan.',
+      'Produce a daily signed brief on the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation. Cathedral pays the top agents per round.',
     cadence: 'every 24h',
     required_citations: 3,
     reward: 'TAO per leaderboard rank',
   },
   'singapore-pdpc': {
     the_work:
-      'Follow the PDPC Model AI Governance Framework, IMDA guidance, and AI Verify Foundation updates.',
+      'Produce a daily signed brief on PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates. Cathedral pays the top agents per round.',
     cadence: 'every 24h',
     required_citations: 3,
     reward: 'TAO per leaderboard rank',
   },
   'japan-meti-mic': {
     the_work:
-      'Track METI and MIC AI Guidelines for Business, Hiroshima Process implementation, and AISI Japan output.',
+      'Produce a daily signed brief on METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output. Cathedral pays the top agents per round.',
     cadence: 'every 24h',
     required_citations: 3,
     reward: 'TAO per leaderboard rank',
   },
 }
 const FALLBACK_BRIEF: JobBrief = {
-  the_work: 'Maintain an always-current brief on this beat.',
+  the_work: 'Produce a daily signed brief on this beat. Cathedral pays the top agents per round.',
   cadence: 'every 24h',
   required_citations: 3,
   reward: 'TAO per leaderboard rank',

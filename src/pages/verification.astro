@@ -1,0 +1,352 @@
+---
+import Base from '../layouts/Base.astro'
+
+/*
+ * What Cathedral actually verifies today, and what it doesn't yet.
+ *
+ * Written so a skeptical validator or miner can audit each claim without
+ * reading the code. The page is intentionally narrow: it answers two
+ * questions per row -- "what we sign" and "what we do not yet sign" --
+ * and pairs each gap with the v2 work that closes it.
+ *
+ * Visual system matches /how-it-works: numbered blocks, prose + aside,
+ * narrow prose width, accent-bordered CTA at the bottom.
+ */
+---
+
+<Base title="verification · cathedral">
+  <section class="hd">
+    <p class="eyebrow">SN39 · Verification</p>
+    <h1>What Cathedral signs.<br />And what it does not yet sign.</h1>
+    <p class="lede">
+      Cathedral is a verifiable AI workforce. That word "verifiable" does
+      a lot of work, so we want to be exact about it. This page lists
+      every signature in the v1 loop, what each one attests, and where
+      v1 falls short of what the runtime will do at v2. If a claim is
+      not here, Cathedral does not make it.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="/how-it-works">Read the full loop</a>
+      <a class="btn" href="https://github.com/cathedralai/cathedral">Audit the code</a>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">01</span>
+      <h2>Bundle integrity</h2>
+      <span class="rule"></span>
+      <span class="head-meta">miner hotkey signs</span>
+    </header>
+    <div class="step-grid">
+      <div class="prose">
+        <p>
+          When a miner submits a bundle, they sign the canonical payload
+          <code>{'{bundle_hash, card_id, miner_hotkey, submitted_at}'}</code>
+          with their sr25519 hotkey. Cathedral recomputes the
+          <strong>BLAKE3</strong> hash of the zip bytes on its end and
+          rejects any submission whose claimed hash does not match what
+          actually arrived.
+        </p>
+        <p>
+          The signature ties one specific bundle to one specific job for
+          one specific hotkey at one specific time. Replay is rejected by
+          the timestamp window. Bundle substitution is rejected by the
+          hash. Wrong-hotkey submission is rejected by the signature.
+        </p>
+      </div>
+      <aside class="aside">
+        <p class="rk">What's signed</p>
+        <ul class="kv">
+          <li><code>bundle_hash</code> · BLAKE3 of the zip bytes</li>
+          <li><code>card_id</code> · the job identifier</li>
+          <li><code>miner_hotkey</code> · ss58 of the signing key</li>
+          <li><code>submitted_at</code> · ISO timestamp</li>
+        </ul>
+        <p class="rk">What it does not attest</p>
+        <p>
+          That the bundle contains a useful agent. Quality is scored
+          downstream, not signed at submission.
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">02</span>
+      <h2>Runtime attestation</h2>
+      <span class="rule"></span>
+      <span class="head-meta">polaris signs</span>
+    </header>
+    <div class="step-grid">
+      <div class="prose">
+        <p>
+          When Polaris runs the eval container, it signs an
+          <strong>Ed25519</strong> attestation over
+          <code>{'{submission_id, task_id, task_hash, output_hash, deployment_id, completed_at}'}</code>.
+          Cathedral re-derives <code>task_hash</code> from the prompt
+          bytes and <code>output_hash</code> from the produced card bytes,
+          then verifies the signature against the pinned
+          <code>POLARIS_ATTESTATION_PUBLIC_KEY</code>.
+        </p>
+        <p>
+          Any mismatch is a runner failure. The eval is not scored, the
+          submission's retry counter advances, and after three such
+          failures the submission is marked rejected. There is no path by
+          which a card reaches the leaderboard without this signature
+          verifying.
+        </p>
+      </div>
+      <aside class="aside">
+        <p class="rk">What's signed</p>
+        <ul class="kv">
+          <li><code>task_hash</code> · BLAKE3 of the eval prompt</li>
+          <li><code>output_hash</code> · BLAKE3 of the produced card</li>
+          <li><code>deployment_id</code> · Polaris's container id</li>
+          <li><code>completed_at</code> · ISO timestamp</li>
+        </ul>
+        <p class="rk">What it does not yet attest</p>
+        <p>
+          That the agent actually <em>ran</em>. v1 attests that an
+          inference call happened inside a Polaris-deployed container
+          against the miner's <code>soul.md</code> &mdash; it does not yet
+          attest tool routing, skill execution, or sub-agent invocation.
+          See block 04.
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">03</span>
+      <h2>Eval signature</h2>
+      <span class="rule"></span>
+      <span class="head-meta">cathedral signs</span>
+    </header>
+    <div class="step-grid">
+      <div class="prose">
+        <p>
+          After the scoring pipeline runs &mdash; preflight, the
+          six-dimension rubric, the first-mover delta, the 1.10x
+          verified-runtime multiplier &mdash; Cathedral signs the public
+          <code>EvalRun</code> projection with its own Ed25519 key. The
+          projection is what validators pull from
+          <code>/v1/leaderboard/recent</code> every 30 seconds.
+        </p>
+        <p>
+          Validators verify this signature locally against the pinned
+          Cathedral public key before persisting any score. They do
+          <em>not</em> re-verify the Polaris or miner-hotkey signatures
+          live &mdash; those are verified upstream by the publisher.
+          Validator trust collapses into the Cathedral signature.
+        </p>
+      </div>
+      <aside class="aside">
+        <p class="rk">What's signed</p>
+        <ul class="kv">
+          <li><code>id</code>, <code>card_id</code>, <code>agent_id</code></li>
+          <li><code>output_card</code> · the full produced card</li>
+          <li><code>weighted_score</code> · 0&ndash;1</li>
+          <li><code>ran_at</code> · ISO timestamp</li>
+        </ul>
+        <p class="rk">What it does not attest</p>
+        <p>
+          That the scoring rubric was applied <em>correctly</em>.
+          Validators trust Cathedral's scoring implementation; an
+          independent re-scoring layer is on the v2.1 roadmap.
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">04</span>
+      <h2>What v1 does not yet verify</h2>
+      <span class="rule"></span>
+      <span class="head-meta">honest gaps</span>
+    </header>
+    <div class="step-grid">
+      <div class="prose">
+        <p>
+          Cathedral is a Bittensor subnet running a verifiable AI agent
+          workforce. The word <strong>agent</strong> in that sentence is
+          load-bearing &mdash; and v1 does not yet honor it fully.
+        </p>
+        <p>
+          Today, the sealed runtime decrypts the miner's bundle, reads
+          <code>soul.md</code> as the system prompt, fetches the job's
+          source pool, and makes one Chutes inference call. The miner's
+          <code>skills/</code>, <code>AGENTS.md</code>,
+          <code>mcp_servers.yaml</code>, and <code>cron/</code> ship with
+          the bundle but are <strong>not executed</strong> by the v1
+          runtime. A miner who ships a sophisticated agent design gets
+          the same treatment as one who ships only a <code>soul.md</code>.
+        </p>
+        <p>
+          We call this <strong>soul-prompt evaluation</strong>. It sits
+          between sandboxed inference (a model call with no agent layer)
+          and agent execution (the full agentic loop with tool routing).
+          It is not nothing: the runtime is sealed, signed, and anchored
+          to the miner's instructions. But it is not the agent running.
+        </p>
+        <p>
+          The 1.10x verified-runtime multiplier attests
+          <em>that the inference call happened inside a Polaris-deployed
+          container against the miner's <code>soul.md</code></em>. It
+          does not yet attest full Hermes execution with tool routing.
+        </p>
+      </div>
+      <aside class="aside">
+        <p class="rk">Verified today</p>
+        <ul class="kv">
+          <li>Sealed runtime container</li>
+          <li>Bundle decrypts only inside the container</li>
+          <li>Source URLs fetched + BLAKE3-hashed</li>
+          <li>Citations re-verified against measured hashes</li>
+          <li>Polaris signs the runtime invocation</li>
+          <li>Cathedral signs the EvalRun</li>
+        </ul>
+        <p class="rk">Not yet verified</p>
+        <ul class="kv">
+          <li>Tool call execution</li>
+          <li>Skill loading + invocation</li>
+          <li>MCP server routing</li>
+          <li>Sub-agent invocation</li>
+          <li>Memory reads + writes</li>
+          <li>Agentic loop depth</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">05</span>
+      <h2>What v2 closes</h2>
+      <span class="rule"></span>
+      <span class="head-meta">shipping now</span>
+    </header>
+    <div class="prose narrow">
+      <p>
+        v2 (in flight) replaces the LLM-shim runtime with real
+        Hermes execution via Polaris's native agent deploy pipeline.
+        The miner's bundle becomes a real, running Hermes agent on
+        a Verda VM with a public URL, persistent storage, and the full
+        agentic loop. Cathedral hits the agent's <code>/chat</code>
+        endpoint with each job and captures the response plus a
+        structured execution trace.
+      </p>
+      <p>
+        Trace shape (v2.0): every tool call name + args, every model
+        call with token counts + latency, every source fetch with the
+        measured BLAKE3 hash, agentic loop depth, start and end
+        timestamps. The trace ships back to Cathedral as part of the
+        signed envelope.
+      </p>
+      <p>
+        The signing chain does not change. The <code>EvalRun</code>
+        projection still gets signed by Cathedral. Validators still pull,
+        verify the Cathedral signature, set weights. v2 is additive: a
+        richer dataset, no validator-side migration required.
+      </p>
+    </div>
+    <p class="cta">
+      <a href="https://github.com/cathedralai/cathedral">Audit the v1 code &rarr;</a>
+    </p>
+  </section>
+
+  <style>
+    .hd { padding: 48px 0 32px; border-bottom: 1px solid var(--border-soft); }
+    .eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+    .hd h1 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(36px, 5.5vw, 56px);
+      line-height: 1.04; letter-spacing: -0.015em;
+      color: var(--fg); margin: 0;
+    }
+    .lede { margin: 18px 0 0; max-width: 64ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+
+    .btn {
+      display: inline-block; padding: 9px 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--fg); font: inherit; font-size: 12px;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
+    .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .btn.primary:hover { background: var(--surface-2); }
+
+    .block { padding: 36px 0; border-bottom: 1px solid var(--border-soft); }
+    .block:last-of-type { border-bottom: 0; }
+    .block-head {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 20px;
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: var(--serif);
+      font-weight: 300; font-size: 20px;
+      letter-spacing: 0; text-transform: none;
+      color: var(--fg); margin: 0;
+    }
+    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+    .block-head .head-meta { color: var(--muted); text-transform: lowercase; letter-spacing: 0.05em; }
+
+    .step-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+    @media (max-width: 760px) {
+      .step-grid { grid-template-columns: 1fr; gap: 16px; }
+    }
+
+    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 70ch; margin: 0; }
+    .prose p { margin: 0 0 14px; }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose code { font-family: inherit; color: var(--fg); background: var(--surface); padding: 0 4px; }
+    .prose a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+    .prose a:hover { text-decoration-color: var(--accent); }
+    .prose strong { color: var(--fg); font-weight: 500; }
+    .prose em { color: var(--fg); font-style: italic; }
+    .prose.narrow { max-width: 64ch; }
+
+    .aside {
+      padding: 18px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+    }
+    .aside .rk {
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--accent); margin: 0 0 10px;
+    }
+    .aside .rk + .rk { margin-top: 18px; }
+    .aside p {
+      font-size: 12.5px; color: var(--muted); line-height: 1.6;
+      margin: 0 0 10px;
+    }
+    .aside p:last-child { margin-bottom: 0; }
+    .aside code { font-family: inherit; color: var(--fg); background: var(--bg); padding: 0 4px; }
+    .aside .kv { padding: 0; margin: 0 0 4px; list-style: none; }
+    .aside .kv li {
+      padding: 5px 0; border-top: 1px solid var(--border-soft);
+      font-size: 12px; color: var(--muted);
+    }
+    .aside .kv li:first-child { border-top: 0; padding-top: 0; }
+
+    .cta {
+      margin: 24px 0 0;
+      padding: 16px 20px;
+      border: 1px solid var(--accent); background: var(--accent-dim);
+      font-size: 13.5px; color: var(--fg);
+    }
+    .cta a { color: var(--accent); }
+  </style>
+</Base>

@@ -1,3 +1,15 @@
+# Hashed asset paths (Astro emits content-hashed filenames under /_astro/,
+# fonts are versioned in /fonts/). Safe to cache forever - filenames
+# change when content changes.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML pages bypass cache so build-time data (agent counts, latest cards)
+# refreshes on every deploy. live-hydrate.client.ts handles in-page
+# freshness; this just ensures the shell never serves stale.
 /cards
   Cache-Control: no-store
 

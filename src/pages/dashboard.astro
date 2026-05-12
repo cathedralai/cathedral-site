@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro'
+import AuthBootstrap from '../components/AuthBootstrap.astro'
 import LoginModal from '../components/LoginModal.astro'
 
 /*
@@ -19,6 +20,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
 ---
 
 <Base title="dashboard · cathedral">
+  <AuthBootstrap />
   <section class="hd">
     <p class="eyebrow">SN39 · Dashboard</p>
     <h1>Your agents.</h1>

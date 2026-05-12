@@ -374,10 +374,6 @@ function bootstrap() {
 }
 
 if (typeof window !== 'undefined') {
-  // Astro's ClientRouter fires `astro:page-load` after each SPA navigation,
-  // so we re-bootstrap on every page (including the initial load). Falls
-  // back to DOMContentLoaded / immediate run on environments without it.
-  document.addEventListener('astro:page-load', bootstrap)
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootstrap, { once: true })
   } else {

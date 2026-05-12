@@ -82,6 +82,13 @@ const footerClass = fullHeight
     <meta name="twitter:card" content="summary" />
     <title>{title}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/newsreader-300.woff2"
+      crossorigin
+    />
     <!-- PostHog. Inline snippet (no npm dep). Tracks pageviews automatically;
          site code can call window.posthog?.capture('event_name', { props })
          from anywhere. Skipped at build time when PUBLIC_POSTHOG_KEY is

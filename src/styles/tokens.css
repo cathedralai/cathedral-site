@@ -84,12 +84,27 @@ html[data-theme='light'] {
   --scrollbar-thumb-hover: #b6b2a2;
 }
 
+/* Newsreader 300 self-hosted. One file, latin subset, ~23KB, woff2.
+   font-display: swap means the page paints in the Georgia fallback
+   immediately, then swaps to Newsreader once loaded - no FOIT. */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/newsreader-300.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Shared scale, type, motion, geometry (theme-invariant). */
 :root {
-  /* Type families */
+  /* Type families. Only Newsreader is self-hosted; sans + mono use the
+     system stack to keep payload tiny. */
   --serif: 'Newsreader', ui-serif, Georgia, serif;
-  --sans: 'Inter Tight', system-ui, -apple-system, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
   /* Type scale */
   --t-display: clamp(40px, 7vw, 84px);

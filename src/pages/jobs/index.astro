@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro'
 import { fetchAvailableCards } from '../../lib/cathedral-api'
 import { relativeTime } from '../../lib/format'
+import { EXTERNAL_JOBS, jobsForCategory } from '../../lib/external-jobs'
 
 /*
  * The jobs index. v1 surface is structured as categories of jobs:
@@ -97,20 +98,23 @@ type Category = {
   blurb: string
   status: 'active' | 'coming-soon'
 }
-const COMING_SOON_CATEGORIES: Category[] = [
+// Three live categories at launch, each with a real partner job. The
+// two old coming-soon placeholders (code-security, scientific-research)
+// are retired — replaced by concrete cross-subnet partnerships.
+const ACTIVE_PARTNER_CATEGORIES: Category[] = [
   {
-    id: 'code-security',
-    label: 'Code & Security',
+    id: 'model-distillation',
+    label: 'Model Distillation',
     blurb:
-      'Verified briefs on CVEs, framework releases, model-card audits, and dependency advisories. Same mechanism, security beat.',
-    status: 'coming-soon',
+      'A workforce paid to produce the best distilled student of the world\'s frontier teachers. Cathedral pays the top challengers per round; the host subnet pays the king.',
+    status: 'active',
   },
   {
-    id: 'scientific-research',
-    label: 'Scientific Research',
+    id: 'drug-discovery',
+    label: 'Drug Discovery',
     blurb:
-      'Verified literature reviews on emerging findings. Citations checked, dates fresh, source quality scored.',
-    status: 'coming-soon',
+      'High-throughput ML-driven drug screening against weekly protein targets. Submit candidate binders; Cathedral surfaces the top of the workforce while the host subnet runs the on-chain eval.',
+    status: 'active',
   },
 ]
 ---
@@ -202,25 +206,49 @@ const COMING_SOON_CATEGORIES: Category[] = [
     )}
   </section>
 
-  {COMING_SOON_CATEGORIES.map((cat) => (
-    <section class="category coming-soon">
-      <header class="cat-head">
-        <span class="cat-mark" aria-hidden="true">
-          {cat.id === 'code-security' ? '⌖' : '☉'}
-        </span>
-        <div class="cat-title">
-          <p class="cat-eyebrow">CATEGORY · COMING SOON</p>
-          <h2>{cat.label}</h2>
-          <p class="cat-blurb">{cat.blurb}</p>
+  {ACTIVE_PARTNER_CATEGORIES.map((cat) => {
+    const jobs = jobsForCategory(cat.id)
+    const glyph = cat.id === 'model-distillation' ? '⧬' : '⚘'
+    return (
+      <section class="category active partner">
+        <header class="cat-head">
+          <span class="cat-mark" aria-hidden="true">{glyph}</span>
+          <div class="cat-title">
+            <p class="cat-eyebrow">CATEGORY · ACTIVE · CROSS-SUBNET</p>
+            <h2>{cat.label}</h2>
+            <p class="cat-blurb">{cat.blurb}</p>
+          </div>
+        </header>
+        <div class="partner-jobs">
+          {jobs.map((job) => (
+            <a class="partner-tile" href={job.external_url} target="_blank" rel="noopener">
+              <div class="pt-head">
+                <img class="pt-favicon" src={job.favicon_url} alt="" loading="lazy" width="32" height="32" />
+                <div class="pt-partner">
+                  <p class="pt-partner-name">{job.partner}</p>
+                  <p class="pt-partner-url">{new URL(job.external_url).hostname}</p>
+                </div>
+              </div>
+              <h3>{job.display_name}</h3>
+              <p class="pt-topic">{job.topic}</p>
+              <p class="pt-work">{job.the_work}</p>
+              <dl class="pt-terms">
+                <div class="pt-term">
+                  <dt>Cadence</dt><dd>{job.cadence}</dd>
+                </div>
+                <div class="pt-term">
+                  <dt>Reward</dt><dd>{job.reward_model}</dd>
+                </div>
+              </dl>
+              <footer class="pt-foot">
+                <span class="more">view repo ↗</span>
+              </footer>
+            </a>
+          ))}
         </div>
-      </header>
-      <div class="soon-foot">
-        <span class="soon-pill">Coming soon</span>
-        <span class="dim">·</span>
-        <span>Same mechanism, new domain. <a href="/how-it-works">How it works →</a></span>
-      </div>
-    </section>
-  ))}
+      </section>
+    )
+  })}
 
   <style>
     .hd { padding: 48px 0 32px; border-bottom: 1px solid var(--border-soft); }
@@ -351,6 +379,97 @@ const COMING_SOON_CATEGORIES: Category[] = [
     .soon-foot .dim { color: var(--border); }
     .soon-foot a { color: var(--accent); }
     .soon-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* Partner job tiles - cross-subnet collaborations. Same shape as
+       regulatory job tiles but with a partner identity row at the top
+       (favicon + partner name + domain). */
+    .category.partner { }
+    .partner-jobs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 900px) { .partner-jobs { grid-template-columns: 1fr; } }
+    .partner-tile {
+      padding: 22px;
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      display: flex; flex-direction: column; gap: 10px;
+      transition: background 140ms, border-color 140ms;
+    }
+    .partner-tile:hover { background: var(--surface-2); border-color: var(--accent-dim); }
+    .pt-head { display: flex; align-items: center; gap: 12px; }
+    .pt-favicon {
+      width: 32px; height: 32px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+      object-fit: cover;
+    }
+    .pt-partner { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .pt-partner-name {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .pt-partner-url {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim);
+    }
+    .partner-tile h3 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 20px;
+      color: var(--fg);
+      line-height: 1.2;
+      margin: 4px 0 0;
+    }
+    .pt-topic {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+    }
+    .pt-work {
+      margin: 4px 0 0;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .pt-terms {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 4px 0 0;
+      padding: 12px 0 0;
+      border-top: 1px solid var(--border-soft);
+    }
+    .pt-term { margin: 0; }
+    .pt-term dt {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .pt-term dd {
+      margin: 3px 0 0;
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .pt-foot {
+      display: flex; justify-content: flex-end;
+      padding-top: 12px; margin-top: auto;
+      border-top: 1px solid var(--border-soft);
+      font-size: 10.5px;
+    }
+    .pt-foot .more { color: var(--accent); letter-spacing: 0.04em; }
 
     .cards-grid {
       display: grid;

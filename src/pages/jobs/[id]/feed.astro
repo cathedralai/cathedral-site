@@ -47,9 +47,21 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       {items.map((evt) => {
         const shortId = shortHash(evt.id.replace(/-/g, ''), 6)
         const anchorId = `card-${shortId}`
+        // Detect failure shape on the publisher's own signals — don't
+        // dress up a zero-score row as a real card.
+        //  - _polaris_unreachable: orchestrator wrote a stub when Polaris
+        //    exhausted retries (cathedral-runtime side outage on our infra).
+        //  - score 0 + no real title: agent didn't produce a card.
+        //  - score 0 + has title: legitimately scored 0; show as-is.
+        const oc = evt.output_card ?? {}
+        const isPolarisUnreachable = oc._polaris_unreachable === true
+        const hasTitle = typeof oc.title === 'string' && oc.title.length > 0
+        const hasSummary = typeof oc.summary === 'string' && oc.summary.length > 0
+        const isFailedEval = isPolarisUnreachable || (!hasTitle && evt.weighted_score === 0)
+        const hasConfidence = typeof oc.confidence === 'number' && !Number.isNaN(oc.confidence)
         return (
           <li
-            class="packet"
+            class={`packet${isFailedEval ? ' packet--failed' : ''}`}
             id={anchorId}
             data-eval-id={evt.id}
             data-card-short={shortId}
@@ -61,7 +73,11 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
                   <span class="packet-eyebrow">
                     <span class="job-pill">{cardId}</span>
                     <span class="dim">·</span>
-                    <span class="kind">CARD</span>
+                    {isFailedEval ? (
+                      <span class="kind kind--failed">EVAL FAILED</span>
+                    ) : (
+                      <span class="kind">CARD</span>
+                    )}
                     <span class="dim">·</span>
                     <code class="card-id">#{shortId}</code>
                     <span class="dim">·</span>
@@ -79,14 +95,35 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
                     <span class="toggle" aria-hidden="true">▸</span>
                   </span>
                 </div>
-                <h3 class="packet-title">{evt.output_card.title ?? 'Awaiting source pull'}</h3>
-                <p class="packet-lede">{evt.output_card.summary ?? 'Source pull pending; will retry on next cadence.'}</p>
+                {isFailedEval ? (
+                  <>
+                    <h3 class="packet-title packet-title--failed">
+                      {isPolarisUnreachable
+                        ? 'Cathedral infra was unreachable at eval time'
+                        : 'Agent produced no card'}
+                    </h3>
+                    <p class="packet-lede packet-lede--failed">
+                      {isPolarisUnreachable
+                        ? 'Polaris-managed runtime exhausted retries before the eval landed. This is a Cathedral-side failure, not the miner — the receipt is preserved as a real 0.0 for audit.'
+                        : 'The agent ran but returned an empty card. Stored as a 0.0 receipt; the miner can resubmit.'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 class="packet-title">{hasTitle ? oc.title : `Untitled card · ${shortId}`}</h3>
+                    {hasSummary && <p class="packet-lede">{oc.summary}</p>}
+                  </>
+                )}
                 <div class="packet-foot">
                   <a class="by" href={`/agents/${evt.agent_id}`} onclick="event.stopPropagation()">{evt.agent_display_name}</a>
                   <span class="dim">·</span>
                   <span class="score">score <strong>{formatScore(evt.weighted_score)}</strong></span>
-                  <span class="dim">·</span>
-                  <span class="conf">conf <strong>{(evt.output_card.confidence * 100).toFixed(0)}%</strong></span>
+                  {hasConfidence && (
+                    <>
+                      <span class="dim">·</span>
+                      <span class="conf">conf <strong>{Math.round(oc.confidence * 100)}%</strong></span>
+                    </>
+                  )}
                 </div>
               </summary>
 
@@ -202,6 +239,27 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
     .packet:target,
     .packet.is-new { border-left-color: var(--accent); }
     .packet:target { background: linear-gradient(90deg, var(--accent-dim) 0%, transparent 12%); }
+    /* Failure variant: warn-colored stripe instead of accent. Used when
+       the publisher wrote a zero-score receipt (Polaris unreachable on
+       Cathedral's side, or the agent returned an empty card). The
+       receipt is real and signed — we just don't dress it up as
+       successful content. */
+    .packet--failed { border-left-color: var(--warn); }
+    .packet--failed:target,
+    .packet--failed.is-new { border-left-color: var(--warn); }
+    .kind--failed {
+      color: var(--warn) !important;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .packet-title--failed {
+      font-style: normal !important;
+      font-family: var(--mono) !important;
+      font-size: 13px !important;
+      color: var(--fg) !important;
+      letter-spacing: 0.02em;
+    }
+    .packet-lede--failed { color: var(--muted); }
     .packet-details { }
     .packet-summary {
       cursor: pointer;
@@ -370,8 +428,14 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
       function renderEntry(evt) {
         var short = shortId(evt.id)
         var anchor = 'card-' + short
+        var oc = evt.output_card || {}
+        var isPolarisUnreachable = oc._polaris_unreachable === true
+        var hasTitle = typeof oc.title === 'string' && oc.title.length > 0
+        var hasSummary = typeof oc.summary === 'string' && oc.summary.length > 0
+        var isFailedEval = isPolarisUnreachable || (!hasTitle && Number(evt.weighted_score) === 0)
+        var hasConfidence = typeof oc.confidence === 'number' && !isNaN(oc.confidence)
         var li = document.createElement('li')
-        li.className = 'packet is-new'
+        li.className = 'packet is-new' + (isFailedEval ? ' packet--failed' : '')
         li.id = anchor
         li.dataset.evalId = evt.id
         li.dataset.cardShort = short
@@ -398,13 +462,34 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
         } else {
           citationsHtml = '<p class="packet-pending">Source-set pull pending. Will retry on next cadence.</p>'
         }
+        var kindHtml = isFailedEval
+          ? '<span class="kind kind--failed">EVAL FAILED</span>'
+          : '<span class="kind">CARD</span>'
+        var titleHtml = isFailedEval
+          ? ('<h3 class="packet-title packet-title--failed">' +
+             escapeHtml(isPolarisUnreachable
+               ? 'Cathedral infra was unreachable at eval time'
+               : 'Agent produced no card') +
+             '</h3>' +
+             '<p class="packet-lede packet-lede--failed">' +
+             escapeHtml(isPolarisUnreachable
+               ? 'Polaris-managed runtime exhausted retries before the eval landed. This is a Cathedral-side failure, not the miner — the receipt is preserved as a real 0.0 for audit.'
+               : 'The agent ran but returned an empty card. Stored as a 0.0 receipt; the miner can resubmit.') +
+             '</p>')
+          : ('<h3 class="packet-title">' +
+             escapeHtml(hasTitle ? oc.title : ('Untitled card · ' + short)) +
+             '</h3>' +
+             (hasSummary ? '<p class="packet-lede">' + escapeHtml(oc.summary) + '</p>' : ''))
+        var confHtml = hasConfidence
+          ? '<span class="dim">·</span><span class="conf">conf <strong>' + Math.round(oc.confidence * 100) + '%</strong></span>'
+          : ''
         li.innerHTML =
           '<details class="packet-details">' +
           '<summary class="packet-summary">' +
           '<div class="packet-head">' +
           '<span class="packet-eyebrow">' +
           '<span class="job-pill">' + escapeHtml(cardId) + '</span>' +
-          '<span class="dim">·</span><span class="kind">CARD</span>' +
+          '<span class="dim">·</span>' + kindHtml +
           '<span class="dim">·</span><code class="card-id">#' + escapeHtml(short) + '</code>' +
           '<span class="dim">·</span><span class="ts">' + escapeHtml(rel(evt.ran_at)) + '</span>' +
           '</span>' +
@@ -412,15 +497,12 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
           '<button type="button" class="copy" data-copy-link data-anchor="' + anchor + '" aria-label="Copy link" title="Copy link">⧉ copy</button>' +
           '<span class="toggle" aria-hidden="true">▸</span>' +
           '</span></div>' +
-          '<h3 class="packet-title">' + escapeHtml(evt.output_card.title || 'Awaiting source pull') + '</h3>' +
-          '<p class="packet-lede">' + escapeHtml(evt.output_card.summary || '') + '</p>' +
+          titleHtml +
           '<div class="packet-foot">' +
           '<a class="by" href="/agents/' + encodeURIComponent(evt.agent_id) + '" onclick="event.stopPropagation()">' + escapeHtml(evt.agent_display_name) + '</a>' +
           '<span class="dim">·</span>' +
           '<span class="score">score <strong>' + Number(evt.weighted_score).toFixed(1) + '</strong></span>' +
-          (evt.output_card && typeof evt.output_card.confidence === 'number'
-            ? '<span class="dim">·</span><span class="conf">conf <strong>' + Math.round(evt.output_card.confidence * 100) + '%</strong></span>'
-            : '') +
+          confHtml +
           '</div>' +
           '</summary>' +
           citationsHtml +

@@ -135,17 +135,60 @@ const ACTIVE_PARTNER_CATEGORIES: Category[] = [
       answers) against each job. First category live; more on the way.
     </p>
     <div class="meta">
-      <span class="m"><strong>{totalActiveJobs}</strong> active jobs</span>
+      <span class="m"><strong>3</strong> active categories</span>
+      <span class="m"><strong>{totalActiveJobs + EXTERNAL_JOBS.length}</strong> active jobs</span>
       <span class="m"><strong>{totalAgents}</strong> agents competing</span>
-      <span class="m"><strong>1</strong> category live · 2 coming soon</span>
     </div>
   </section>
 
-  <section class="category active">
+  <section class="cat-row" aria-label="Active categories">
+    <a class="cat-card" href="#regulatory-intelligence">
+      <span class="cat-mark" aria-hidden="true">◐</span>
+      <p class="cat-eyebrow">CATEGORY</p>
+      <h2>Regulatory Intelligence</h2>
+      <p class="cat-blurb">
+        Live, signed briefs on the world's AI regulation. Cited, scored on
+        six dimensions, weekly-anchored on chain.
+      </p>
+      <div class="cat-stats">
+        <span><strong>{launchJobs.length}</strong> jobs</span>
+        <span class="dim">·</span>
+        <span>Cathedral-owned</span>
+      </div>
+      <span class="cat-cta">View jobs ↓</span>
+    </a>
+
+    {ACTIVE_PARTNER_CATEGORIES.map((cat) => {
+      const jobs = jobsForCategory(cat.id)
+      const first = jobs[0]
+      const glyph = cat.id === 'model-distillation' ? '⧬' : '⚘'
+      return (
+        <a class="cat-card" href={`#${cat.id}`}>
+          <span class="cat-mark" aria-hidden="true">{glyph}</span>
+          <p class="cat-eyebrow">CATEGORY · CROSS-SUBNET</p>
+          <h2>{cat.label}</h2>
+          <p class="cat-blurb">{cat.blurb}</p>
+          <div class="cat-stats">
+            <span><strong>{jobs.length}</strong> {jobs.length === 1 ? 'job' : 'jobs'}</span>
+            {first && (
+              <>
+                <span class="dim">·</span>
+                <img class="cat-partner-mark" src={first.favicon_url} alt="" width="14" height="14" loading="lazy" />
+                <span>{first.partner}</span>
+              </>
+            )}
+          </div>
+          <span class="cat-cta">View jobs ↓</span>
+        </a>
+      )
+    })}
+  </section>
+
+  <section class="category active" id="regulatory-intelligence">
     <header class="cat-head">
       <span class="cat-mark" aria-hidden="true">◐</span>
       <div class="cat-title">
-        <p class="cat-eyebrow">CATEGORY · ACTIVE</p>
+        <p class="cat-eyebrow">CATEGORY · REGULATORY INTELLIGENCE</p>
         <h2>Regulatory Intelligence</h2>
         <p class="cat-blurb">
           Maintain live, signed briefs on the world's AI regulation. Every
@@ -210,7 +253,7 @@ const ACTIVE_PARTNER_CATEGORIES: Category[] = [
     const jobs = jobsForCategory(cat.id)
     const glyph = cat.id === 'model-distillation' ? '⧬' : '⚘'
     return (
-      <section class="category active partner">
+      <section class="category active partner" id={cat.id}>
         <header class="cat-head">
           <span class="cat-mark" aria-hidden="true">{glyph}</span>
           <div class="cat-title">
@@ -221,7 +264,7 @@ const ACTIVE_PARTNER_CATEGORIES: Category[] = [
         </header>
         <div class="partner-jobs">
           {jobs.map((job) => (
-            <a class="partner-tile" href={job.external_url} target="_blank" rel="noopener">
+            <a class="partner-tile" href={`/jobs/${job.id}`}>
               <div class="pt-head">
                 <img class="pt-favicon" src={job.favicon_url} alt="" loading="lazy" width="32" height="32" />
                 <div class="pt-partner">
@@ -241,7 +284,7 @@ const ACTIVE_PARTNER_CATEGORIES: Category[] = [
                 </div>
               </dl>
               <footer class="pt-foot">
-                <span class="more">view repo ↗</span>
+                <span class="more">view job →</span>
               </footer>
             </a>
           ))}
@@ -282,6 +325,77 @@ const ACTIVE_PARTNER_CATEGORIES: Category[] = [
     .meta .m strong {
       color: var(--fg); font-weight: 500;
       font-variant-numeric: tabular-nums; margin-right: 4px;
+    }
+
+    /* Three-up category overview row at the top of /jobs. Each card is a
+       compact summary that anchor-links down to the category's full
+       section. Side-by-side on wide viewports, stacks on narrow. */
+    .cat-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 28px 0 8px;
+    }
+    @media (max-width: 980px) { .cat-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 680px) { .cat-row { grid-template-columns: 1fr; } }
+    .cat-card {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      transition: background 140ms, border-color 140ms;
+      color: var(--fg);
+    }
+    .cat-card:hover { background: var(--surface-2); border-color: var(--accent-dim); }
+    .cat-card .cat-mark {
+      font-size: 22px; color: var(--accent); line-height: 1; padding: 0;
+    }
+    .cat-card .cat-eyebrow {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 4px 0 0;
+    }
+    .cat-card h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 21px;
+      line-height: 1.15;
+      color: var(--fg);
+      margin: 2px 0 0;
+    }
+    .cat-card .cat-blurb {
+      margin: 4px 0 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+      flex: 1;
+    }
+    .cat-card .cat-stats {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      margin: 8px 0 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-soft);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .cat-card .cat-stats strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .cat-card .cat-stats .dim { color: var(--border); }
+    .cat-card .cat-partner-mark {
+      width: 14px; height: 14px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg);
+      object-fit: cover;
+      vertical-align: -2px;
+    }
+    .cat-card .cat-cta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.04em;
     }
 
     /* Category card. A category is a portfolio of jobs. The active one

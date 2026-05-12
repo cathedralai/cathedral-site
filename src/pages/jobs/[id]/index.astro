@@ -9,42 +9,238 @@ import {
   fetchCardEvalSpec,
 } from '../../../lib/cathedral-api'
 import { V1_CARD_IDS } from '../../../lib/cards'
+import { EXTERNAL_JOBS } from '../../../lib/external-jobs'
 import { relativeTime, truncateMiddle, formatScore, formatBytes, shortHash } from '../../../lib/format'
 
+// /jobs/[id] handles both:
+//   - regulatory jobs from the publisher (V1_CARD_IDS)
+//   - partner jobs from the external-jobs registry (EXTERNAL_JOBS)
+// We branch early below: partner jobs render a different layout that
+// leads with partner identity + the work + reward + a strong external
+// CTA, then publisher-fetch is skipped entirely.
 export function getStaticPaths() {
-  return V1_CARD_IDS.map((id) => ({ params: { id } }))
+  const regulatory = V1_CARD_IDS.map((id) => ({ params: { id }, props: { kind: 'regulatory' as const } }))
+  const partner = EXTERNAL_JOBS.map((j) => ({ params: { id: j.id }, props: { kind: 'partner' as const } }))
+  return [...regulatory, ...partner]
 }
 
 const { id } = Astro.params
+const { kind } = Astro.props as { kind: 'regulatory' | 'partner' }
 const cardId = id as string
+const partnerJob = kind === 'partner' ? EXTERNAL_JOBS.find((j) => j.id === cardId)! : null
 
-const [overview, leaderboard, feed, discovery, spec] = await Promise.all([
-  fetchCardOverview(cardId),
-  fetchLeaderboard(cardId, 3),
-  fetchCardFeed(cardId, { limit: 5 }),
-  fetchCardDiscovery(cardId, { limit: 6 }),
-  fetchCardEvalSpec(cardId),
-])
+const [overview, leaderboard, feed, discovery, spec] = kind === 'regulatory'
+  ? await Promise.all([
+      fetchCardOverview(cardId),
+      fetchLeaderboard(cardId, 3),
+      fetchCardFeed(cardId, { limit: 5 }),
+      fetchCardDiscovery(cardId, { limit: 6 }),
+      fetchCardEvalSpec(cardId),
+    ])
+  : [null, null, null, null, null] as const
 
-const top3 = leaderboard.items
-const recent = feed.items
-const discoveryItems = discovery.items
-const discoveryTotal = discovery.total
-const def = overview.definition
-const rubric = spec.scoring_rubric
-const weightRows = [
-  { label: 'Source quality', weight: rubric.source_quality_weight },
-  { label: 'Maintenance', weight: rubric.maintenance_weight },
-  { label: 'Freshness', weight: rubric.freshness_weight },
-  { label: 'Specificity', weight: rubric.specificity_weight },
-  { label: 'Usefulness', weight: rubric.usefulness_weight },
-  { label: 'Clarity', weight: rubric.clarity_weight },
-]
+// Regulatory-only derived values; only safe to read when kind==='regulatory'.
+const top3 = leaderboard ? leaderboard.items : []
+const recent = feed ? feed.items : []
+const discoveryItems = discovery ? discovery.items : []
+const discoveryTotal = discovery ? discovery.total : 0
+const def = overview ? overview.definition : null
+const rubric = spec ? spec.scoring_rubric : null
+const weightRows = rubric
+  ? [
+      { label: 'Source quality', weight: rubric.source_quality_weight },
+      { label: 'Maintenance', weight: rubric.maintenance_weight },
+      { label: 'Freshness', weight: rubric.freshness_weight },
+      { label: 'Specificity', weight: rubric.specificity_weight },
+      { label: 'Usefulness', weight: rubric.usefulness_weight },
+      { label: 'Clarity', weight: rubric.clarity_weight },
+    ]
+  : []
 
 const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow the instructions to submit cards for the ${cardId} job`
 ---
 
-<Base title={`Job: ${def.display_name} · cathedral`}>
+<Base
+  title={kind === 'partner'
+    ? `Job: ${partnerJob!.display_name} · cathedral`
+    : `Job: ${def!.display_name} · cathedral`}
+>
+  {kind === 'partner' && partnerJob ? (
+    <>
+      <section class="hd">
+        <p class="eyebrow">
+          <a href="/jobs">← all jobs</a>
+          <span class="dim">·</span>
+          <span>CROSS-SUBNET</span>
+          <span class="dim">·</span>
+          <span>{partnerJob.partner}</span>
+        </p>
+        <div class="partner-head">
+          <img class="partner-mark" src={partnerJob.favicon_url} alt="" width="56" height="56" />
+          <div>
+            <p class="kicker">Partner job</p>
+            <h1 class="title">{partnerJob.display_name}</h1>
+            <p class="topic">{partnerJob.topic}</p>
+          </div>
+        </div>
+        <p class="lede">{partnerJob.the_work}</p>
+        <div class="actions">
+          <a class="btn primary" href={partnerJob.external_url} target="_blank" rel="noopener">
+            View the canonical repo ↗
+          </a>
+          <a class="btn" href={partnerJob.partner_url} target="_blank" rel="noopener">
+            Partner site ↗
+          </a>
+        </div>
+      </section>
+
+      <section class="block">
+        <header class="block-head">
+          <span class="num">01</span>
+          <h2>About this job</h2>
+          <span class="rule"></span>
+        </header>
+        <p class="prose">{partnerJob.description}</p>
+      </section>
+
+      <section class="block">
+        <header class="block-head">
+          <span class="num">02</span>
+          <h2>Reward model</h2>
+          <span class="rule"></span>
+        </header>
+        <dl class="moats">
+          <dt>Cadence</dt>
+          <dd>{partnerJob.cadence}</dd>
+          <dt>How miners earn</dt>
+          <dd>{partnerJob.reward_model}</dd>
+          <dt>How the host subnet pays</dt>
+          <dd>
+            The host subnet runs its own on-chain eval and pays its winner per its mechanism.
+            Cathedral surfaces a parallel leaderboard so contenders who don't reach #1 still
+            get paid for the work. Coming next: Cathedral forwards top candidates to the host
+            subnet under our hotkey, then redistributes TAO to the originating miner with an
+            on-chain receipt. Roadmap, not live yet.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="block">
+        <header class="block-head">
+          <span class="num">03</span>
+          <h2>How to participate</h2>
+          <span class="rule"></span>
+        </header>
+        <ol class="numbered">
+          <li>
+            <strong>Read the host subnet's repo</strong> to understand the canonical eval:
+            <a href={partnerJob.external_url} target="_blank" rel="noopener">{partnerJob.external_url}</a>
+          </li>
+          <li>
+            <strong>Stand up your candidate</strong> on the host subnet first (register a
+            hotkey, submit a model / molecule / candidate). The host owns the eval; Cathedral
+            mirrors it.
+          </li>
+          <li>
+            <strong>Notify Cathedral.</strong> While the post-a-submission UI is in flight,
+            DM us or reply in #sn39 with your hotkey + repo link. We track top contenders on
+            this page's leaderboard.
+          </li>
+          <li>
+            <strong>Earn from both.</strong> Host subnet pays its winner per its mechanism.
+            Cathedral pays the top contenders per the rolling-30d leaderboard.
+          </li>
+        </ol>
+      </section>
+
+      <section class="block">
+        <header class="block-head">
+          <span class="num">04</span>
+          <h2>Leaderboard</h2>
+          <span class="rule"></span>
+        </header>
+        <p class="empty">
+          No Cathedral-side leaderboard yet for this partner job. While we wire the
+          cross-subnet eval mirror, the host subnet's own leaderboard is the source of truth:
+          <a href={partnerJob.external_url} target="_blank" rel="noopener">{new URL(partnerJob.external_url).hostname}</a>.
+        </p>
+      </section>
+
+      <style>
+        .partner-head {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 18px;
+          align-items: center;
+          margin: 10px 0 18px;
+        }
+        .partner-mark {
+          width: 56px; height: 56px;
+          border: 1px solid var(--border-soft);
+          background: var(--surface);
+          object-fit: cover;
+        }
+        .partner-head .kicker {
+          font-family: var(--mono);
+          font-size: 10px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--accent);
+          margin: 0 0 6px;
+        }
+        .partner-head .title {
+          font-family: var(--serif);
+          font-weight: 300;
+          font-size: clamp(28px, 4vw, 44px);
+          line-height: 1.06;
+          letter-spacing: -0.015em;
+          color: var(--fg);
+          margin: 0;
+        }
+        .partner-head .topic {
+          margin: 6px 0 0;
+          font-family: var(--mono);
+          font-size: 11px;
+          letter-spacing: 0.02em;
+          color: var(--accent);
+        }
+        .moats { margin: 0; display: grid; gap: 14px; }
+        .moats dt {
+          font-family: var(--serif);
+          font-weight: 300;
+          font-style: italic;
+          font-size: 16px;
+          color: var(--fg);
+          margin: 0;
+        }
+        .moats dd {
+          margin: 4px 0 0;
+          color: var(--muted);
+          font-size: 13.5px;
+          line-height: 1.65;
+        }
+        .numbered { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+        .numbered li {
+          counter-increment: step;
+          position: relative;
+          padding-left: 36px;
+          margin-bottom: 14px;
+          color: var(--muted);
+          font-size: 13.5px;
+          line-height: 1.65;
+        }
+        .numbered li::before {
+          content: counter(step, decimal-leading-zero);
+          position: absolute; left: 0; top: 1px;
+          font-family: var(--mono);
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          color: var(--accent);
+        }
+        .numbered a { color: var(--accent); word-break: break-all; }
+      </style>
+    </>
+  ) : (
   <section class="hd">
     <p class="eyebrow">
       <a href="/jobs">← all jobs</a>
@@ -445,4 +641,5 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
     .more a { color: var(--accent); }
     .more a:hover { text-decoration: underline; text-underline-offset: 3px; }
   </style>
+  )}
 </Base>

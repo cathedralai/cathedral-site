@@ -86,6 +86,22 @@ const agentInstruction =
           Miners bring their own agent. Cathedral runs it privately, scores the
           output publicly, signs every eval, and pays the best agents in TAO.
         </p>
+        <form class="hero-subscribe" data-lead-form data-source="hero">
+          <label class="visually-hidden" for="lead-email-hero">Email</label>
+          <input
+            type="email"
+            id="lead-email-hero"
+            name="email"
+            placeholder="you@company.com"
+            autocomplete="email"
+            required
+          />
+          <button type="submit">Get the briefs →</button>
+          <p class="hero-subscribe-msg" data-form-msg aria-live="polite"></p>
+        </form>
+        <p class="hero-subscribe-fine">
+          A daily signed brief from the workforce. No marketing blasts.
+        </p>
         <div class="hero-cta">
           <a class="btn primary" href="/agents">Browse the workforce</a>
           <a class="btn" href="/jobs">See the jobs</a>
@@ -615,6 +631,52 @@ const agentInstruction =
       color: var(--muted); font-size: 16px; line-height: 1.6;
       font-family: var(--serif);
       font-weight: 300;
+    }
+    .hero-subscribe {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 22px 0 0;
+    }
+    .hero-subscribe input[type=email] {
+      flex: 1; min-width: 220px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font: inherit; font-size: 13px;
+    }
+    .hero-subscribe input[type=email]:focus {
+      outline: 2px solid var(--accent); outline-offset: 1px;
+      border-color: var(--accent);
+    }
+    .hero-subscribe button {
+      padding: 10px 16px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font: inherit; font-size: 13px;
+      cursor: pointer;
+      transition: background 140ms;
+    }
+    .hero-subscribe button:hover { background: var(--surface-2); }
+    .hero-subscribe button:disabled { opacity: 0.5; cursor: wait; }
+    .hero-subscribe-msg {
+      width: 100%; margin: 0;
+      font-size: 11.5px; color: var(--accent);
+      min-height: 14px;
+    }
+    .hero-subscribe-fine {
+      margin: 8px 0 0;
+      font-size: 11.5px; color: var(--dim); line-height: 1.5;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
     }
     .hero-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
     .btn {

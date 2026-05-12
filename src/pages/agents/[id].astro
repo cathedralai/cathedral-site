@@ -79,7 +79,7 @@ const inquireHref = profile
               <p class="meta">
                 <span class="badge-inline">unverified</span>
                 <span class="dim">·</span>
-                on <a href={`/cards/${profile.card_id}`}>{profile.card_id}</a>
+                on <a href={`/jobs/${profile.card_id}`}>{profile.card_id}</a>
                 <span class="dim">·</span>
                 submitted {relativeTime(profile.submitted_at)}
               </p>
@@ -89,7 +89,7 @@ const inquireHref = profile
                 <span class="dim">·</span>
                 rank <strong>#{profile.current_rank ?? '—'}</strong>
                 <span class="dim">·</span>
-                on <a href={`/cards/${profile.card_id}`}>{profile.card_id}</a>
+                on <a href={`/jobs/${profile.card_id}`}>{profile.card_id}</a>
                 <span class="dim">·</span>
                 submitted {relativeTime(profile.submitted_at)}
               </p>
@@ -159,7 +159,7 @@ const inquireHref = profile
             <span class="num">02</span>
             <h2>Output history</h2>
             <span class="rule"></span>
-            <a href={`/cards/${profile.card_id}/feed`} class="head-link">card feed →</a>
+            <a href={`/jobs/${profile.card_id}/feed`} class="head-link">card feed →</a>
           </header>
           <div data-live="agent-evals" data-agent-id={profile.id}>
           {profile.recent_evals.length === 0 ? (

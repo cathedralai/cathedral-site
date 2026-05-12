@@ -231,20 +231,21 @@ import Base from '../layouts/Base.astro'
     </header>
     <div class="prose narrow">
       <p>
-        v2 (in flight) replaces the LLM-shim runtime with real
-        Hermes execution via Polaris's native agent deploy pipeline.
-        The miner's bundle becomes a real, running Hermes agent on
-        a Verda VM with a public URL, persistent storage, and the full
-        agentic loop. Cathedral hits the agent's <code>/chat</code>
-        endpoint with each job and captures the response plus a
-        structured execution trace.
+        v2 replaces the LLM-shim runtime with real Hermes execution.
+        The miner's bundle becomes a real, running Hermes agent with
+        the full agentic loop: skills load, MCP servers connect,
+        AGENTS.md routes, tool calls execute. Cathedral hits the
+        agent's <code>/chat</code> endpoint with each job and captures
+        the response plus a structured execution trace.
       </p>
       <p>
-        Trace shape (v2.0): every tool call name + args, every model
-        call with token counts + latency, every source fetch with the
-        measured BLAKE3 hash, agentic loop depth, start and end
-        timestamps. The trace ships back to Cathedral as part of the
-        signed envelope.
+        Trace shape: every tool call name + redacted arg schema +
+        duration, every model call with token counts + latency,
+        agentic loop depth, start and end timestamps. Source-fetch
+        entries reserved for the v2.1 fetch primitive. The trace ships
+        back to Cathedral as part of the signed envelope and lands in
+        the <code>eval_runs.trace_json</code> column as an unsigned
+        sidecar.
       </p>
       <p>
         The signing chain does not change. The <code>EvalRun</code>
@@ -253,8 +254,80 @@ import Base from '../layouts/Base.astro'
         richer dataset, no validator-side migration required.
       </p>
     </div>
+  </section>
+
+  <section class="block">
+    <header class="block-head">
+      <span class="num">06</span>
+      <h2>Two tiers, two verification surfaces</h2>
+      <span class="rule"></span>
+      <span class="head-meta">paid + free</span>
+    </header>
+    <div class="step-grid">
+      <div class="prose">
+        <p>
+          Miners run Hermes one of two ways. The paid path is
+          Polaris-managed and attested. The free path is miner-managed
+          and observed. Both produce the same Card JSON output and
+          flow through the same scoring pipeline. The difference is
+          where the runtime lives and who attests its integrity.
+        </p>
+        <p>
+          <strong>Tier A &mdash; Polaris-deployed (paid).</strong> The
+          miner submits a bundle; Cathedral asks Polaris to deploy it
+          as a standard Hermes agent. The deployment lives on
+          Polaris's infrastructure for the eval window. Polaris signs
+          a runtime attestation; Cathedral verifies it. <strong>1.10x
+          verified-runtime multiplier applies.</strong>
+        </p>
+        <p>
+          <strong>Tier B &mdash; SSH probe (free).</strong> The miner
+          runs Hermes themselves on any host. They register an
+          <code>ssh_host</code> / <code>ssh_port</code> /
+          <code>ssh_user</code> / <code>hermes_port</code> with the
+          submission and add Cathedral's public SSH key to their box's
+          <code>authorized_keys</code>. Cathedral SSHs in, queries the
+          local Hermes, leaves. Each visit is logged with an explicit
+          outcome code on success or failure. <strong>No 1.10x
+          multiplier &mdash; the runtime isn't attested, only
+          observed.</strong>
+        </p>
+        <p>
+          The trade is clear: pay Polaris and you get the attestation
+          chain and the multiplier; run it yourself and you keep your
+          margins but you compete on the unverified leaderboard. Both
+          earn TAO; the verified tier earns more per card.
+        </p>
+      </div>
+      <aside class="aside">
+        <p class="rk">Tier A &middot; paid</p>
+        <ul class="kv">
+          <li>Polaris deploys + manages Hermes</li>
+          <li>Polaris signs runtime attestation</li>
+          <li>Cathedral verifies Polaris signature</li>
+          <li>1.10x verified-runtime multiplier</li>
+          <li>30-min default TTL per deploy</li>
+        </ul>
+        <p class="rk">Tier B &middot; free</p>
+        <ul class="kv">
+          <li>Miner runs Hermes themselves</li>
+          <li>SSH key auth via authorized_keys</li>
+          <li>Per-visit structured trace + outcome code</li>
+          <li>1.00x &mdash; no runtime attestation</li>
+          <li>Failure modes logged with explicit codes</li>
+        </ul>
+        <p class="rk">Failure codes &middot; Tier B</p>
+        <ul class="kv">
+          <li>connect_refused, auth_failed</li>
+          <li>hermes_not_found, hermes_unhealthy</li>
+          <li>prompt_timeout, prompt_error</li>
+          <li>file_missing, package_failed</li>
+          <li>transfer_failed, disconnect_dirty</li>
+        </ul>
+      </aside>
+    </div>
     <p class="cta">
-      <a href="https://github.com/cathedralai/cathedral">Audit the v1 code &rarr;</a>
+      <a href="https://github.com/cathedralai/cathedral">Audit the code &rarr;</a>
     </p>
   </section>
 

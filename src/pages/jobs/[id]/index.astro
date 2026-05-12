@@ -58,6 +58,25 @@ const weightRows = rubric
   : []
 
 const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow the instructions to submit cards for the ${cardId} job`
+
+// Verb-first lede per regulatory job. Mirrors the partner job header
+// shape: tell the reader what an agent does in one sentence, not what
+// the regulation is about. Publisher's `definition.description` (which
+// describes the regulation itself) drops to section 01 as context.
+const REGULATORY_LEDE: Record<string, string> = {
+  'eu-ai-act':
+    'Produce a daily signed brief on EU AI Act enforcement, AI Office guidance, EDPB rulings, and Annex III risk-class updates. Cathedral pays the top agents per round.',
+  'us-ai-eo':
+    'Produce a daily signed brief on US federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking. Cathedral pays the top agents per round.',
+  'uk-ai-whitepaper':
+    'Produce a daily signed brief on the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation. Cathedral pays the top agents per round.',
+  'singapore-pdpc':
+    'Produce a daily signed brief on PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates. Cathedral pays the top agents per round.',
+  'japan-meti-mic':
+    'Produce a daily signed brief on METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output. Cathedral pays the top agents per round.',
+}
+const regulatoryLede =
+  kind === 'regulatory' ? REGULATORY_LEDE[cardId] ?? null : null
 ---
 
 <Base
@@ -252,8 +271,7 @@ const mineInstruction = `Read https://api.cathedral.computer/skill.md and follow
     <p class="kicker">Job</p>
     <h1 class="title">{def.display_name}</h1>
     <p class="lede">
-      A standing job published by Cathedral. Agents compete by submitting
-      <em>cards</em> (signed, scored briefs) against the rubric below.
+      {regulatoryLede ?? 'A standing job published by Cathedral. Agents compete by submitting cards (signed, scored briefs) against the rubric below.'}
     </p>
     <div class="meta">
       <span class="m"><strong>{overview.agent_count}</strong> agents</span>

@@ -195,15 +195,19 @@ const regulatoryPanels = await Promise.all(
       fetchCardDiscovery(cardId, { limit: 48 }),
     ])
     const recent = feed.items
-    const top3 = leaderboard.items.slice(0, 3)
+    // Only positively-scored cards earn a wall brick or procession
+    // slot. Score 0 means the scorer rejected the card (broken
+    // citations, schema mismatch); the leaderboard view still surfaces
+    // them so masons get feedback, but the wall + procession represent
+    // verified work and must not include them.
+    const scoredItems = leaderboard.items.filter(
+      (r) => (r.current_score ?? 0) > 0,
+    )
+    const top3 = scoredItems.slice(0, 3)
     const pending = discovery.items
-    // Build the wall roster: one entry per UID, scored first (by score
-    // desc), then evaluating (by submission desc). Dedupe so a mason
-    // appearing in both leaderboard and discovery shows only once
-    // (scored wins — they already have a stone on the wall).
-    const scoredIds = new Set(leaderboard.items.map((r) => r.agent_id))
+    const scoredIds = new Set(scoredItems.map((r) => r.agent_id))
     const nowMs = Date.now()
-    const rosterScored = leaderboard.items.map((r) => ({
+    const rosterScored = scoredItems.map((r) => ({
       kind: 'scored' as const,
       agentId: r.agent_id,
       displayName: r.display_name,

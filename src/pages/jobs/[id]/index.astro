@@ -51,7 +51,13 @@ const [overview, leaderboard, feed, spec, discovery] = kind === 'regulatory'
     ])
   : [null, null, null, null, null] as const
 
-const top3 = leaderboard ? leaderboard.items.slice(0, 3) : []
+// The procession promotes the top scored masons above the wall — same
+// score-positive contract as the wall itself, otherwise a card that the
+// scorer rejected (broken citations, schema mismatch) could occupy
+// rank 1 and tell visitors the wrong story.
+const top3 = leaderboard
+  ? leaderboard.items.filter((r) => (r.current_score ?? 0) > 0).slice(0, 3)
+  : []
 const recent = feed ? feed.items : []
 
 // Resolve a visible mason name with a fallback chain so the wall never
@@ -65,17 +71,23 @@ function resolveDisplayName(displayName: string | null | undefined, hotkey: stri
 }
 
 const nowMs = Date.now()
+// Only positively-scored cards earn a wall brick. Score 0 means the
+// card was scored and rejected (broken citations, schema mismatch,
+// missing fields) — keep it visible on the deeper leaderboard view but
+// don't let it occupy a wall slot that should signal verified work.
 const rosterScored = leaderboard
-  ? leaderboard.items.map((r) => ({
-      kind: 'scored' as const,
-      agentId: r.agent_id,
-      displayName: resolveDisplayName(r.display_name, r.miner_hotkey),
-      hotkey: r.miner_hotkey,
-      score: r.current_score,
-      rank: r.current_rank,
-      lastEvalAt: r.last_eval_at,
-      fresh: nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
-    }))
+  ? leaderboard.items
+      .filter((r) => (r.current_score ?? 0) > 0)
+      .map((r) => ({
+        kind: 'scored' as const,
+        agentId: r.agent_id,
+        displayName: resolveDisplayName(r.display_name, r.miner_hotkey),
+        hotkey: r.miner_hotkey,
+        score: r.current_score,
+        rank: r.current_rank,
+        lastEvalAt: r.last_eval_at,
+        fresh: nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
+      }))
   : []
 const scoredIds = new Set(rosterScored.map((r) => r.agentId))
 const rosterEvaluating = discovery

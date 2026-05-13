@@ -126,14 +126,15 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
           )
         }
         const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
-        const cls = s.fresh ? 'fresh' : 'scored'
+        const state = s.fresh ? 'fresh' : 'scored'
+        const cls = s.fresh ? 'scored fresh' : 'scored'
         const current = s.rank < 4 ? 'current' : ''
         return (
           <button
             type="button"
             class={`stone ${cls} ${tier} ${current}`}
             data-i={i}
-            data-state={cls}
+            data-state={state}
             data-agent-id={s.agentId}
             data-agent-name={s.displayName}
             data-agent-bio={s.bio ?? ''}
@@ -601,17 +602,6 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
   .stone.scored :global(svg *) { stroke: var(--accent) !important; }
-  /* Recently-scored stones read the same as any other scored stone.
-     The only live signal on the wall is the current tracing the top
-     three borders — the rest is still, like masonry. */
-  .stone.fresh {
-    background:
-      linear-gradient(180deg, rgba(126, 168, 208, 0.10), rgba(126, 168, 208, 0.035)),
-      var(--surface);
-    border-color: rgba(126, 168, 208, 0.42);
-  }
-  .stone.fresh :global(svg) { opacity: 1; }
-  .stone.fresh :global(svg *) { stroke: var(--accent) !important; }
   /* Top-three stones carry a single arc of current along their border.
      The stone itself stays muted (inherits .scored / .fresh fill); only
      a thin traced ring animates. Ranks 1/2/3 stagger so the current

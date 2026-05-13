@@ -601,47 +601,63 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
   .stone.scored :global(svg *) { stroke: var(--accent) !important; }
+  /* Recently-scored stones read the same as any other scored stone.
+     The only live signal on the wall is the current tracing the top
+     three borders — the rest is still, like masonry. */
   .stone.fresh {
     background:
-      linear-gradient(180deg, rgba(126, 168, 208, 0.20), rgba(126, 168, 208, 0.06)),
+      linear-gradient(180deg, rgba(126, 168, 208, 0.10), rgba(126, 168, 208, 0.035)),
       var(--surface);
-    border-color: rgba(126, 168, 208, 0.66);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-      0 0 10px rgba(126, 168, 208, 0.22);
-    animation: cd-stone-breathe 3.4s ease-in-out infinite;
+    border-color: rgba(126, 168, 208, 0.42);
   }
   .stone.fresh :global(svg) { opacity: 1; }
   .stone.fresh :global(svg *) { stroke: var(--accent) !important; }
-  @keyframes cd-stone-breathe {
-    0%, 100% {
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.16),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-        0 0 8px rgba(126, 168, 208, 0.18);
-    }
-    50% {
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.24),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-        0 0 16px rgba(126, 168, 208, 0.38);
-    }
+  /* Top-three stones carry a single arc of current along their border.
+     The stone itself stays muted (inherits .scored / .fresh fill); only
+     a thin traced ring animates. Ranks 1/2/3 stagger so the current
+     moves between stones one at a time, not all three at once. */
+  @property --cd-trace {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
   }
-  .stone.current {
-    background:
-      linear-gradient(90deg, transparent 0%, rgba(126, 168, 208, 0) 36%, rgba(126, 168, 208, 0.34) 50%, rgba(126, 168, 208, 0) 64%, transparent 100%),
-      repeating-linear-gradient(90deg, transparent 0 10px, rgba(126, 168, 208, 0.08) 10px 11px, transparent 11px 20px),
-      linear-gradient(180deg, rgba(126, 168, 208, 0.16), rgba(126, 168, 208, 0.045)),
-      var(--surface);
-    background-size: 220% 100%, auto, auto, auto;
-    border-color: rgba(126, 168, 208, 0.76);
-    animation: cd-current 2.8s linear infinite;
+  .stone.current { isolation: isolate; }
+  .stone.current::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--cd-trace, 0deg),
+      rgba(126, 168, 208, 0) 0deg,
+      rgba(126, 168, 208, 0.95) 24deg,
+      rgba(126, 168, 208, 0.55) 44deg,
+      rgba(126, 168, 208, 0) 70deg,
+      rgba(126, 168, 208, 0) 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    animation: cd-current-trace 5.4s linear infinite;
+    z-index: 3;
   }
-  .stone.current :global(svg) { opacity: 1; }
-  @keyframes cd-current {
-    0% { background-position: 130% 0, 0 0, 0 0, 0 0; }
-    100% { background-position: -130% 0, 0 0, 0 0, 0 0; }
+  .stone.current[data-rank='1']::after { animation-delay: 0s; }
+  .stone.current[data-rank='2']::after { animation-delay: -1.8s; }
+  .stone.current[data-rank='3']::after { animation-delay: -3.6s; }
+  @keyframes cd-current-trace {
+    0%   { opacity: 0;    --cd-trace: 0deg;   }
+    6%   { opacity: 0.9;  }
+    28%  { opacity: 0.9;  --cd-trace: 360deg; }
+    34%  { opacity: 0;    --cd-trace: 360deg; }
+    100% { opacity: 0;    --cd-trace: 360deg; }
   }
 
   /* Evaluating — submitted by a mason but not yet scored. Visible to

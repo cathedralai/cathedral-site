@@ -95,6 +95,8 @@ const enlistLine = `Read ${skillUrl} and mine ${cardId}`
 const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   stoneMark(`${cardId}:open:${i}`, { size: 28, open: true }),
 )
+const legendLaidGlyph = masonMark('cathedral:wall-legend:laid', { size: 14 })
+const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
 ---
 
 <section
@@ -111,28 +113,29 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
       class="wall-pressure"
       aria-label={
         showEval24h
-          ? `${laidCount} of ${TOTAL} on wall. ${eval24h} scored in 24h. ${eval24hAccepted ?? 0} accepted. ${eval24hRejected ?? 0} rejected.`
-          : `${laidCount} of ${TOTAL} on wall`
+          ? `${laidCount} crowned on wall. ${eval24hAccepted ?? 0} accepted in 24h. ${eval24hRejected ?? 0} rejected in 24h.`
+          : `${laidCount} crowned on wall`
       }
     >
-      <strong>{laidCount}</strong> / {TOTAL} on wall
+      <strong>{laidCount}</strong> crowned
       {showEval24h && (
         <>
           <span class="wall-pressure-sep" aria-hidden="true">·</span>
-          <span class="wall-pressure-24h">
-            {eval24h} in 24h
-            <span class="wall-pressure-detail">
-              <strong>{eval24hAccepted ?? 0}</strong> accepted
-              <span class="wall-pressure-sep" aria-hidden="true">·</span>
-              <strong>{eval24hRejected ?? 0}</strong> rejected
-            </span>
-          </span>
+          <strong>{eval24hAccepted ?? 0}</strong> accepted
+          <span class="wall-pressure-sep" aria-hidden="true">·</span>
+          <strong>{eval24hRejected ?? 0}</strong> rejected
         </>
       )}
     </span>
     <span class="legend" aria-label={`${counts.laid} laid stones, ${counts.open} bare seats`}>
-      <span class="lg lg-laid"><span class="sw" aria-hidden="true"></span>laid</span>
-      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>bare</span>
+      <span class="lg lg-laid">
+        <span class="legend-chip laid" aria-hidden="true" set:html={legendLaidGlyph}></span>
+        laid
+      </span>
+      <span class="lg lg-open">
+        <span class="legend-chip bare" aria-hidden="true" set:html={legendBareGlyph}></span>
+        bare
+      </span>
     </span>
     <span class="flow-hint">laid stones carry a mason mark · bare seats are claimable</span>
   </header>
@@ -436,22 +439,41 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .wall-head .legend .lg {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
   }
-  .wall-head .legend .sw {
-    width: 8px;
-    height: 8px;
-    display: inline-block;
-    border: 1px solid currentColor;
+  .wall-head .legend .legend-chip {
+    width: 18px;
+    height: 17px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.55);
   }
-  .wall-head .legend .lg-laid .sw {
-    background: var(--surface);
-    border-color: rgba(126, 168, 208, 0.45);
+  .wall-head .legend .legend-chip.laid {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.18)),
+      var(--surface);
+    border: 1px solid rgba(126, 168, 208, 0.18);
   }
-  .wall-head .legend .lg-open .sw {
-    background: rgba(126, 168, 208, 0.08);
-    border-color: rgba(126, 168, 208, 0.45);
-    border-style: dashed;
+  .wall-head .legend .legend-chip.bare {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.2)),
+      var(--bg);
+    border: 1px solid rgba(126, 168, 208, 0.12);
+  }
+  .wall-head .legend .legend-chip :global(svg) {
+    width: 70%;
+    height: 70%;
+    opacity: 0.82;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45));
+  }
+  .wall-head .legend .legend-chip.bare :global(svg) {
+    opacity: 0.24;
   }
   .wall-head .wall-pressure {
     display: inline-flex;
@@ -466,15 +488,6 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .wall-head .wall-pressure-sep {
     color: var(--faint);
-  }
-  .wall-head .wall-pressure-24h {
-    letter-spacing: 0.08em;
-  }
-  .wall-head .wall-pressure-detail {
-    margin-left: 6px;
-    color: var(--dim);
-    font-size: 9px;
-    letter-spacing: 0.1em;
   }
   .wall-head .wall-pressure strong {
     color: var(--fg);

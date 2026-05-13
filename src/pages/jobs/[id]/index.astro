@@ -458,7 +458,6 @@ const procession = top3.map((row, i) => ({
           })}
         </span>
         <span class="sep">&middot;</span>
-        <span class="bk">{recent.length} stone{recent.length === 1 ? '' : 's'} &middot; 24h window</span>
         <span class="toll">score lock <strong>{scoreLockLabel}</strong></span>
       </div>
 
@@ -938,8 +937,6 @@ const procession = top3.map((row, i) => ({
       white-space: nowrap;
     }
     .top-strip .toll strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .top-strip .bk { color: var(--dim); font-variant-numeric: tabular-nums; }
-
     /* ===== procession (01) — promoted above the wall =====
        Three slabs at full canvas width. Rank 1 takes 1.4× and gets the
        accent border so it reads as the king at a glance, ranks 2 and

@@ -226,9 +226,6 @@ function renderCardOverviewStats(overview: CardOverview): string {
 // every page. Renders inner content of `.cd-status`; the parent's
 // `data-status-tone` attribute is updated separately so the pulse colour
 // follows the freshness of the last card.
-interface CardsListPage {
-  items: CardOverview[]
-}
 
 function deriveStatusTone(lastRanAt: string | undefined): {
   tone: 'live' | 'warming' | 'quiet' | 'offline'
@@ -244,7 +241,6 @@ function deriveStatusTone(lastRanAt: string | undefined): {
 
 function renderStatusStripInner(
   latest: EvalOutput | undefined,
-  agentCount: number,
   latestEpoch: number | null,
 ): string {
   const { label } = deriveStatusTone(latest?.ran_at)
@@ -256,8 +252,6 @@ function renderStatusStripInner(
   return `
     <span class="cd-status-dot" aria-hidden="true"></span>
     <span class="cd-status-tone">${ESC(label)}</span>
-    <span class="cd-status-sep" aria-hidden="true">·</span>
-    <span class="cd-status-stat"><strong>${ESC(String(agentCount))}</strong> masons</span>
     <span class="cd-status-sep" aria-hidden="true">·</span>
     <span class="cd-status-stat">last stone <strong>${ESC(lastStoneAge)}</strong></span>
     ${epochSegment}
@@ -340,18 +334,9 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         if (s.textContent !== next) s.textContent = next
       })
     } else if (kind === 'status-strip') {
-      // Two parallel fetches: feed for last-card timing + merkle epoch,
-      // cards for total agent count. Both are short payloads.
-      const [feed, cards] = await Promise.all([
-        fetchJSON<FeedPage>('/api/cathedral/v1/feed?limit=12'),
-        fetchJSON<CardsListPage>('/api/cathedral/v1/cards'),
-      ])
+      const feed = await fetchJSON<FeedPage>('/api/cathedral/v1/feed?limit=12')
       const items = feed.items || []
       const latest = items[0]
-      const totalAgents = (cards.items || []).reduce(
-        (s, c) => s + (c.agent_count || 0),
-        0,
-      )
       const epochs = items
         .map((e) => e.merkle_epoch ?? null)
         .filter((e): e is number => e !== null)
@@ -360,7 +345,7 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
       el.dataset.statusTone = tone
       applyIfChanged(
         el,
-        renderStatusStripInner(latest, totalAgents, latestEpoch),
+        renderStatusStripInner(latest, latestEpoch),
       )
     } else if (kind === 'wall' && cardId) {
       // Live-refresh the wall by re-fetching feed + discovery and

@@ -472,6 +472,9 @@ const procession = top3.map((row, i) => ({
                     type="button"
                     class={`proc-row rank-${r.rank}`}
                     data-agent-modal-open={r.agentId}
+                    data-agent-name={r.name}
+                    data-score={r.score.toFixed(2)}
+                    data-rank={r.rank}
                     aria-label={`Open ${r.name} profile`}
                   >
                     <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>

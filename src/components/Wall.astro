@@ -58,17 +58,21 @@ const TOTAL = COLS * ROWS
 type Cell =
   | { kind: 'empty'; idx: number }
   | RosterScored
-  | RosterEvaluating
 
+// Wall is scored-stones-only. Every brick on the wall is a verified,
+// scored card. Evaluating bundles haven't earned a stone yet — they
+// surface elsewhere (procession, vitals) but the wall itself stays
+// clean: scored bricks first, open seats for everything else.
+const scoredRoster = roster.filter(
+  (r): r is RosterScored => r.kind === 'scored',
+)
 const cells: Cell[] = []
-for (const r of roster.slice(0, TOTAL)) cells.push(r)
+for (const r of scoredRoster.slice(0, TOTAL)) cells.push(r)
 while (cells.length < TOTAL) cells.push({ kind: 'empty', idx: cells.length })
 
-// Tally states for the legend's aria summary.
-const counts = { fresh: 0, scored: 0, evaluating: 0, open: 0 }
+const counts = { fresh: 0, scored: 0, open: 0 }
 for (const c of cells) {
   if (c.kind === 'empty') counts.open++
-  else if (c.kind === 'evaluating') counts.evaluating++
   else if (c.fresh) counts.fresh++
   else counts.scored++
 }
@@ -94,10 +98,9 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>
     <span class="rule"></span>
-    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.evaluating} evaluating, ${counts.open} no stone`}>
+    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.open} no stone`}>
       <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
       <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
-      <span class="lg lg-evaluating"><span class="sw" aria-hidden="true"></span>evaluating</span>
       <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
     </span>
     <span class="flow-hint">one stone per mason · top {TOTAL} by score · click an open seat to claim</span>
@@ -115,22 +118,6 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
               data-claim
               aria-label="Open seat — enlist your mason"
               set:html={openGlyphs[i]}
-            />
-          )
-        }
-        if (s.kind === 'evaluating') {
-          return (
-            <span
-              class="stone evaluating"
-              data-i={i}
-              data-state="evaluating"
-              data-agent-id={s.agentId}
-              data-agent-name={s.displayName}
-              data-agent-bio={s.bio ?? ''}
-              data-submitted-at={s.submittedAt}
-              data-title={`Evaluating — ${s.displayName}'s bundle`}
-              aria-label={`${s.displayName}'s stone is being evaluated`}
-              set:html={stoneMark(s.hotkey || s.bundleHash || s.agentId, { size: 28 })}
             />
           )
         }

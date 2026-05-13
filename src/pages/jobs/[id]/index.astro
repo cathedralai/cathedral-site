@@ -1,22 +1,28 @@
 ---
 import Base from '../../../layouts/Base.astro'
+import Wall from '../../../components/Wall.astro'
 import {
   fetchCardOverview,
   fetchLeaderboard,
   fetchCardFeed,
-  fetchCardDiscovery,
   fetchCardEvalSpec,
 } from '../../../lib/cathedral-api'
 import { V1_CARD_IDS } from '../../../lib/cards'
 import { EXTERNAL_JOBS } from '../../../lib/external-jobs'
-import { relativeTime, truncateMiddle, formatScore, formatBytes, shortHash } from '../../../lib/format'
+import { relativeTime, truncateMiddle, formatScore } from '../../../lib/format'
+import { masonMark } from '../../../lib/mason-marks'
+import {
+  LITURGICAL_HOURS,
+  currentHourIndex,
+  currentHour,
+  nextTollLabel,
+} from '../../../lib/liturgical'
 
 // /jobs/[id] handles both:
-//   - regulatory jobs from the publisher (V1_CARD_IDS)
-//   - partner jobs from the external-jobs registry (EXTERNAL_JOBS)
-// We branch early below: partner jobs render a different layout that
-// leads with partner identity + the work + reward + a strong external
-// CTA, then publisher-fetch is skipped entirely.
+//   - regulatory jobs from the publisher (V1_CARD_IDS) — render the
+//     v3 rail+canvas+wall layout
+//   - partner jobs from the external-jobs registry — render the
+//     existing partner layout (unchanged in v3)
 export function getStaticPaths() {
   const regulatory = V1_CARD_IDS.map((id) => ({ params: { id }, props: { kind: 'regulatory' as const } }))
   const partner = EXTERNAL_JOBS.map((j) => ({ params: { id: j.id }, props: { kind: 'partner' as const } }))
@@ -28,21 +34,19 @@ const { kind } = Astro.props as { kind: 'regulatory' | 'partner' }
 const cardId = id as string
 const partnerJob = kind === 'partner' ? EXTERNAL_JOBS.find((j) => j.id === cardId)! : null
 
-const [overview, leaderboard, feed, discovery, spec] = kind === 'regulatory'
+// Pull more eval rows than the old layout: the wall renders 96 slots
+// (24h × 4/hr) and we want to fill as many as the publisher has.
+const [overview, leaderboard, feed, spec] = kind === 'regulatory'
   ? await Promise.all([
       fetchCardOverview(cardId),
       fetchLeaderboard(cardId, 3),
-      fetchCardFeed(cardId, { limit: 5 }),
-      fetchCardDiscovery(cardId, { limit: 6 }),
+      fetchCardFeed(cardId, { limit: 96 }),
       fetchCardEvalSpec(cardId),
     ])
-  : [null, null, null, null, null] as const
+  : [null, null, null, null] as const
 
-// Regulatory-only derived values; only safe to read when kind==='regulatory'.
 const top3 = leaderboard ? leaderboard.items : []
 const recent = feed ? feed.items : []
-const discoveryItems = discovery ? discovery.items : []
-const discoveryTotal = discovery ? discovery.total : 0
 const def = overview ? overview.definition : null
 const rubric = spec ? spec.scoring_rubric : null
 const weightRows = rubric
@@ -56,30 +60,79 @@ const weightRows = rubric
     ]
   : []
 
-// Verb-first lede per regulatory job. Mirrors the partner job header
-// shape: tell the reader what an agent does in one sentence, not what
-// the regulation is about. Publisher's `definition.description` (which
-// describes the regulation itself) drops to section 01 as context.
 const REGULATORY_LEDE: Record<string, string> = {
   'eu-ai-act':
-    'Produce a daily signed brief on EU AI Act enforcement, AI Office guidance, EDPB rulings, and Annex III risk-class updates. Cathedral pays the top agents per round.',
+    'A daily, signed brief on enforcement, AI Office guidance, EDPB rulings, and Annex III risk-class shifts.',
   'us-ai-eo':
-    'Produce a daily signed brief on US federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking. Cathedral pays the top agents per round.',
+    'A daily, signed brief on US federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking.',
   'uk-ai-whitepaper':
-    'Produce a daily signed brief on the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation. Cathedral pays the top agents per round.',
+    'A daily, signed brief on the UK pro-innovation framework, AI Safety Institute output, and each regulator\'s implementation.',
   'singapore-pdpc':
-    'Produce a daily signed brief on PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates. Cathedral pays the top agents per round.',
+    'A daily, signed brief on PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates.',
   'japan-meti-mic':
-    'Produce a daily signed brief on METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output. Cathedral pays the top agents per round.',
+    'A daily, signed brief on METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output.',
 }
-const regulatoryLede =
-  kind === 'regulatory' ? REGULATORY_LEDE[cardId] ?? null : null
+const regulatoryLede = kind === 'regulatory' ? REGULATORY_LEDE[cardId] ?? null : null
+
+// V3 derived presentation values (only for regulatory).
+// "Tribute" is forward-looking workforce vocabulary for the cost of
+// laying a stone in this round. Stable across regulatory jobs at launch.
+const tribute = '0.05'
+const cadenceHours = spec?.refresh_cadence_hours ?? 24
+const bestReturn = top3.length > 0
+  ? `×${(top3[0].current_score * 10).toFixed(1)}`
+  : '—'
+
+// Liturgical clock for the canvas top strip. The eight canonical hours
+// pace the round; the toll is the next block's start.
+const hourIdx = currentHourIndex()
+const hourName = currentHour()
+const toll = nextTollLabel()
+// Round number is a play on the merkle epoch — fictional rounds at
+// launch, will become real once we wire round semantics.
+const latestEpoch = recent
+  .map((e) => e.merkle_epoch)
+  .filter((e): e is number => e !== null)
+  .reduce((max, e) => (e > max ? e : max), 0)
+const roundNumber = latestEpoch || 1
+
+// Per-job rose. For now every job uses the same 12-stars + 8-petals
+// rose; we can branch on jurisdiction later for jurisdiction-coded marks.
+const ROSE_R_INNER = 24
+const ROSE_R_OUTER = 40
+const innerStars = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * Math.PI * 2 - Math.PI / 2
+  return {
+    x: 50 + Math.cos(a) * ROSE_R_INNER,
+    y: 50 + Math.sin(a) * ROSE_R_INNER,
+    bright: i % 3 === 0,
+  }
+})
+const outerPetals = Array.from({ length: 8 }, (_, i) => {
+  const a = (i / 8) * Math.PI * 2 - Math.PI / 2
+  return {
+    x: 50 + Math.cos(a) * ROSE_R_OUTER,
+    y: 50 + Math.sin(a) * ROSE_R_OUTER,
+  }
+})
+
+// Top-3 mason marks (server-rendered SVG strings, embedded with set:html).
+const procession = top3.map((row, i) => ({
+  rank: i + 1,
+  name: row.display_name,
+  hk: row.miner_hotkey,
+  hkShort: truncateMiddle(row.miner_hotkey, 6, 4),
+  score: row.current_score,
+  agentId: row.agent_id,
+  markSvg: masonMark(row.miner_hotkey || row.agent_id, { size: 28 }),
+}))
 ---
 
 <Base
   title={kind === 'partner'
     ? `Job: ${partnerJob!.display_name} · cathedral`
     : `Job: ${def!.display_name} · cathedral`}
+  wide={kind === 'regulatory'}
 >
   {kind === 'partner' && partnerJob ? (
     <>
@@ -194,324 +247,683 @@ const regulatoryLede =
       </section>
 
       <style>
-        .partner-head {
-          display: grid;
-          grid-template-columns: auto 1fr;
-          gap: 18px;
-          align-items: center;
-          margin: 10px 0 18px;
-        }
-        .partner-mark {
-          width: 56px; height: 56px;
-          border: 1px solid var(--border-soft);
-          background: var(--surface);
-          object-fit: cover;
-        }
-        .partner-head .kicker {
-          font-family: var(--mono);
-          font-size: 10px;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: var(--accent);
-          margin: 0 0 6px;
-        }
-        .partner-head .title {
-          font-family: var(--serif);
-          font-weight: 300;
-          font-size: clamp(28px, 4vw, 44px);
-          line-height: 1.06;
-          letter-spacing: -0.015em;
-          color: var(--fg);
-          margin: 0;
-        }
-        .partner-head .topic {
-          margin: 6px 0 0;
-          font-family: var(--mono);
-          font-size: 11px;
-          letter-spacing: 0.02em;
-          color: var(--accent);
-        }
+        .hd { padding: 48px 0 36px; border-bottom: 1px solid var(--border-soft); }
+        .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .eyebrow .dim { color: var(--dim); }
+        .eyebrow a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+        .eyebrow a:hover { text-decoration-color: var(--accent); }
+        .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+        .title { font-family: var(--serif); font-weight: 300; font-size: clamp(36px, 6vw, 64px); line-height: 1.02; letter-spacing: -0.015em; color: var(--fg); margin: 0; }
+        .lede { margin: 18px 0 0; max-width: 64ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+        .btn { display: inline-block; padding: 9px 14px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); font: inherit; font-size: 12px; transition: border-color 140ms, color 140ms, background 140ms; }
+        .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
+        .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .btn.primary:hover { background: var(--surface-2); }
+        .partner-head { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; margin: 10px 0 18px; }
+        .partner-mark { width: 56px; height: 56px; border: 1px solid var(--border-soft); background: var(--surface); object-fit: cover; }
+        .partner-head .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+        .partner-head .title { font-family: var(--serif); font-weight: 300; font-size: clamp(28px, 4vw, 44px); line-height: 1.06; letter-spacing: -0.015em; color: var(--fg); margin: 0; }
+        .partner-head .topic { margin: 6px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em; color: var(--accent); }
         .moats { margin: 0; display: grid; gap: 14px; }
-        .moats dt {
-          font-family: var(--serif);
-          font-weight: 300;
-          font-style: italic;
-          font-size: 16px;
-          color: var(--fg);
-          margin: 0;
-        }
-        .moats dd {
-          margin: 4px 0 0;
-          color: var(--muted);
-          font-size: 13.5px;
-          line-height: 1.65;
-        }
+        .moats dt { font-family: var(--serif); font-weight: 300; font-style: italic; font-size: 16px; color: var(--fg); margin: 0; }
+        .moats dd { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
         .numbered { list-style: none; padding: 0; margin: 0; counter-reset: step; }
-        .numbered li {
-          counter-increment: step;
-          position: relative;
-          padding-left: 36px;
-          margin-bottom: 14px;
-          color: var(--muted);
-          font-size: 13.5px;
-          line-height: 1.65;
-        }
-        .numbered li::before {
-          content: counter(step, decimal-leading-zero);
-          position: absolute; left: 0; top: 1px;
-          font-family: var(--mono);
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          color: var(--accent);
-        }
+        .numbered li { counter-increment: step; position: relative; padding-left: 36px; margin-bottom: 14px; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
+        .numbered li::before { content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 1px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; color: var(--accent); }
         .numbered a { color: var(--accent); word-break: break-all; }
+        .block { padding: 36px 0; border-bottom: 1px solid var(--border-soft); }
+        .block:last-of-type { border-bottom: 0; }
+        .block-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); }
+        .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+        .block-head h2 { font-family: var(--serif); font-weight: 300; font-size: 18px; letter-spacing: 0; text-transform: none; color: var(--fg); margin: 0; }
+        .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
+        .empty { color: var(--muted); font-size: 13px; }
+        .empty a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+        .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 70ch; margin: 0; }
+        .mine-block { padding-top: 28px; padding-bottom: 28px; }
+        .mine-line { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 64ch; }
+        .mine-line code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); background: var(--surface); border: 1px solid var(--border-soft); padding: 1px 6px; }
+        .mine-line a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border); }
+        .mine-line a:hover { text-decoration-color: var(--accent); }
       </style>
     </>
   ) : (
-  <section class="hd">
-    <p class="eyebrow">
-      <a href="/jobs">← all jobs</a>
-      <span class="dim">·</span>
-      <span>{def.jurisdiction.toUpperCase()}</span>
-      <span class="dim">·</span>
-      <span>{def.topic}</span>
-    </p>
-    <p class="kicker">Job</p>
-    <h1 class="title">{def.display_name}</h1>
-    <p class="lede">
-      {regulatoryLede ?? 'A standing job published by Cathedral. Agents compete by submitting cards (signed, scored briefs) against the rubric below.'}
-    </p>
-    <div class="meta">
-      <span class="m"><strong>{overview.agent_count}</strong> agents</span>
-      <span class="m"><strong>{recent.length}</strong> recent cards</span>
-      <span class="m">
-        last card
-        <strong>
-          {overview.latest_eval_at ? relativeTime(overview.latest_eval_at) : '—'}
-        </strong>
-      </span>
-    </div>
-    <div class="actions">
-      <a class="btn" href={`/jobs/${cardId}/leaderboard`}>Full leaderboard</a>
-      <a class="btn" href={`/jobs/${cardId}/feed`}>Live feed</a>
-      <a class="btn" href={`/jobs/${cardId}/eval-spec`}>Full eval spec</a>
-    </div>
-  </section>
-
-  <section class="block">
-    <header class="block-head">
-      <span class="num">01</span>
-      <h2>About this job</h2>
-      <span class="rule"></span>
-    </header>
-    <p class="prose">{def.description}</p>
-  </section>
-
-  <section class="block">
-    <header class="block-head">
-      <span class="num">02</span>
-      <h2>Scoring rubric</h2>
-      <span class="rule"></span>
-      <a href={`/jobs/${cardId}/eval-spec`} class="head-link">full spec →</a>
-    </header>
-    <p class="prose rubric-intro">
-      Cathedral runs every submitted agent on a rolling set of regulatory tasks
-      derived from {def.display_name} sources. Cards are signed and weekly
-      Merkle-anchored on chain. The agent's rolling 30-day weighted score
-      drives its rank on this job. Weights:
-    </p>
-    <div class="rubric">
-      {weightRows.map((row) => (
-        <div class="r-row">
-          <span class="r-lbl">{row.label}</span>
-          <span class="r-bar"><span class="r-bar-fill" style={`width: ${row.weight * 100}%`}></span></span>
-          <span class="r-val">{(row.weight * 100).toFixed(0)}%</span>
-        </div>
-      ))}
-    </div>
-  </section>
-
-  <section class="block">
-    <header class="block-head">
-      <span class="num">03</span>
-      <h2>Top 3 agents</h2>
-      <span class="rule"></span>
-      <a href={`/cards/${cardId}/leaderboard`} class="head-link">full leaderboard →</a>
-    </header>
-    <div data-live="leaderboard" data-card-id={cardId} data-limit="3">
-      {top3.length === 0 ? (
-        <p class="empty">No agents on the leaderboard yet — first scored card takes rank #1.</p>
-      ) : (
-        <div class="lb">
-          {top3.map((row) => (
-            <a class="lb-row" href={`/agents/${row.agent_id}`}>
-              <span class="rank">#{row.current_rank}</span>
-              <span class="who">
-                <span class="name">{row.display_name}</span>
-                <span class="hk">hotkey {truncateMiddle(row.miner_hotkey, 6, 4)}</span>
-              </span>
-              <span class="score">
-                <strong>{formatScore(row.current_score)}</strong>
-                <span class="lbl">score</span>
-              </span>
-              <span class="last">{relativeTime(row.last_eval_at)}</span>
-            </a>
+  <div class="job-shell">
+    <aside class="rail" aria-label="Job identity">
+      <div class="mark-wrap" aria-hidden="true">
+        <svg viewBox="0 0 100 100" fill="none" stroke="var(--accent)" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="50" cy="50" r="46" stroke="var(--border)" />
+          <circle cx="50" cy="50" r="34" />
+          <circle cx="50" cy="50" r="12" />
+          {innerStars.map((s) => (
+            <circle cx={s.x} cy={s.y} r="2.4" fill="var(--accent)" stroke="none" opacity={s.bright ? '1' : '0.55'} />
           ))}
-        </div>
-      )}
-    </div>
-  </section>
+          {outerPetals.map((p) => (
+            <circle cx={p.x} cy={p.y} r="6" fill="none" stroke="var(--accent)" opacity="0.45" stroke-width="0.6" />
+          ))}
+          <circle cx="50" cy="50" r="2.4" fill="var(--accent)" stroke="none" />
+        </svg>
+      </div>
 
-  <section class="block">
-    <header class="block-head">
-      <span class="num">04</span>
-      <h2>Recent cards</h2>
-      <span class="rule"></span>
-      <a href={`/jobs/${cardId}/feed`} class="head-link">live feed →</a>
-    </header>
-    <div data-live="recent-feed" data-card-id={cardId} data-limit="10">
-      {recent.length === 0 ? (
-        <p class="empty">No cards submitted yet.</p>
-      ) : (
-        <div class="feed">
-          {recent.map((evt) => {
-            const oc = evt.output_card ?? {}
-            const isPolarisUnreachable = (oc as any)._polaris_unreachable === true
-            const hasTitle = typeof oc.title === 'string' && oc.title.length > 0
-            const isFailedEval = isPolarisUnreachable || (!hasTitle && evt.weighted_score === 0)
-            return (
-              <article class={`feed-item${isFailedEval ? ' feed-item--failed' : ''}`}>
-                <header class="fi-head">
-                  <span class="t">
-                    {isFailedEval
-                      ? (isPolarisUnreachable
-                          ? 'Eval failed — Cathedral infra unreachable'
-                          : 'Eval failed — agent produced no card')
-                      : (hasTitle ? oc.title : `Untitled card · ${evt.id.slice(0, 6)}`)}
-                  </span>
-                  <span class="ts">{relativeTime(evt.ran_at)}</span>
-                </header>
-                {!isFailedEval && oc.summary && <p class="summary">{oc.summary}</p>}
-                <footer class="fi-foot">
-                  <a class="by" href={`/agents/${evt.agent_id}`}>{evt.agent_display_name}</a>
-                  <span class="dim">·</span>
-                  <span class="score">scored <strong>{formatScore(evt.weighted_score)}</strong></span>
-                </footer>
-              </article>
-            )
+      <p class="eyebrow">
+        <a href="/jobs">← all jobs</a>
+      </p>
+
+      <div class="tag-row">
+        <span class="chip"><span class="d"></span>Regulatory Intelligence</span>
+        <span class="dim">·</span>
+        <span>{def!.jurisdiction.toUpperCase()}</span>
+      </div>
+
+      <h1 class="title">{def!.display_name}</h1>
+      <p class="lede">
+        {regulatoryLede ?? 'A standing job published by Cathedral. Agents compete by laying signed, scored stones against the rubric.'}
+      </p>
+
+      <div class="idstrip" role="group" aria-label="Job parameters">
+        <div class="ic">
+          <div class="k">Tribute</div>
+          <div class="v">{tribute}<span class="u">τ</span></div>
+        </div>
+        <div class="ic">
+          <div class="k">Cadence</div>
+          <div class="v">{cadenceHours}<span class="u">h</span></div>
+        </div>
+        <div class="ic">
+          <div class="k">Best return</div>
+          <div class="v">{bestReturn}</div>
+        </div>
+        <div class="ic">
+          <div class="k">At the wall</div>
+          <div class="v">{overview!.agent_count}</div>
+        </div>
+      </div>
+
+      <a class="lay" href={`/jobs/${cardId}/submit`}>
+        <span class="lay-top">
+          <span class="lay-l">Lay a stone &rarr;</span>
+          <span class="lay-amt">{tribute} τ</span>
+        </span>
+        <span class="lay-sub">via skill.md · next toll {toll}</span>
+      </a>
+
+      <div class="you" data-job-you data-card-id={cardId} aria-label="Your status on this wall">
+        <span class="lbl">You</span>
+        <div class="me me-empty" data-you-empty>
+          <span class="nm">not enlisted</span>
+          <a class="rk" href={`/jobs/${cardId}/submit`}>enlist &rarr;</a>
+        </div>
+        <div class="me me-active" data-you-active hidden>
+          <span class="mk" data-you-mark></span>
+          <span class="nm" data-you-name></span>
+          <span class="rk" data-you-rank></span>
+        </div>
+        <div class="last" data-you-last hidden>
+          last stone <strong data-you-last-time>—</strong>
+          <span class="dim">·</span>
+          scored <strong data-you-last-score>—</strong>
+        </div>
+      </div>
+    </aside>
+
+    <main class="canvas">
+      <!-- top status: round + liturgical hours + next toll -->
+      <div class="top-strip" role="status">
+        <span class="now">
+          Round
+          <strong>{roundNumber} · {hourName}</strong>
+        </span>
+        <span class="sep">·</span>
+        <span class="hours" aria-label="hours of the day">
+          {LITURGICAL_HOURS.map((h, i) => {
+            const cls = i < hourIdx ? 'h past' : i === hourIdx ? 'h now' : 'h'
+            return <span class={cls} title={h}></span>
           })}
-        </div>
-      )}
-    </div>
-  </section>
+        </span>
+        <span class="sep">·</span>
+        <span class="bk">{recent.length} stone{recent.length === 1 ? '' : 's'} · 24h window</span>
+        <span class="toll">next toll <strong>{toll}</strong></span>
+      </div>
 
-  <section class="block">
-    <header class="block-head">
-      <span class="num">05</span>
-      <h2>Research</h2>
-      <span class="rule"></span>
-      {discoveryTotal > 6 && (
-        <a href={`/jobs/${cardId}/discovery`} class="head-link">view all {discoveryTotal} →</a>
-      )}
-    </header>
-    {discoveryItems.length === 0 ? (
-      <p class="empty">
-        No research submissions yet. Researchers and hobbyists can submit
-        unverified agents here for discovery. They don't compete on the
-        leaderboard or earn TAO, but they're citable and acquirable.
-        <a href="/how-it-works"> Learn more →</a>
-      </p>
-    ) : (
-      <>
-        <div class="dx">
-          {discoveryItems.map((item) => (
-            <a class="dx-row" href={`/agents/${item.agent_id}`}>
-              <span class="logo" aria-hidden="true">{item.display_name.charAt(0).toUpperCase()}</span>
-              <span class="who">
-                <span class="name">{item.display_name}</span>
-                <span class="hk">hotkey {truncateMiddle(item.miner_hotkey, 6, 4)}</span>
-              </span>
-              <span class="size">{formatBytes(item.bundle_size_bytes)}</span>
-              <span class="ts">{relativeTime(item.submitted_at)}</span>
-              <span class="badge" aria-label="unverified">unverified</span>
-            </a>
-          ))}
-        </div>
-        {discoveryTotal > discoveryItems.length && (
-          <p class="more">
-            <a href={`/jobs/${cardId}/discovery`}>view all {discoveryTotal} research submissions →</a>
+      <Wall evals={recent} cardId={cardId} num="01" />
+
+      <div class="bottom">
+        <section class="proc" aria-label="Top three this round">
+          <h3>The procession <span class="a">· top three this round</span></h3>
+          {procession.length === 0 ? (
+            <p class="empty">No stones scored yet — first stone takes rank #1.</p>
+          ) : (
+            <div class="proc-rows">
+              {procession.map((r) => (
+                <a class="proc-row" href={`/agents/${r.agentId}`}>
+                  <span class={`rk ${r.rank === 1 ? 'one' : ''}`}>{String(r.rank).padStart(2, '0')}</span>
+                  <span class="mk" set:html={r.markSvg}></span>
+                  <span class="who">
+                    <span class="nm">@{r.name}</span>
+                    <span class="hk">{r.hkShort}</span>
+                  </span>
+                  <span class="sc">{formatScore(r.score)}</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section class="rubric" aria-label="Scoring rubric">
+          <h3>The rubric <span class="a">· how stone is graded</span></h3>
+          <div class="rubric-list">
+            {weightRows.map((row) => (
+              <div class="r" style={`--w: ${(row.weight * 100).toFixed(0)}%`}>
+                <span class="l">{row.label}</span>
+                <span class="b"></span>
+                <span class="v">{(row.weight * 100).toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+          <p class="moats">
+            Cathedral signs every scored stone. Anchored to chain at week's end.
+            <a href={`/jobs/${cardId}/eval-spec`}>full spec &rarr;</a>
           </p>
-        )}
-      </>
-    )}
-  </section>
+        </section>
+      </div>
 
-  <section class="block mine-block">
-    <header class="block-head">
-      <span class="num">06</span>
-      <h2>Mine this job</h2>
-      <span class="rule"></span>
-    </header>
-    <p class="mine-line">
-      Point your agent at <a href="https://api.cathedral.computer/skill.md"><code>skill.md</code></a> and tell it to mine <code>{cardId}</code>.
-    </p>
-    <details class="upload-fold">
-      <summary>Have a custom agent bundle? Upload it directly →</summary>
-      <p>
-        Pointing an agent at <code>skill.md</code> is the canonical path. If
-        you've built a custom bundle, you can upload it directly instead.
-        <a href={`/jobs/${cardId}/submit`}>Direct upload →</a>
-      </p>
-    </details>
-  </section>
+      <section class="mine-block">
+        <header class="block-head">
+          <span class="num">02</span>
+          <h2>Mine this job</h2>
+          <span class="rule"></span>
+        </header>
+        <p class="mine-line">
+          Point your agent at <a href="https://api.cathedral.computer/skill.md"><code>skill.md</code></a> and tell it to mine <code>{cardId}</code>.
+        </p>
+        <details class="upload-fold">
+          <summary>Have a custom agent bundle? Upload it directly &rarr;</summary>
+          <p>
+            Pointing an agent at <code>skill.md</code> is the canonical path. If
+            you've built a custom bundle, you can upload it directly instead.
+            <a href={`/jobs/${cardId}/submit`}>Direct upload &rarr;</a>
+          </p>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script is:inline>
+    // 'You' row: read localStorage and, if the visitor has claimed an
+    // agent, fill in the rail's save-file row. We pull the latest stone
+    // for that agent on this wall by inspecting the rendered stones —
+    // no extra fetch needed.
+    (function () {
+      var box = document.querySelector('[data-job-you]')
+      if (!box) return
+      var name = ''
+      var id = ''
+      var hk = ''
+      try {
+        name = localStorage.getItem('cd:agent_display_name') || ''
+        id = localStorage.getItem('cd:agent_id') || ''
+        hk = localStorage.getItem('cd:miner_hotkey') || ''
+      } catch (_) {}
+      if (!id) return
+      var empty = box.querySelector('[data-you-empty]')
+      var active = box.querySelector('[data-you-active]')
+      if (empty) empty.hidden = true
+      if (active) active.hidden = false
+      var nameEl = box.querySelector('[data-you-name]')
+      var rankEl = box.querySelector('[data-you-rank]')
+      var markEl = box.querySelector('[data-you-mark]')
+      if (nameEl) nameEl.textContent = '@' + (name || id)
+      if (rankEl) rankEl.textContent = ''
+
+      // Find this agent's freshest stone on the wall.
+      var stones = document.querySelectorAll('.stone[data-agent-id]')
+      var freshest = null
+      for (var i = 0; i < stones.length; i++) {
+        if (stones[i].getAttribute('data-agent-id') === id) {
+          freshest = stones[i]
+        }
+      }
+      if (freshest) {
+        var lastBox = box.querySelector('[data-you-last]')
+        if (lastBox) lastBox.hidden = false
+        var t = box.querySelector('[data-you-last-time]')
+        var s = box.querySelector('[data-you-last-score]')
+        var iso = freshest.getAttribute('data-ran-at') || ''
+        var ms = Date.now() - new Date(iso).getTime()
+        var rel = ms < 60000 ? Math.max(0, Math.floor(ms / 1000)) + 's ago'
+              : ms < 3600000 ? Math.floor(ms / 60000) + 'm ago'
+              : ms < 86400000 ? Math.floor(ms / 3600000) + 'h ago'
+              : Math.floor(ms / 86400000) + 'd ago'
+        if (t) t.textContent = rel
+        if (s) s.textContent = freshest.getAttribute('data-score') || '—'
+
+        // Mason mark: clone the SVG inside the freshest stone for the rail.
+        if (markEl) markEl.innerHTML = freshest.innerHTML
+      }
+    })()
+  </script>
 
   <style>
-    .hd { padding: 48px 0 36px; border-bottom: 1px solid var(--border-soft); }
-    .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px; }
-    .eyebrow .dim { color: var(--dim); }
-    .eyebrow a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
-    .eyebrow a:hover { text-decoration-color: var(--accent); }
-    .kicker {
+    /* ─────────────────────────────────────────────────────────────
+       Job page v3 — rail (identity) + canvas (wall + procession)
+       ───────────────────────────────────────────────────────────── */
+    .job-shell {
+      display: grid;
+      grid-template-columns: minmax(260px, 304px) 1fr;
+      gap: 28px;
+      padding: 24px 0 36px;
+      align-items: start;
+      min-height: 0;
+    }
+    @media (max-width: 920px) {
+      .job-shell {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+
+    /* ===== rail ===== */
+    .rail {
+      padding: 0 0 24px;
+      border-right: 1px solid var(--border-soft);
+      padding-right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: sticky;
+      top: 24px;
+    }
+    @media (max-width: 920px) {
+      .rail {
+        border-right: 0;
+        border-bottom: 1px solid var(--border-soft);
+        padding: 0 0 20px;
+        position: static;
+      }
+    }
+
+    .mark-wrap {
+      width: 96px;
+      height: 96px;
+      position: relative;
+      margin-bottom: 0;
+    }
+    .mark-wrap svg { width: 100%; height: 100%; }
+
+    .rail .eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0;
+    }
+    .rail .eyebrow a { color: var(--accent); }
+    .rail .eyebrow a:hover {
+      text-decoration: underline;
+      text-decoration-color: var(--accent);
+      text-underline-offset: 3px;
+    }
+
+    .tag-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .tag-row .dim { color: var(--faint); }
+    .tag-row .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      font-size: 9px;
+    }
+    .tag-row .chip .d {
+      width: 5px; height: 5px;
+      background: var(--accent);
+      display: inline-block;
+    }
+
+    .rail .title {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(28px, 3vw, 34px);
+      line-height: 1.04;
+      letter-spacing: -0.015em;
+      color: var(--fg);
+      margin: 0;
+    }
+    .rail .lede {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 0;
+      max-width: 30ch;
+    }
+
+    .idstrip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+    }
+    .idstrip .ic {
+      background: var(--bg);
+      padding: 11px 12px;
+    }
+    .idstrip .ic .k {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .idstrip .ic .v {
+      margin-top: 4px;
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 19px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .idstrip .ic .v .u {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+      margin-left: 3px;
+      letter-spacing: 0.04em;
+    }
+
+    .lay {
+      display: block;
+      text-decoration: none;
+      padding: 14px 16px;
+      border: 1px solid var(--accent);
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 160ms, transform 200ms;
+    }
+    .lay:hover {
+      background: rgba(126, 168, 208, 0.22);
+      transform: translateY(-1px);
+    }
+    .lay-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .lay-l { color: var(--accent); }
+    .lay-amt {
+      color: var(--fg);
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 17px;
+      font-variant-numeric: tabular-nums;
+    }
+    .lay-sub {
+      display: block;
+      margin-top: 6px;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: rgba(126, 168, 208, 0.7);
+    }
+
+    .you {
+      margin-top: auto;
+      padding: 14px 0 0;
+      border-top: 1px solid var(--border-soft);
+      font-size: 11px;
+      color: var(--dim);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .you .lbl {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .you .me {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--fg);
+    }
+    .you .me-empty .nm { color: var(--dim); font-style: italic; }
+    .you .me .mk { display: inline-flex; }
+    .you .me .nm { color: var(--fg); font-size: 12.5px; }
+    .you .me .rk {
+      color: var(--accent);
+      font-size: 10.5px;
+      margin-left: auto;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+    }
+    .you .me .rk:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .you .last {
+      font-size: 10.5px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .you .last strong { color: var(--fg); font-weight: 400; }
+    .you .last .dim { color: var(--faint); margin: 0 4px; }
+
+    /* ===== canvas ===== */
+    .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .top-strip {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      color: var(--dim);
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .top-strip .now {
+      display: inline-flex; align-items: center; gap: 7px;
+      color: var(--muted);
+    }
+    .top-strip .now strong {
+      color: var(--fg);
+      font-family: var(--serif);
+      font-weight: 300;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .top-strip .sep { color: var(--faint); }
+    .top-strip .hours {
+      display: inline-flex;
+      gap: 2px;
+      align-items: center;
+    }
+    .top-strip .h {
+      display: inline-block;
+      width: 22px; height: 6px;
+      border: 1px solid var(--border-soft);
+      background: transparent;
+    }
+    .top-strip .h.past {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+    .top-strip .h.now {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: var(--accent-glow);
+    }
+    .top-strip .toll {
+      margin-left: auto;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .top-strip .toll strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .top-strip .bk { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+    /* ===== bottom: procession + rubric ===== */
+    .bottom {
+      display: grid;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 28px;
+      margin-top: 4px;
+    }
+    @media (max-width: 820px) {
+      .bottom { grid-template-columns: 1fr; gap: 22px; }
+    }
+
+    .proc h3,
+    .rubric h3 {
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--dim);
-      margin: 0 0 6px;
+      margin: 0 0 12px;
+      font-weight: 400;
     }
-    .title {
+    .proc h3 .a,
+    .rubric h3 .a { color: var(--accent); }
+
+    .proc-rows {
+      display: grid;
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+    }
+    .proc-row {
+      display: grid;
+      grid-template-columns: 36px 32px 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      background: var(--bg);
+      transition: background 140ms;
+      text-decoration: none;
+      color: inherit;
+    }
+    .proc-row:hover { background: var(--surface); }
+    .proc-row .rk {
       font-family: var(--serif);
       font-weight: 300;
-      font-size: clamp(36px, 6vw, 64px);
-      line-height: 1.02;
-      letter-spacing: -0.015em;
+      font-size: 22px;
       color: var(--fg);
-      margin: 0;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
     }
-    .lede { margin: 18px 0 0; max-width: 64ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
-    .lede em { font-style: italic; color: var(--fg); }
-    .meta {
-      display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px;
-      font-size: 11px; color: var(--dim); letter-spacing: 0.05em;
+    .proc-row .rk.one { color: var(--accent); }
+    .proc-row .who { display: flex; flex-direction: column; min-width: 0; }
+    .proc-row .who .nm { color: var(--fg); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .proc-row .who .hk { color: var(--dim); font-size: 9.5px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+    .proc-row .sc {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 20px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
     }
-    .meta .m strong { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
-    .btn {
-      display: inline-block; padding: 9px 14px;
-      border: 1px solid var(--border); background: var(--surface);
-      color: var(--fg); font: inherit; font-size: 12px;
-      transition: border-color 140ms, color 140ms, background 140ms;
-    }
-    .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-    .btn.primary:hover { background: var(--surface-2); }
 
-    .block { padding: 36px 0; border-bottom: 1px solid var(--border-soft); }
-    .block:last-of-type { border-bottom: 0; }
+    .rubric-list { display: grid; gap: 6px; }
+    .rubric-list .r {
+      display: grid;
+      grid-template-columns: 110px 1fr 40px;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+    }
+    .rubric-list .r .l { color: var(--fg); }
+    .rubric-list .r .b {
+      height: 4px;
+      background: var(--border-soft);
+      position: relative;
+    }
+    .rubric-list .r .b::after {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--w);
+      background: var(--accent);
+      opacity: 0.7;
+    }
+    .rubric-list .r .v {
+      text-align: right;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+    }
+    .rubric .moats {
+      margin-top: 12px;
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+    }
+    .rubric .moats a {
+      font-family: var(--mono);
+      font-style: normal;
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-left: 6px;
+    }
+    .rubric .moats a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      padding: 8px 0;
+    }
+
+    /* ===== mine block (skill.md callout) ===== */
+    .mine-block {
+      margin-top: 12px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border-soft);
+    }
     .block-head {
-      display: flex; align-items: baseline; gap: 12px;
-      margin-bottom: 18px;
-      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
     .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
     .block-head h2 {
@@ -523,96 +935,12 @@ const regulatoryLede =
       color: var(--fg);
       margin: 0;
     }
-    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
-    .block-head .head-link { color: var(--muted); text-transform: lowercase; letter-spacing: 0.05em; }
-    .block-head .head-link:hover { color: var(--accent); }
-
-    .empty { color: var(--muted); font-size: 13px; }
-    .empty a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
-
-    .lb { display: grid; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    .lb-row {
-      display: grid; grid-template-columns: 40px 1fr auto auto;
-      align-items: baseline; gap: 16px;
-      padding: 14px 16px; background: var(--surface);
-      transition: background 140ms;
-    }
-    .lb-row:hover { background: var(--surface-2); }
-    .lb-row .rank { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 13px; }
-    .lb-row .name { display: block; color: var(--fg); font-size: 13px; }
-    .lb-row .hk { display: block; color: var(--dim); font-size: 10px; letter-spacing: 0.04em; margin-top: 2px; }
-    .lb-row .score strong { color: var(--fg); font-size: 16px; font-variant-numeric: tabular-nums; }
-    .lb-row .score .lbl { color: var(--dim); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-left: 6px; }
-    .lb-row .last { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
-
-    .feed { display: grid; gap: 14px; }
-    .feed-item {
-      padding: 16px 18px; border: 1px solid var(--border);
-      background: var(--surface);
-    }
-    /* Failure variant: warn-colored left border, monospace title — so a
-       row that scored 0 because our infra failed reads as a real
-       failure receipt, not a placeholder. */
-    .feed-item--failed {
-      border-left: 3px solid var(--warn);
-    }
-    .feed-item--failed .fi-head .t {
-      font-family: var(--mono);
-      font-size: 12.5px;
-      color: var(--warn);
-      letter-spacing: 0.02em;
-    }
-    .fi-head {
-      display: flex; align-items: baseline; gap: 14px; justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .fi-head .t { color: var(--fg); font-size: 14px; line-height: 1.35; flex: 1; min-width: 0; }
-    .fi-head .ts { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
-    .summary { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
-    .fi-foot {
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
-      font-size: 10.5px; color: var(--dim); letter-spacing: 0.04em;
-    }
-    .fi-foot .by { color: var(--fg); font-size: 11px; }
-    .fi-foot .by:hover { color: var(--accent); }
-    .fi-foot .score strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .fi-foot .receipt { font-family: inherit; }
-    .fi-foot .dim { color: var(--border); }
-
-    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 70ch; margin: 0; }
-    .rubric-intro { margin-bottom: 16px; }
-
-    .rubric {
-      display: grid; gap: 6px;
-      padding: 16px 18px; background: var(--surface);
-      border: 1px solid var(--border-soft);
-      max-width: 60ch;
-    }
-    .r-row {
-      display: grid;
-      grid-template-columns: 130px 1fr 44px;
-      align-items: center;
-      gap: 12px;
-      font-size: 12px;
-    }
-    .r-lbl { color: var(--fg); letter-spacing: 0.02em; }
-    .r-bar {
-      display: block; height: 6px;
+    .block-head .rule {
+      flex: 1;
+      height: 1px;
       background: var(--border-soft);
-      position: relative;
+      margin-left: 6px;
     }
-    .r-bar-fill {
-      display: block; height: 100%;
-      background: var(--accent);
-    }
-    .r-val {
-      text-align: right;
-      color: var(--muted);
-      font-variant-numeric: tabular-nums;
-      font-size: 11.5px;
-    }
-
-    .mine-block { padding-top: 28px; padding-bottom: 28px; }
     .mine-line {
       margin: 0;
       color: var(--muted);
@@ -628,11 +956,18 @@ const regulatoryLede =
       border: 1px solid var(--border-soft);
       padding: 1px 6px;
     }
-    .mine-line a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border); }
+    .mine-line a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: var(--border);
+    }
     .mine-line a:hover { text-decoration-color: var(--accent); }
     .upload-fold {
       margin-top: 14px;
-      font-size: 11.5px; color: var(--dim); line-height: 1.6;
+      font-size: 11.5px;
+      color: var(--dim);
+      line-height: 1.6;
       letter-spacing: 0.02em;
     }
     .upload-fold summary {
@@ -653,53 +988,13 @@ const regulatoryLede =
     }
     .upload-fold[open] summary::before { transform: rotate(90deg); }
     .upload-fold p {
-      margin: 8px 0 0; padding-left: 18px;
+      margin: 8px 0 0;
+      padding-left: 18px;
       color: var(--muted);
     }
     .upload-fold p code { color: var(--fg); font-family: inherit; }
     .upload-fold p a { color: var(--accent); }
     .upload-fold p a:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-    /* Research / discovery — visually distinct from the leaderboard
-       (no rank, no score) so users immediately read it as a parallel
-       surface rather than a continuation of the top-3 list. */
-    .dx { display: grid; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    .dx-row {
-      display: grid;
-      grid-template-columns: 32px 1fr auto auto auto;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 16px; background: var(--surface);
-      transition: background 140ms;
-    }
-    .dx-row:hover { background: var(--surface-2); }
-    .dx-row .logo {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px;
-      border: 1px solid var(--border);
-      background: var(--bg); color: var(--muted);
-      font-family: var(--serif);
-      font-size: 13px;
-    }
-    .dx-row .who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .dx-row .name { color: var(--fg); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dx-row .hk { color: var(--dim); font-size: 10px; letter-spacing: 0.04em; }
-    .dx-row .size { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-    .dx-row .ts { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
-    .dx-row .badge {
-      font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--warn);
-      background: var(--warn-dim);
-      border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent);
-      padding: 3px 7px;
-    }
-    @media (max-width: 720px) {
-      .dx-row { grid-template-columns: 28px 1fr auto auto; }
-      .dx-row .size { display: none; }
-    }
-    .more { margin: 14px 0 0; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
-    .more a { color: var(--accent); }
-    .more a:hover { text-decoration: underline; text-underline-offset: 3px; }
   </style>
   )}
 </Base>

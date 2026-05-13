@@ -1,25 +1,43 @@
 ---
 /**
- * The wall — 24h × 4 stones-per-hour grid that visualizes a job's recent
- * card submissions. Each stone is a card; its colour reflects the
- * weighted score and how recent the submission is. Hover (or focus) any
- * stone to surface a "peek" tooltip with the mason, score, and
- * timestamp. If the visitor has claimed an agent in localStorage, their
- * stones gain a dashed pulse outline.
+ * The wall — roster grid (Model B). One stone per mason UID, ranked by
+ * current_score. Scored stones first, then evaluating (submitted but
+ * not-yet-scored), then open seats fill the remainder. Glyph is seeded
+ * by miner_hotkey so a mason carries the same mark across visits.
  *
- * Server-renders the layout, the stones, and the deterministic mason
- * marks; a small inline script attaches peek behaviour and you-detection
- * after first paint.
+ * Server-renders the layout, the stones, and the deterministic stained-
+ * glass marks; a small inline script attaches peek behaviour, you-
+ * detection, claim modal, and agent-profile modal triggers.
  */
 import { stoneMark } from '../lib/stone-marks'
-import type { DiscoveryItem, EvalOutput } from '../lib/types'
+
+export type RosterScored = {
+  kind: 'scored'
+  agentId: string
+  displayName: string
+  hotkey: string
+  bio?: string | null
+  score: number
+  rank: number
+  lastEvalAt: string
+  fresh: boolean
+}
+export type RosterEvaluating = {
+  kind: 'evaluating'
+  agentId: string
+  displayName: string
+  hotkey: string
+  bio?: string | null
+  bundleHash: string
+  submittedAt: string
+}
+export type RosterEntry = RosterScored | RosterEvaluating
 
 interface Props {
-  /** Recent eval outputs, newest first. Up to 96 will be placed in slots. */
-  evals: EvalOutput[]
-  /** Submitted-but-not-yet-scored bundles. Render as 'evaluating' stones —
-   *  unclaimable, visibly distinct from open and scored. */
-  pending?: DiscoveryItem[]
+  /** Merged roster: one entry per UID, ordered scored (by score desc)
+   *  then evaluating (by submitted_at desc). Server caller handles the
+   *  merge so Wall stays a pure renderer. */
+  roster: RosterEntry[]
   /** Job id, for context and the empty-state CTA. */
   cardId: string
   /** Optional section eyebrow number. Omit on dense console layouts. */
@@ -28,112 +46,39 @@ interface Props {
   compact?: boolean
 }
 
-const { evals, pending = [], cardId, num, compact = false } = Astro.props
+const { roster, cardId, num, compact = false } = Astro.props
 
-const NUM_HOURS = 24
-const PER_HOUR = 4
-const TOTAL = NUM_HOURS * PER_HOUR
-const HOUR_MS = 60 * 60 * 1000
-const SLOT_MS = HOUR_MS / PER_HOUR
+// 12 columns × 6 rows = 72 cells. Wider than tall reads as a wall, not a
+// timeline. If the roster outgrows this we'll surface a "+N more" deep
+// link rather than shrinking the cells.
+const COLS = 12
+const ROWS = 6
+const TOTAL = COLS * ROWS
 
-const now = Date.now()
+type Cell =
+  | { kind: 'empty'; idx: number }
+  | RosterScored
+  | RosterEvaluating
 
-type Slot =
-  | { kind: 'empty' }
-  | { kind: 'fresh' | 'scored'; e: EvalOutput }
-  | { kind: 'evaluating'; d: DiscoveryItem }
+const cells: Cell[] = []
+for (const r of roster.slice(0, TOTAL)) cells.push(r)
+while (cells.length < TOTAL) cells.push({ kind: 'empty', idx: cells.length })
 
-const slots: Slot[] = Array.from({ length: TOTAL }, () => ({ kind: 'empty' }))
-
-for (const e of evals) {
-  const t = new Date(e.ran_at).getTime()
-  const ageMs = now - t
-  if (ageMs > NUM_HOURS * HOUR_MS) continue
-  if (ageMs < 0) continue
-  const slotsAgo = Math.floor(ageMs / SLOT_MS)
-  const idx = TOTAL - 1 - slotsAgo
-  if (idx < 0 || idx >= TOTAL) continue
-  let kind: 'fresh' | 'scored' = 'scored'
-  if (ageMs < 30 * 60 * 1000) kind = 'fresh'
-  if (slots[idx].kind === 'empty') {
-    slots[idx] = { kind, e }
-  }
+// Tally states for the legend's aria summary.
+const counts = { fresh: 0, scored: 0, evaluating: 0, open: 0 }
+for (const c of cells) {
+  if (c.kind === 'empty') counts.open++
+  else if (c.kind === 'evaluating') counts.evaluating++
+  else if (c.fresh) counts.fresh++
+  else counts.scored++
 }
 
-// Pending (discovery) submissions land in slots that are still empty.
-// They sit in the wall as "evaluating" stones — visible to viewers,
-// owned by a specific mason, unclaimable to others. Same temporal
-// placement logic as scored stones so the wall reads chronologically.
-for (const d of pending) {
-  const t = new Date(d.submitted_at).getTime()
-  const ageMs = now - t
-  if (ageMs > NUM_HOURS * HOUR_MS) continue
-  if (ageMs < 0) continue
-  const slotsAgo = Math.floor(ageMs / SLOT_MS)
-  const idx = TOTAL - 1 - slotsAgo
-  if (idx < 0 || idx >= TOTAL) continue
-  if (slots[idx].kind === 'empty') {
-    slots[idx] = { kind: 'evaluating', d }
-  }
-}
-
-// Within each hour column, stack scored stones first (by weighted_score),
-// then evaluating stones, then empty. Wall reads as a metagraph: top row
-// = best scored, bottom row = waiting room.
-type ScoredSlot = Extract<Slot, { kind: 'fresh' | 'scored' }>
-type EvalSlot = Extract<Slot, { kind: 'evaluating' }>
-for (let col = 0; col < NUM_HOURS; col++) {
-  const band: Slot[] = []
-  for (let row = 0; row < PER_HOUR; row++) {
-    band.push(slots[col * PER_HOUR + row])
-  }
-  const scored = band.filter(
-    (s): s is ScoredSlot => s.kind === 'fresh' || s.kind === 'scored',
-  )
-  scored.sort((a, b) => b.e.weighted_score - a.e.weighted_score)
-  const evaluating = band.filter((s): s is EvalSlot => s.kind === 'evaluating')
-  evaluating.sort(
-    (a, b) =>
-      new Date(b.d.submitted_at).getTime() - new Date(a.d.submitted_at).getTime(),
-  )
-  const stacked: Slot[] = [
-    ...scored,
-    ...evaluating,
-    ...Array.from(
-      { length: PER_HOUR - scored.length - evaluating.length },
-      () => ({ kind: 'empty' as const }),
-    ),
-  ]
-  for (let row = 0; row < PER_HOUR; row++) {
-    slots[col * PER_HOUR + row] = stacked[row]
-  }
-}
-
-// Tally states once for the summary strip above the grid. Reading the
-// wall as a heat-pattern is faster than counting cells, so we hand the
-// reader the counts up front and let the grid carry the texture.
-const counts = { fresh: 0, scored: 0, evaluating: 0, miss: 0 }
-for (const s of slots) {
-  if (s.kind === 'empty') counts.miss++
-  else counts[s.kind]++
-}
-
-// Hours axis: every 6h gets a label, current hour is "now".
-const hourLabels: { txt: string; current: boolean }[] = []
-for (let i = 0; i < NUM_HOURS; i++) {
-  const hoursAgo = NUM_HOURS - 1 - i
-  if (hoursAgo === 0) hourLabels.push({ txt: 'now', current: true })
-  else if (hoursAgo === NUM_HOURS - 1) hourLabels.push({ txt: '24h', current: false })
-  else if (hoursAgo % 6 === 0) hourLabels.push({ txt: `${hoursAgo}h`, current: false })
-  else hourLabels.push({ txt: '·', current: false })
-}
 const skillUrl = 'https://api.cathedral.computer/skill.md'
 const enlistLine = `Read ${skillUrl} and mine ${cardId}`
 
 // Empty stones get a deterministic faint glyph derived from their slot
 // index + card id so the wall reads as a heraldic field even before any
-// miner has laid a stone. Solid surface fill underneath gives the cell
-// physical weight — the wall is a wall, not a dotted matrix.
+// miner has laid a stone.
 const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   stoneMark(`${cardId}:open:${i}`, { size: 28, open: true }),
 )
@@ -155,63 +100,58 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
       <span class="lg lg-evaluating"><span class="sw" aria-hidden="true"></span>evaluating</span>
       <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
     </span>
-    <span class="flow-hint">click an open stone to claim · scored + evaluating stones belong to other masons</span>
+    <span class="flow-hint">one stone per mason · top {TOTAL} by score · click an open seat to claim</span>
   </header>
 
   <div class="wall">
-    <div class="hours-axis" aria-hidden="true">
-      {hourLabels.map((h) => (
-        <span class={h.current ? 'now' : ''}>{h.txt}</span>
-      ))}
-    </div>
-
     <div class="grid" data-wall-grid>
-      {slots.map((s, i) => {
+      {cells.map((s, i) => {
         if (s.kind === 'empty') {
-          const nowSlot = i >= TOTAL - PER_HOUR
           return (
             <button
               type="button"
-              class:list={['stone', 'empty', 'claimable', nowSlot && 'now-slot']}
+              class="stone empty claimable"
               data-i={i}
               data-claim
-              aria-label="Open stone — enlist your mason"
+              aria-label="Open seat — enlist your mason"
               set:html={openGlyphs[i]}
             />
           )
         }
         if (s.kind === 'evaluating') {
-          const d = s.d
           return (
             <span
               class="stone evaluating"
               data-i={i}
               data-state="evaluating"
-              data-agent-id={d.agent_id}
-              data-agent-name={d.display_name}
-              data-agent-bio={d.bio ?? ''}
-              data-submitted-at={d.submitted_at}
-              data-title={`Evaluating — ${d.display_name}'s bundle`}
-              aria-label={`${d.display_name}'s stone is being evaluated`}
-              set:html={stoneMark(d.bundle_hash || d.agent_id, { size: 28 })}
+              data-agent-id={s.agentId}
+              data-agent-name={s.displayName}
+              data-agent-bio={s.bio ?? ''}
+              data-submitted-at={s.submittedAt}
+              data-title={`Evaluating — ${s.displayName}'s bundle`}
+              aria-label={`${s.displayName}'s stone is being evaluated`}
+              set:html={stoneMark(s.hotkey || s.bundleHash || s.agentId, { size: 28 })}
             />
           )
         }
-        const e = s.e
-        const tier = e.weighted_score >= 0.75 ? 'tier-high' : e.weighted_score >= 0.5 ? 'tier-mid' : 'tier-low'
+        const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
+        const cls = s.fresh ? 'fresh' : 'scored'
         return (
-          <a
-            class={`stone ${s.kind} ${tier}`}
+          <button
+            type="button"
+            class={`stone ${cls} ${tier}`}
             data-i={i}
-            data-state={s.kind}
-            data-agent-id={e.agent_id}
-            data-agent-name={e.agent_display_name}
-            data-score={e.weighted_score.toFixed(2)}
-            data-ran-at={e.ran_at}
-            data-title={e.output_card?.title ?? `Card ${e.id.slice(0, 6)}`}
-            href={`/agents/${e.agent_id}`}
-            aria-label={`${e.agent_display_name}, scored ${e.weighted_score.toFixed(2)} — open biography`}
-            set:html={stoneMark(e.id, { size: 28 })}
+            data-state={cls}
+            data-agent-id={s.agentId}
+            data-agent-name={s.displayName}
+            data-agent-bio={s.bio ?? ''}
+            data-score={s.score.toFixed(2)}
+            data-rank={s.rank}
+            data-ran-at={s.lastEvalAt}
+            data-title={`Rank ${s.rank} · score ${s.score.toFixed(2)}`}
+            data-agent-modal-open={s.agentId}
+            aria-label={`${s.displayName}, rank ${s.rank}, score ${s.score.toFixed(2)} — open profile`}
+            set:html={stoneMark(s.hotkey || s.agentId, { size: 28 })}
           />
         )
       })}
@@ -414,8 +354,19 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
       })
     }
 
-    // Scored stones are real <a> tags — the browser handles navigation,
-    // cmd/middle-click, and right-click natively. No JS click handler.
+    // Scored stones open the agent profile modal. Profile data is
+    // fetched on demand by the AgentDialog script; we only need to
+    // forward the id here.
+    grid.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-agent-modal-open]')
+      if (!el) return
+      e.preventDefault()
+      var ev = new CustomEvent('cd:agent-modal-open', {
+        detail: { agentId: el.getAttribute('data-agent-modal-open') },
+        bubbles: true,
+      })
+      el.dispatchEvent(ev)
+    })
   })()
 </script>
 
@@ -533,12 +484,12 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .wall-frame-compact .grid {
     flex: 0 1 auto;
-    min-height: clamp(150px, 26vh, 280px);
-    max-height: min(28vh, 300px);
+    min-height: clamp(200px, 32vh, 360px);
+    max-height: min(34vh, 380px);
     height: auto;
     aspect-ratio: unset;
     gap: clamp(5px, 0.65vmin, 9px);
-    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(6, minmax(0, 1fr));
   }
   .wall-frame-compact .stone {
     min-height: 0;
@@ -554,81 +505,25 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
 
   .wall {
     position: relative;
-    /* Geological strata: older stones (left, 24h ago) sit in slightly
-       darker ground; fresher stones (right, now) sit in slightly lighter
-       ground. The wall reads as time-of-day depth, not a flat surface. */
-    background:
-      linear-gradient(
-        90deg,
-        rgba(0, 0, 0, 0.18) 0%,
-        rgba(0, 0, 0, 0.06) 50%,
-        rgba(126, 168, 208, 0.03) 100%
-      ),
-      var(--surface);
+    background: var(--surface);
     border: 1px solid var(--border-soft);
-    padding: 18px 18px 14px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     overflow: hidden;
   }
-  /* 6h boundary markers — three vertical rules at 25/50/75% so the wall
-     reads as four six-hour bands, the unit the bell tower also counts in
-     (roughly two liturgical blocks per band). Pure decoration; doesn't
-     interfere with stone hit targets. */
-  .wall::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(90deg, transparent calc(25% - 0.5px), var(--border-soft) calc(25% - 0.5px), var(--border-soft) calc(25% + 0.5px), transparent calc(25% + 0.5px)),
-      linear-gradient(90deg, transparent calc(50% - 0.5px), var(--border-soft) calc(50% - 0.5px), var(--border-soft) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-      linear-gradient(90deg, transparent calc(75% - 0.5px), var(--border-soft) calc(75% - 0.5px), var(--border-soft) calc(75% + 0.5px), transparent calc(75% + 0.5px));
-    opacity: 0.5;
-    z-index: 0;
-  }
-  /* Now-column glow — soft accent column on the right edge so the eye
-     reads 'this is the live edge of the wall'. */
-  .wall::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 4.166%; /* one column = 100/24 */
-    pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(126, 168, 208, 0.06) 70%,
-      rgba(126, 168, 208, 0.10) 100%
-    );
-    z-index: 0;
-  }
   .wall > * { position: relative; z-index: 1; }
-  .hours-axis {
-    display: grid;
-    grid-template-columns: repeat(24, 1fr);
-    gap: 4px;
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 0.04em;
-    color: var(--dim);
-  }
-  .hours-axis span { text-align: center; font-variant-numeric: tabular-nums; }
-  .hours-axis span.now { color: var(--accent); }
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(24, 1fr);
-    grid-template-rows: repeat(4, 1fr);
-    grid-auto-flow: column;
-    gap: 4px;
-    /* Taller than v3.1 so the wall reads as the page's centerpiece —
-       individual stones are big enough to carry a legible mason mark. */
-    aspect-ratio: 12 / 5;
-    min-height: 240px;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 6px;
+    /* 12×6 roster grid. Wide enough that each cell carries a legible
+       stained-glass glyph at typical viewport widths. */
+    aspect-ratio: 12 / 7;
+    min-height: 280px;
   }
   .stone {
     position: relative;
@@ -643,7 +538,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     font: inherit;
     padding: 0;
   }
-  a.stone:focus-visible {
+  button.stone:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     z-index: 3;
@@ -736,11 +631,6 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.claimable:focus-visible :global(svg) {
     opacity: 0.85;
   }
-  .stone.claimable.now-slot {
-    border-color: rgba(126, 168, 208, 0.55);
-    background: linear-gradient(180deg, rgba(126, 168, 208, 0.12) 0%, rgba(126, 168, 208, 0.05) 100%);
-  }
-  .stone.claimable.now-slot :global(svg) { opacity: 0.62; }
   .stone.you {
     outline: 1px solid var(--accent);
     outline-offset: 2px;
@@ -1041,8 +931,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
 
   @media (max-width: 720px) {
-    .grid { gap: 2px; min-height: 100px; }
-    .hours-axis { font-size: 8px; }
+    .grid { gap: 3px; min-height: 220px; }
     .wall-head .legend { display: none; }
     .peek { left: 8px; right: 8px; padding: 10px 12px; gap: 10px; }
     .peek .t { display: none; }

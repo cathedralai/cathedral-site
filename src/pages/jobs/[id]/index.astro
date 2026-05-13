@@ -1,11 +1,13 @@
 ---
 import Base from '../../../layouts/Base.astro'
 import Wall from '../../../components/Wall.astro'
+import AgentDialog from '../../../components/AgentDialog.astro'
 import {
   fetchCardOverview,
   fetchLeaderboard,
   fetchCardFeed,
   fetchCardEvalSpec,
+  fetchCardDiscovery,
 } from '../../../lib/cathedral-api'
 import { V1_CARD_IDS } from '../../../lib/cards'
 import { EXTERNAL_JOBS } from '../../../lib/external-jobs'
@@ -34,19 +36,52 @@ const { kind } = Astro.props as { kind: 'regulatory' | 'partner' }
 const cardId = id as string
 const partnerJob = kind === 'partner' ? EXTERNAL_JOBS.find((j) => j.id === cardId)! : null
 
-// Pull more eval rows than the old layout: the wall renders 96 slots
-// (24h × 4/hr) and we want to fill as many as the publisher has.
-const [overview, leaderboard, feed, spec] = kind === 'regulatory'
+// Pull leaderboard + discovery so the wall renders one stone per UID
+// (roster mode, top-72). Feed still drives stats + vigil computation.
+const WALL_CAPACITY = 72
+const FRESH_WINDOW_MS = 30 * 60 * 1000
+
+const [overview, leaderboard, feed, spec, discovery] = kind === 'regulatory'
   ? await Promise.all([
       fetchCardOverview(cardId),
-      fetchLeaderboard(cardId, 3),
+      fetchLeaderboard(cardId, WALL_CAPACITY),
       fetchCardFeed(cardId, { limit: 96 }),
       fetchCardEvalSpec(cardId),
+      fetchCardDiscovery(cardId, { limit: 48 }),
     ])
-  : [null, null, null, null] as const
+  : [null, null, null, null, null] as const
 
-const top3 = leaderboard ? leaderboard.items : []
+const top3 = leaderboard ? leaderboard.items.slice(0, 3) : []
 const recent = feed ? feed.items : []
+
+const nowMs = Date.now()
+const rosterScored = leaderboard
+  ? leaderboard.items.map((r) => ({
+      kind: 'scored' as const,
+      agentId: r.agent_id,
+      displayName: r.display_name,
+      hotkey: r.miner_hotkey,
+      score: r.current_score,
+      rank: r.current_rank,
+      lastEvalAt: r.last_eval_at,
+      fresh: nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
+    }))
+  : []
+const scoredIds = new Set(rosterScored.map((r) => r.agentId))
+const rosterEvaluating = discovery
+  ? discovery.items
+      .filter((d) => !scoredIds.has(d.agent_id))
+      .map((d) => ({
+        kind: 'evaluating' as const,
+        agentId: d.agent_id,
+        displayName: d.display_name,
+        hotkey: d.miner_hotkey,
+        bio: d.bio,
+        bundleHash: d.bundle_hash,
+        submittedAt: d.submitted_at,
+      }))
+  : []
+const wallRoster = [...rosterScored, ...rosterEvaluating].slice(0, WALL_CAPACITY)
 const def = overview ? overview.definition : null
 const rubric = spec ? spec.scoring_rubric : null
 // `key` matches the `id` on each row in /jobs/[id]/eval-spec so the
@@ -400,7 +435,7 @@ const procession = top3.map((row, i) => ({
       <!-- 01 wall — the page's centerpiece. Marks visible on every
            scored stone so the grid reads as a heraldic field of agent
            signatures. Procession + rubric live below as a 2-col row. -->
-      <Wall evals={recent} cardId={cardId} num="01" />
+      <Wall roster={wallRoster} cardId={cardId} num="01" />
 
       <!-- Bottom row: procession (left) + rubric (right). The procession
            is preserved as its own section per the user's request — kept
@@ -423,7 +458,12 @@ const procession = top3.map((row, i) => ({
             <ol class="proc-list">
               {procession.map((r) => (
                 <li>
-                  <a class={`proc-row rank-${r.rank}`} href={`/agents/${r.agentId}`}>
+                  <button
+                    type="button"
+                    class={`proc-row rank-${r.rank}`}
+                    data-agent-modal-open={r.agentId}
+                    aria-label={`Open ${r.name} profile`}
+                  >
                     <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>
                     <span class="pr-mk" set:html={r.markSvg}></span>
                     <span class="pr-who">
@@ -431,7 +471,7 @@ const procession = top3.map((row, i) => ({
                       <span class="pr-hk">{r.hkShort}</span>
                     </span>
                     <span class="pr-sc">{formatScore(r.score)}</span>
-                  </a>
+                  </button>
                 </li>
               ))}
             </ol>
@@ -485,6 +525,7 @@ const procession = top3.map((row, i) => ({
       </section>
     </main>
   </div>
+  <AgentDialog />
 
   <script is:inline>
     // 'You' row: read localStorage and, if the visitor has claimed an
@@ -966,6 +1007,15 @@ const procession = top3.map((row, i) => ({
       color: inherit;
       transition: background 140ms;
       min-width: 0;
+      width: 100%;
+      border: 0;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    button.proc-row:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
     .proc-row:hover { background: var(--surface); }
     .proc-row.rank-1 {

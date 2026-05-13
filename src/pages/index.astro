@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro'
 import Wall from '../components/Wall.astro'
 import JobSpecDialog from '../components/JobSpecDialog.astro'
 import JobProposalDialog from '../components/JobProposalDialog.astro'
+import AgentDialog from '../components/AgentDialog.astro'
 import {
   fetchHomeFeed,
   fetchAvailableCards,
@@ -181,18 +182,50 @@ function vigilDaysFor(agentId: string, items: { agent_id: string; ran_at: string
   return days.size
 }
 
+const WALL_CAPACITY = 72
+const FRESH_WINDOW_MS = 30 * 60 * 1000
+
 const regulatoryPanels = await Promise.all(
   V1_CARD_IDS.map(async (cardId) => {
     const [leaderboard, feed, spec, overview, discovery] = await Promise.all([
-      fetchLeaderboard(cardId, 3),
+      fetchLeaderboard(cardId, WALL_CAPACITY),
       fetchCardFeed(cardId, { limit: 96 }),
       fetchCardEvalSpec(cardId),
       fetchCardOverview(cardId),
       fetchCardDiscovery(cardId, { limit: 48 }),
     ])
     const recent = feed.items
-    const top3 = leaderboard.items
+    const top3 = leaderboard.items.slice(0, 3)
     const pending = discovery.items
+    // Build the wall roster: one entry per UID, scored first (by score
+    // desc), then evaluating (by submission desc). Dedupe so a mason
+    // appearing in both leaderboard and discovery shows only once
+    // (scored wins — they already have a stone on the wall).
+    const scoredIds = new Set(leaderboard.items.map((r) => r.agent_id))
+    const nowMs = Date.now()
+    const rosterScored = leaderboard.items.map((r) => ({
+      kind: 'scored' as const,
+      agentId: r.agent_id,
+      displayName: r.display_name,
+      hotkey: r.miner_hotkey,
+      score: r.current_score,
+      rank: r.current_rank,
+      lastEvalAt: r.last_eval_at,
+      fresh:
+        nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
+    }))
+    const rosterEvaluating = pending
+      .filter((d) => !scoredIds.has(d.agent_id))
+      .map((d) => ({
+        kind: 'evaluating' as const,
+        agentId: d.agent_id,
+        displayName: d.display_name,
+        hotkey: d.miner_hotkey,
+        bio: d.bio,
+        bundleHash: d.bundle_hash,
+        submittedAt: d.submitted_at,
+      }))
+    const roster = [...rosterScored, ...rosterEvaluating].slice(0, WALL_CAPACITY)
     const rubric = spec.scoring_rubric
     const weightRows = rubric
       ? [
@@ -221,6 +254,7 @@ const regulatoryPanels = await Promise.all(
       spec,
       recent,
       pending,
+      roster,
       procession,
       weightRows,
       cadenceHours: spec.refresh_cadence_hours,
@@ -367,8 +401,6 @@ const industryCounts = {
           <span class="head-meta">
             {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
             <span class="dim">·</span>
-            {upcomingJobs.length} queued
-            <span class="dim">·</span>
             next toll <strong>{toll}</strong>
             <span class="dim">·</span>
             scores pin at toll
@@ -393,13 +425,16 @@ const industryCounts = {
                       role="tab"
                       aria-selected={active ? 'true' : 'false'}
                     >
-                      <span class="pick-head">
+                      <span class="pick-eyebrow">
                         <span class="pick-juris">{j.juris}</span>
-                        <span class="pick-meta">
-                          {j.count} stone{j.count === 1 ? '' : 's'} · {j.masons} mason{j.masons === 1 ? '' : 's'}
-                        </span>
+                        <span class="pick-name">{j.name}</span>
                       </span>
-                      <span class="pick-name">{j.name}</span>
+                      <span class="pick-lede">{j.lede}</span>
+                      <span class="pick-meta">
+                        <span class="pm-stones">{j.count} stone{j.count === 1 ? '' : 's'}</span>
+                        <span class="pm-sep">·</span>
+                        <span class="pm-masons">{j.masons} mason{j.masons === 1 ? '' : 's'}</span>
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -412,7 +447,7 @@ const industryCounts = {
                   </div>
                 )
               })}
-              {upcomingJobs.map((j) => (
+              {[].map((j: any) => (
                 <div
                   class="job-pick-wrap is-upcoming"
                   data-job-card
@@ -421,11 +456,12 @@ const industryCounts = {
                   data-job-lede={j.lede}
                 >
                   <div class="job-pick is-locked" aria-disabled="true" aria-label={`${j.name} · coming soon`}>
-                    <span class="pick-head">
+                    <span class="pick-eyebrow">
                       <span class="pick-juris">{j.juris}</span>
-                      <span class="pick-soon">queued</span>
+                      <span class="pick-name">{j.name}</span>
                     </span>
-                    <span class="pick-name">{j.name}</span>
+                    <span class="pick-lede">{j.lede}</span>
+                    <span class="pick-soon">queued</span>
                     <span class="pick-buzz" role="group" aria-label={`Rate ${j.name}`}>
                         <button
                           type="button"
@@ -449,12 +485,6 @@ const industryCounts = {
                   </div>
                 </div>
               ))}
-              <button type="button" class="job-pick is-propose" data-job-card data-job-propose-open>
-                <span class="pick-head">
-                  <span class="pick-juris">new</span>
-                </span>
-                <span class="pick-name">Propose a job</span>
-              </button>
           </div>
         </div>
 
@@ -462,6 +492,7 @@ const industryCounts = {
           <JobSpecDialog spec={panel.spec} />
         ))}
         <JobProposalDialog />
+        <AgentDialog />
       </section>
 
       <section class="job-stage" data-job-stage aria-live="polite">
@@ -486,7 +517,7 @@ const industryCounts = {
               </span>
               <span class="toll">next toll <strong>{toll}</strong></span>
             </div>
-            <Wall evals={panel.recent} pending={panel.pending} cardId={panel.cardId} compact />
+            <Wall roster={panel.roster} cardId={panel.cardId} compact />
 
             <div class="canvas-row">
               <section class="proc-frame" aria-label="Top three this round">
@@ -522,7 +553,12 @@ const industryCounts = {
                       const bars = thresholds.map((t) => r.vigil >= t)
                       return (
                         <li>
-                          <a class={`proc-row rank-${r.rank}`} href={`/agents/${r.agentId}`}>
+                          <button
+                            type="button"
+                            class={`proc-row rank-${r.rank}`}
+                            data-agent-modal-open={r.agentId}
+                            aria-label={`Open ${r.name} profile`}
+                          >
                             <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>
                             <span class="pr-mk" set:html={r.markSvg}></span>
                             <span class="pr-who">
@@ -538,7 +574,7 @@ const industryCounts = {
                               <span class="vigil-lbl">vigil <strong>{r.vigil}d</strong></span>
                             </span>
                             <span class="pr-sc">{formatScore(r.score)}</span>
-                          </a>
+                          </button>
                         </li>
                       )
                     })}
@@ -1107,8 +1143,9 @@ const industryCounts = {
     .job-pick-wrap.is-live {
       display: flex;
       align-items: stretch;
-      flex: 1.65 1 172px;
-      min-width: 172px;
+      flex: 1 1 260px;
+      min-width: 240px;
+      max-width: 320px;
       border: 1px solid var(--border-soft);
       background: var(--surface);
     }
@@ -1164,8 +1201,8 @@ const industryCounts = {
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 4px;
-      padding: 6px 8px;
+      gap: 6px;
+      padding: 10px 12px;
       border: 1px solid var(--border-soft);
       background: var(--surface);
       color: inherit;
@@ -1173,7 +1210,7 @@ const industryCounts = {
       text-align: left;
       cursor: pointer;
       width: 100%;
-      min-height: 54px;
+      min-height: 84px;
       transition: border-color 140ms, background 140ms;
     }
     .job-pick:hover,
@@ -1199,53 +1236,69 @@ const industryCounts = {
     .job-pick.is-propose {
       flex: 0 0 118px;
       min-width: 118px;
-      min-height: 54px;
+      min-height: 84px;
       align-self: stretch;
     }
-    .pick-head {
+    .pick-eyebrow {
       display: flex;
       align-items: baseline;
-      justify-content: space-between;
       gap: 8px;
       min-width: 0;
     }
     .pick-juris {
       font-family: var(--mono);
-      font-size: 8.5px;
-      letter-spacing: 0.16em;
+      font-size: 9px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--accent);
       flex: 0 0 auto;
+      border: 1px solid var(--border-soft);
+      padding: 2px 6px;
+      line-height: 1.3;
     }
     .pick-name {
       font-family: var(--serif);
       font-weight: 300;
-      font-size: 13px;
-      line-height: 1.25;
+      font-size: 14px;
+      line-height: 1.2;
       color: var(--fg);
       min-width: 0;
-    }
-    .job-pick-wrap.is-live .pick-name {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .job-pick-wrap.is-upcoming .pick-name {
+      white-space: normal;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    /* Pick lede — one-line summary (clamped) so each chip carries its own
+       'what is this job' without forcing the visitor to click 'brief'. */
+    .pick-lede {
+      font-size: 11.5px;
+      line-height: 1.35;
+      color: var(--muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: calc(11.5px * 1.35 * 2);
+    }
     .pick-meta {
       font-family: var(--mono);
-      font-size: 8.5px;
-      letter-spacing: 0.04em;
+      font-size: 9px;
+      letter-spacing: 0.06em;
       color: var(--dim);
       font-variant-numeric: tabular-nums;
-      text-align: right;
       white-space: nowrap;
-      flex: 0 0 auto;
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      margin-top: auto;
     }
+    .pick-meta .pm-sep { color: var(--faint); }
     .pick-soon {
       font-family: var(--mono);
       font-size: 8px;
@@ -1592,6 +1645,15 @@ const industryCounts = {
       color: inherit;
       transition: background 140ms;
       min-width: 0;
+      width: 100%;
+      border: 0;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    button.proc-row:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
     /* Vigil indicator — 5 small bars + label, sits between identity
        and score. Reads as a streak at-a-glance. Days derived from

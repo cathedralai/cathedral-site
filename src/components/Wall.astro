@@ -97,6 +97,14 @@ for (let i = 0; i < NUM_HOURS; i++) {
 }
 const skillUrl = 'https://api.cathedral.computer/skill.md'
 const enlistLine = `Read ${skillUrl} and mine ${cardId}`
+
+// Empty stones get a deterministic faint glyph derived from their slot
+// index + card id so the wall reads as a heraldic field even before any
+// miner has laid a stone. Solid surface fill underneath gives the cell
+// physical weight — the wall is a wall, not a dotted matrix.
+const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
+  stoneMark(`${cardId}:open:${i}`, { size: 28, open: true }),
+)
 ---
 
 <section class:list={['wall-frame', compact && 'wall-frame-compact']} data-wall data-card-id={cardId}>
@@ -104,22 +112,20 @@ const enlistLine = `Read ${skillUrl} and mine ${cardId}`
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>
     <span class="rule"></span>
-    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.miss} open`}>
+    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.miss} no stone`}>
       <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
       <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
-      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>open</span>
+      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
     </span>
-    <span class="flow-hint">click open stone to enlist your mason · top row ranks higher each hour</span>
+    <span class="flow-hint">click an open stone to claim it · scored stones belong to other masons</span>
   </header>
 
   <div class="wall">
-    {!compact && (
-      <div class="hours-axis" aria-hidden="true">
-        {hourLabels.map((h) => (
-          <span class={h.current ? 'now' : ''}>{h.txt}</span>
-        ))}
-      </div>
-    )}
+    <div class="hours-axis" aria-hidden="true">
+      {hourLabels.map((h) => (
+        <span class={h.current ? 'now' : ''}>{h.txt}</span>
+      ))}
+    </div>
 
     <div class="grid" data-wall-grid>
       {slots.map((s, i) => {
@@ -132,6 +138,7 @@ const enlistLine = `Read ${skillUrl} and mine ${cardId}`
               data-i={i}
               data-claim
               aria-label="Open stone — enlist your mason"
+              set:html={openGlyphs[i]}
             />
           )
         }
@@ -484,40 +491,38 @@ const enlistLine = `Read ${skillUrl} and mine ${cardId}`
   }
   .stone.fresh :global(svg) { opacity: 1; }
   .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
+  /* Empty/claimable stones still feel like stones — solid surface fill
+     with a faint heraldic glyph baked in. The wall reads as a wall, not
+     a dotted matrix. Dashed border carries the "claimable" affordance. */
   .stone.empty {
-    background: transparent;
+    background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
     border-style: dashed;
     border-color: var(--faint);
-    opacity: 0.55;
+    opacity: 1;
   }
+  .stone.empty :global(svg) { opacity: 0.32; }
   .stone.claimable {
-    border-color: rgba(126, 168, 208, 0.35);
-    opacity: 0.72;
+    border-color: rgba(126, 168, 208, 0.28);
+    opacity: 1;
   }
+  .stone.claimable :global(svg) { opacity: 0.42; }
   .stone.claimable:hover,
   .stone.claimable:focus-visible {
     transform: translateY(-2px);
     border-color: var(--accent);
     background: var(--accent-dim);
-    opacity: 1;
     outline: 2px solid transparent;
     z-index: 2;
   }
-  .stone.claimable.now-slot {
-    border-color: rgba(126, 168, 208, 0.55);
-    background: rgba(126, 168, 208, 0.08);
-    opacity: 0.9;
-  }
-  .stone.empty :global(svg) {
-    opacity: 0.55;
-  }
-  .stone.claimable :global(svg) {
-    opacity: 0.72;
-  }
   .stone.claimable:hover :global(svg),
   .stone.claimable:focus-visible :global(svg) {
-    opacity: 1;
+    opacity: 0.85;
   }
+  .stone.claimable.now-slot {
+    border-color: rgba(126, 168, 208, 0.55);
+    background: linear-gradient(180deg, rgba(126, 168, 208, 0.12) 0%, rgba(126, 168, 208, 0.05) 100%);
+  }
+  .stone.claimable.now-slot :global(svg) { opacity: 0.62; }
   .stone.you {
     outline: 1px solid var(--accent);
     outline-offset: 2px;

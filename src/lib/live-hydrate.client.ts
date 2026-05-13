@@ -222,6 +222,50 @@ function renderCardOverviewStats(overview: CardOverview): string {
   `
 }
 
+// Site-wide live status strip — the heartbeat that sits under the nav on
+// every page. Renders inner content of `.cd-status`; the parent's
+// `data-status-tone` attribute is updated separately so the pulse colour
+// follows the freshness of the last card.
+interface CardsListPage {
+  items: CardOverview[]
+}
+
+function deriveStatusTone(lastRanAt: string | undefined): {
+  tone: 'live' | 'warming' | 'quiet' | 'offline'
+  label: string
+} {
+  if (!lastRanAt) return { tone: 'quiet', label: 'workforce · listening' }
+  const ms = Date.now() - new Date(lastRanAt).getTime()
+  if (ms < 60 * 60 * 1000) return { tone: 'live', label: 'workforce · live' }
+  if (ms < 24 * 60 * 60 * 1000)
+    return { tone: 'warming', label: 'workforce · warming' }
+  return { tone: 'quiet', label: 'workforce · quiet' }
+}
+
+function renderStatusStripInner(
+  latest: EvalOutput | undefined,
+  agentCount: number,
+  latestEpoch: number | null,
+): string {
+  const { label } = deriveStatusTone(latest?.ran_at)
+  const lastCardAge = latest?.ran_at ? RELATIVE_TIME(latest.ran_at) : '—'
+  const epochSegment =
+    latestEpoch !== null
+      ? `<span class="cd-status-sep" aria-hidden="true">·</span><span class="cd-status-stat">merkle epoch <strong>${ESC(String(latestEpoch))}</strong></span>`
+      : ''
+  return `
+    <span class="cd-status-dot" aria-hidden="true"></span>
+    <span class="cd-status-tone">${ESC(label)}</span>
+    <span class="cd-status-sep" aria-hidden="true">·</span>
+    <span class="cd-status-stat"><strong>${ESC(String(agentCount))}</strong> agents</span>
+    <span class="cd-status-sep" aria-hidden="true">·</span>
+    <span class="cd-status-stat">last card <strong>${ESC(lastCardAge)}</strong></span>
+    ${epochSegment}
+    <span class="cd-status-spacer" aria-hidden="true"></span>
+    <a class="cd-status-link" href="/jobs">Mine a job →</a>
+  `
+}
+
 // ----- Dispatch -----
 
 interface LeaderboardPage {
@@ -282,6 +326,29 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         const next = d.current_rank == null ? '—' : `#${d.current_rank}`
         if (s.textContent !== next) s.textContent = next
       })
+    } else if (kind === 'status-strip') {
+      // Two parallel fetches: feed for last-card timing + merkle epoch,
+      // cards for total agent count. Both are short payloads.
+      const [feed, cards] = await Promise.all([
+        fetchJSON<FeedPage>('/api/cathedral/v1/feed?limit=12'),
+        fetchJSON<CardsListPage>('/api/cathedral/v1/cards'),
+      ])
+      const items = feed.items || []
+      const latest = items[0]
+      const totalAgents = (cards.items || []).reduce(
+        (s, c) => s + (c.agent_count || 0),
+        0,
+      )
+      const epochs = items
+        .map((e) => e.merkle_epoch ?? null)
+        .filter((e): e is number => e !== null)
+      const latestEpoch = epochs.length ? Math.max(...epochs) : null
+      const { tone } = deriveStatusTone(latest?.ran_at)
+      el.dataset.statusTone = tone
+      applyIfChanged(
+        el,
+        renderStatusStripInner(latest, totalAgents, latestEpoch),
+      )
     } else if (kind === 'cards-index') {
       // The cards index page renders each tile with [data-card-id]. We
       // refresh just the per-tile agent count + last-update label so new

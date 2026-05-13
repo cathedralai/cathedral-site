@@ -1,5 +1,7 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
+import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
+import { relativeTime } from '../lib/format'
 import '../styles/tokens.css'
 
 // PostHog. Project key + host are read from build-time env at deploy.
@@ -13,9 +15,9 @@ const POSTHOG_HOST = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.postho
 interface Props {
   title?: string
   description?: string
-  /** Pass false to omit the platform-whisper banner (e.g. on /plans itself,
-   *  where the link would point back to the same page). */
-  showBanner?: boolean
+  /** Pass false to omit the live status strip on a specific page (rare —
+   *  the strip is the site's heartbeat and should run almost everywhere). */
+  showStatus?: boolean
   /** When true, the page fills the viewport exactly — use for the log dashboard. */
   fullHeight?: boolean
   /** When true, the main column spans the full shell width (1180px) instead
@@ -26,13 +28,74 @@ interface Props {
 }
 
 const {
-  title = 'cathedral · a verifiable AI workforce',
+  title = 'cathedral · the world\u2019s fastest-evolving, fully verifiable agent workforce',
   description =
-    'A Bittensor subnet running a verifiable AI workforce. First vertical: regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
-  showBanner = true,
+    'Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO.',
+  showStatus = true,
   fullHeight = false,
   wide = false,
 } = Astro.props
+
+// Live status strip — the site's heartbeat. Server-renders initial values
+// off the publisher feed so the first paint already shows real numbers,
+// then `live-hydrate.client.ts` keeps it ticking on a 30s loop.
+//
+// Both fetches are wrapped in `liveOrMock` upstream, so a publisher
+// outage at build time gives us mock numbers instead of a broken deploy.
+let initialStatus: {
+  totalAgents: number
+  lastCardAge: string
+  latestEpoch: number | null
+  tone: 'live' | 'warming' | 'quiet' | 'offline'
+  toneLabel: string
+} = {
+  totalAgents: 0,
+  lastCardAge: '\u2014',
+  latestEpoch: null,
+  tone: 'quiet',
+  toneLabel: 'workforce \u00b7 listening',
+}
+if (showStatus) {
+  try {
+    const [feed, cards] = await Promise.all([
+      fetchHomeFeed(12),
+      fetchAvailableCards(),
+    ])
+    const totalAgents = cards.reduce((s, c) => s + (c.agent_count || 0), 0)
+    const latest = feed[0]
+    const epochs = feed
+      .map((e) => e.merkle_epoch)
+      .filter((e): e is number => e !== null && e !== undefined)
+    const latestEpoch = epochs.length ? Math.max(...epochs) : null
+    const ageMs = latest
+      ? Date.now() - new Date(latest.ran_at).getTime()
+      : Infinity
+    let tone: 'live' | 'warming' | 'quiet' | 'offline' = 'quiet'
+    let toneLabel = 'workforce \u00b7 listening'
+    if (latest) {
+      if (ageMs < 60 * 60 * 1000) {
+        tone = 'live'
+        toneLabel = 'workforce \u00b7 live'
+      } else if (ageMs < 24 * 60 * 60 * 1000) {
+        tone = 'warming'
+        toneLabel = 'workforce \u00b7 warming'
+      } else {
+        tone = 'quiet'
+        toneLabel = 'workforce \u00b7 quiet'
+      }
+    }
+    initialStatus = {
+      totalAgents,
+      lastCardAge: latest ? relativeTime(latest.ran_at) : '\u2014',
+      latestEpoch,
+      tone,
+      toneLabel,
+    }
+  } catch (_err) {
+    // The api lib already mock-fallbacks; this is belt + braces so a
+    // build never fails on the strip alone.
+  }
+}
 
 // Top nav: kept to four destinations so the IA reads as a clean spine.
 // Demoted items (plans, dashboard, research, roadmap, changelog) live in
@@ -138,14 +201,28 @@ const footerClass = fullHeight
         </button>
         <span class="text-dim">sn39 · finney</span>
       </header>
-      {showBanner && (
-        <div class="cd-banner" role="status" aria-label="Cathedral v1 disclosure">
-          <span class="cd-banner-dot" aria-hidden="true"></span>
-          <span>
-            Cathedral v1 - regulatory intelligence is the first vertical. The mechanism generalizes.
-            {' '}
-            <a href="/plans" class="cd-banner-link">see plans →</a>
-          </span>
+      {showStatus && (
+        <div
+          class={`cd-status ${mainMax} mx-auto w-full`}
+          data-live="status-strip"
+          data-status-tone={initialStatus.tone}
+          role="status"
+          aria-label="Cathedral live status"
+        >
+          <span class="cd-status-dot" aria-hidden="true"></span>
+          <span class="cd-status-tone">{initialStatus.toneLabel}</span>
+          <span class="cd-status-sep" aria-hidden="true">·</span>
+          <span class="cd-status-stat"><strong>{initialStatus.totalAgents}</strong> agents</span>
+          <span class="cd-status-sep" aria-hidden="true">·</span>
+          <span class="cd-status-stat">last card <strong>{initialStatus.lastCardAge}</strong></span>
+          {initialStatus.latestEpoch !== null && (
+            <>
+              <span class="cd-status-sep" aria-hidden="true">·</span>
+              <span class="cd-status-stat">merkle epoch <strong>{initialStatus.latestEpoch}</strong></span>
+            </>
+          )}
+          <span class="cd-status-spacer" aria-hidden="true"></span>
+          <a class="cd-status-link" href="/jobs">Mine a job →</a>
         </div>
       )}
       <main class={mainClass}>
@@ -338,12 +415,18 @@ const footerClass = fullHeight
         white-space: nowrap; border: 0;
       }
 
-      /* ---- platform-whisper banner ---------------------------------- */
-      .cd-banner {
-        display: inline-flex;
+      /* ---- live status strip (the heartbeat) -----------------------
+         Sits under the nav on every page. Mono lineprinter band that
+         shows the workforce ticking — agent count, last card age,
+         latest merkle epoch — plus a verb-first action link. The
+         pulsing dot's colour follows the freshness of the last card
+         (live / warming / quiet / offline). */
+      .cd-status {
+        display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
-        margin: 0 0 18px;
+        gap: 4px 10px;
+        margin: 0 0 14px;
         padding: 7px 12px;
         border: 1px solid var(--border-soft);
         background: var(--surface);
@@ -351,10 +434,9 @@ const footerClass = fullHeight
         font-family: var(--mono);
         font-size: 11px;
         letter-spacing: 0.02em;
-        align-self: flex-start;
         max-width: 100%;
       }
-      .cd-banner-dot {
+      .cd-status-dot {
         width: 6px;
         height: 6px;
         border-radius: 50%;
@@ -363,13 +445,71 @@ const footerClass = fullHeight
         animation: cd-pulse var(--dur-tick) ease-in-out infinite;
         flex-shrink: 0;
       }
-      .cd-banner-link {
-        color: var(--accent);
-        margin-left: 4px;
+      .cd-status[data-status-tone='warming'] .cd-status-dot {
+        background: var(--warn);
+        box-shadow: 0 0 6px rgba(216, 167, 101, 0.45);
       }
-      .cd-banner-link:hover {
+      .cd-status[data-status-tone='warming'] .cd-status-tone {
+        color: var(--warn);
+      }
+      .cd-status[data-status-tone='quiet'] .cd-status-dot {
+        background: var(--dim);
+        box-shadow: none;
+        animation: none;
+        opacity: 0.6;
+      }
+      .cd-status[data-status-tone='quiet'] .cd-status-tone {
+        color: var(--dim);
+      }
+      .cd-status[data-status-tone='offline'] .cd-status-dot {
+        background: var(--err);
+        box-shadow: 0 0 6px rgba(217, 122, 108, 0.45);
+        animation: none;
+      }
+      .cd-status[data-status-tone='offline'] .cd-status-tone {
+        color: var(--err);
+      }
+      .cd-status-tone {
+        color: var(--accent);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .cd-status-stat {
+        white-space: nowrap;
+      }
+      .cd-status-stat strong {
+        color: var(--fg);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-status-sep {
+        color: var(--border);
+      }
+      .cd-status-spacer {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .cd-status-link {
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      .cd-status-link:hover {
         text-decoration: underline;
         text-underline-offset: 3px;
+      }
+      @media (max-width: 640px) {
+        .cd-status {
+          font-size: 10.5px;
+          padding: 6px 10px;
+          margin-bottom: 12px;
+        }
+        .cd-status-spacer {
+          display: none;
+        }
+        .cd-status-link {
+          width: 100%;
+          margin-top: 2px;
+        }
       }
 
       /* ---- shared eyebrow / numbered-section primitives ------------- */

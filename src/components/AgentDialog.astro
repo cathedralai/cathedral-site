@@ -62,6 +62,15 @@ const apiBase =
 
     <p class="agent-bio" data-agent-bio hidden></p>
 
+    <section class="agent-section card-section" data-agent-card hidden>
+      <h3 class="section-k" data-agent-card-eyebrow>Submitted card · pending</h3>
+      <h4 class="card-title" data-agent-card-title>—</h4>
+      <p class="card-summary" data-agent-card-summary></p>
+      <dl class="card-fields" data-agent-card-fields></dl>
+      <ul class="card-cites" data-agent-card-cites hidden></ul>
+      <p class="card-foot" data-agent-card-foot></p>
+    </section>
+
     <section class="agent-section" data-agent-history hidden>
       <h3 class="section-k">Score history · 30d</h3>
       <div class="sparkline" data-agent-spark></div>
@@ -96,6 +105,13 @@ const apiBase =
       vigil: dialog.querySelector('[data-agent-vigil]'),
       last: dialog.querySelector('[data-agent-last]'),
       bio: dialog.querySelector('[data-agent-bio]'),
+      cardSec: dialog.querySelector('[data-agent-card]'),
+      cardEyebrow: dialog.querySelector('[data-agent-card-eyebrow]'),
+      cardTitle: dialog.querySelector('[data-agent-card-title]'),
+      cardSummary: dialog.querySelector('[data-agent-card-summary]'),
+      cardFields: dialog.querySelector('[data-agent-card-fields]'),
+      cardCites: dialog.querySelector('[data-agent-card-cites]'),
+      cardFoot: dialog.querySelector('[data-agent-card-foot]'),
       historySec: dialog.querySelector('[data-agent-history]'),
       spark: dialog.querySelector('[data-agent-spark]'),
       recentSec: dialog.querySelector('[data-agent-recent]'),
@@ -155,6 +171,73 @@ const apiBase =
         '</svg>'
     }
 
+    // Render the actual card the mason submitted — title, summary,
+    // narrative fields, citations. This is the load-bearing payload
+    // visitors come to inspect; "score 0.94" is meaningless without
+    // showing them what the mason actually wrote that earned that score.
+    function renderCard(card, score, ranAt) {
+      if (!card || typeof card !== 'object') {
+        byKey.cardSec.hidden = true
+        return
+      }
+      byKey.cardSec.hidden = false
+      var eyebrow = 'Submitted card'
+      if (score !== null && score !== undefined && !isNaN(parseFloat(score))) {
+        eyebrow += ' · scored ' + fmtScore(parseFloat(score))
+      }
+      if (ranAt) eyebrow += ' · ' + relTime(ranAt)
+      byKey.cardEyebrow.textContent = eyebrow
+      byKey.cardTitle.textContent = card.title || '(untitled)'
+      byKey.cardSummary.textContent = card.summary || ''
+      byKey.cardSummary.hidden = !card.summary
+
+      // Narrative fields rendered as a definition list. Skip empties so
+      // the modal isn't padded with placeholder dashes — masons who
+      // shipped a thin card show as a thin card.
+      var fields = [
+        ['What changed', card.what_changed],
+        ['Why it matters', card.why_it_matters],
+        ['Action notes', card.action_notes],
+        ['Risks', card.risks],
+      ]
+      var dl = ''
+      for (var i = 0; i < fields.length; i++) {
+        var label = fields[i][0]
+        var val = fields[i][1]
+        if (!val) continue
+        dl += '<dt>' + escapeHtml(label) + '</dt>' +
+              '<dd>' + escapeHtml(String(val)) + '</dd>'
+      }
+      byKey.cardFields.innerHTML = dl
+      byKey.cardFields.hidden = !dl
+
+      var cites = (card.citations || []).filter(function (c) { return c && c.url })
+      if (cites.length) {
+        var cul = ''
+        for (var j = 0; j < cites.length; j++) {
+          var c = cites[j]
+          var href = c.url
+          var label = c.class ? '[' + c.class + '] ' : ''
+          cul += '<li><a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' +
+                 escapeHtml(label + href) + '</a></li>'
+        }
+        byKey.cardCites.innerHTML = cul
+        byKey.cardCites.hidden = false
+      } else {
+        byKey.cardCites.hidden = true
+      }
+
+      var foot = []
+      if (card.jurisdiction) foot.push(String(card.jurisdiction).toUpperCase())
+      if (card.topic) foot.push(card.topic)
+      if (card.confidence !== undefined && card.confidence !== null) {
+        foot.push('confidence ' + fmtScore(card.confidence))
+      }
+      if (card.no_legal_advice) foot.push('not legal advice')
+      byKey.cardFoot.textContent = foot.join(' · ')
+      byKey.cardFoot.hidden = !foot.length
+    }
+
     function render(profile) {
       byKey.loading.hidden = true
       byKey.empty.hidden = !profile || !profile.id
@@ -166,6 +249,7 @@ const apiBase =
         byKey.vigil.textContent = '—'
         byKey.last.textContent = '—'
         byKey.bio.hidden = true
+        byKey.cardSec.hidden = true
         byKey.historySec.hidden = true
         byKey.recentSec.hidden = true
         return
@@ -192,6 +276,15 @@ const apiBase =
         byKey.bio.hidden = false
       } else {
         byKey.bio.hidden = true
+      }
+      // Surface the most recent submitted card. This is the actual
+      // content the mason produced and Cathedral scored — the reason
+      // visitors clicked into the modal in the first place.
+      var latest = profile.recent_evals && profile.recent_evals[0]
+      if (latest && latest.output_card) {
+        renderCard(latest.output_card, latest.weighted_score, latest.ran_at)
+      } else {
+        byKey.cardSec.hidden = true
       }
       if (profile.score_history && profile.score_history.length >= 2) {
         byKey.spark.innerHTML = sparkPath(profile.score_history)
@@ -230,6 +323,7 @@ const apiBase =
       byKey.loading.hidden = false
       byKey.empty.hidden = true
       byKey.bio.hidden = true
+      byKey.cardSec.hidden = true
       byKey.historySec.hidden = true
       byKey.recentSec.hidden = true
       byKey.name.textContent = 'Loading…'
@@ -254,6 +348,7 @@ const apiBase =
       if (!seed) return
       byKey.loading.hidden = true
       byKey.empty.hidden = true
+      byKey.cardSec.hidden = true
       byKey.historySec.hidden = true
       byKey.recentSec.hidden = true
       var nm = (seed.displayName || '').trim()
@@ -510,11 +605,87 @@ const apiBase =
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  .card-section {
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    padding: 14px 16px 16px;
+    gap: 10px;
+  }
+  .card-title {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.3;
+    color: var(--fg);
+  }
+  .card-summary {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--fg);
+    max-width: 64ch;
+  }
+  .card-fields {
+    margin: 4px 0 0;
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 6px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .card-fields :global(dt) {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding-top: 3px;
+  }
+  .card-fields :global(dd) {
+    margin: 0;
+    color: var(--fg);
+  }
+  .card-cites {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .card-cites :global(li) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-cites :global(a) {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .card-cites :global(a:hover),
+  .card-cites :global(a:focus-visible) {
+    text-decoration: underline;
+  }
+  .card-foot {
+    margin: 6px 0 0;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
   .agent-empty,
   .agent-loading {
     margin: 0;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.55;
+  }
+  @media (max-width: 540px) {
+    .card-fields { grid-template-columns: 1fr; gap: 2px 0; }
+    .card-fields :global(dt) { padding-top: 6px; }
   }
 </style>

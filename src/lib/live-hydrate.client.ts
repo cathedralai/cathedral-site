@@ -402,7 +402,7 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
       // Update a drift chip in the wall header if one exists; create it
       // if not. Click reloads the page (cheaper than a JS rebuild for
       // now; keeps SSR layout as the source of truth).
-      let chip = el.querySelector<HTMLElement>('[data-wall-drift]')
+      let chip = el.querySelector<HTMLButtonElement>('[data-wall-drift]')
       const headRule = el.querySelector<HTMLElement>('.wall-head .rule')
       if (drift > 0) {
         if (!chip && headRule) {

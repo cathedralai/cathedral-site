@@ -107,7 +107,11 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
 )
 ---
 
-<section class:list={['wall-frame', compact && 'wall-frame-compact']} data-wall data-card-id={cardId}>
+<section
+  class:list={['wall-frame', compact && 'wall-frame-compact']}
+  data-wall
+  data-card-id={cardId}
+>
   <header class="wall-head">
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>

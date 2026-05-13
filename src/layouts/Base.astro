@@ -11,6 +11,9 @@ import '../styles/tokens.css'
 //   PUBLIC_POSTHOG_KEY, PUBLIC_POSTHOG_HOST
 const POSTHOG_KEY = import.meta.env.PUBLIC_POSTHOG_KEY || ''
 const POSTHOG_HOST = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+const GITHUB_URL = 'https://github.com/cathedralai'
+const X_URL = 'https://x.com/cathidralhq'
+const X_HANDLE = '@cathidralhq'
 
 interface Props {
   title?: string
@@ -204,6 +207,8 @@ const footerClass = fullHeight
           </>
         )}
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
+        <a href={GITHUB_URL} class="hover:text-fg transition-colors" rel="noopener noreferrer">github</a>
+        <a href={X_URL} class="hover:text-fg transition-colors" rel="noopener noreferrer" aria-label={`Cathedral on X (${X_HANDLE})`}>{X_HANDLE}</a>
         <button
           type="button"
           data-theme-toggle
@@ -267,6 +272,9 @@ const footerClass = fullHeight
         <span>cathedral.computer</span>
         {!hideNoise && (
           <>
+            <span class="text-border">·</span>
+            <a href={GITHUB_URL} class="hover:text-muted transition-colors" rel="noopener noreferrer">github</a>
+            <a href={X_URL} class="hover:text-muted transition-colors" rel="noopener noreferrer" aria-label={`Cathedral on X (${X_HANDLE})`}>x</a>
             <span class="text-border">·</span>
             <a href="https://github.com/cathedralai/cathedral" class="hover:text-muted transition-colors">source</a>
             <a href="/verification" class="hover:text-muted transition-colors">verification</a>

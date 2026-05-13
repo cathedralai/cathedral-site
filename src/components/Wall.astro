@@ -127,10 +127,11 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
         }
         const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
         const cls = s.fresh ? 'fresh' : 'scored'
+        const current = s.rank < 4 ? 'current' : ''
         return (
           <button
             type="button"
-            class={`stone ${cls} ${tier}`}
+            class={`stone ${cls} ${tier} ${current}`}
             data-i={i}
             data-state={cls}
             data-agent-id={s.agentId}
@@ -592,9 +593,9 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone:hover :global(svg) { opacity: 1; }
   .stone.scored {
     background:
-      linear-gradient(180deg, rgba(126, 168, 208, 0.28), rgba(126, 168, 208, 0.12)),
-      var(--surface-2);
-    border-color: rgba(126, 168, 208, 0.62);
+      linear-gradient(180deg, rgba(126, 168, 208, 0.10), rgba(126, 168, 208, 0.035)),
+      var(--surface);
+    border-color: rgba(126, 168, 208, 0.34);
   }
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
@@ -602,16 +603,46 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.scored :global(svg *) { stroke: var(--accent) !important; }
   .stone.fresh {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 48%),
-      var(--accent);
-    border-color: var(--accent);
+      linear-gradient(180deg, rgba(126, 168, 208, 0.20), rgba(126, 168, 208, 0.06)),
+      var(--surface);
+    border-color: rgba(126, 168, 208, 0.66);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
       inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-      0 0 12px rgba(126, 168, 208, 0.35);
+      0 0 10px rgba(126, 168, 208, 0.22);
+    animation: cd-stone-breathe 3.4s ease-in-out infinite;
   }
   .stone.fresh :global(svg) { opacity: 1; }
-  .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
+  .stone.fresh :global(svg *) { stroke: var(--accent) !important; }
+  @keyframes cd-stone-breathe {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.16),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+        0 0 8px rgba(126, 168, 208, 0.18);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.24),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+        0 0 16px rgba(126, 168, 208, 0.38);
+    }
+  }
+  .stone.current {
+    background:
+      linear-gradient(90deg, transparent 0%, rgba(126, 168, 208, 0) 36%, rgba(126, 168, 208, 0.34) 50%, rgba(126, 168, 208, 0) 64%, transparent 100%),
+      repeating-linear-gradient(90deg, transparent 0 10px, rgba(126, 168, 208, 0.08) 10px 11px, transparent 11px 20px),
+      linear-gradient(180deg, rgba(126, 168, 208, 0.16), rgba(126, 168, 208, 0.045)),
+      var(--surface);
+    background-size: 220% 100%, auto, auto, auto;
+    border-color: rgba(126, 168, 208, 0.76);
+    animation: cd-current 2.8s linear infinite;
+  }
+  .stone.current :global(svg) { opacity: 1; }
+  @keyframes cd-current {
+    0% { background-position: 130% 0, 0 0, 0 0, 0 0; }
+    100% { background-position: -130% 0, 0 0, 0 0, 0 0; }
+  }
 
   /* Evaluating — submitted by a mason but not yet scored. Visible to
      viewers, unclaimable to others. Warm tone differentiates from the
@@ -665,12 +696,11 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.claimable :global(svg) { opacity: 0.24; }
   .stone.claimable:hover,
   .stone.claimable:focus-visible {
-    transform: translateY(-2px);
-    border-color: var(--accent);
+    transform: none;
+    border-color: rgba(126, 168, 208, 0.4);
     background:
-      linear-gradient(180deg, rgba(126, 168, 208, 0.18), rgba(126, 168, 208, 0.06)),
+      linear-gradient(180deg, rgba(126, 168, 208, 0.12), rgba(126, 168, 208, 0.04)),
       var(--surface);
-    outline: 2px solid transparent;
     z-index: 2;
   }
   .stone.claimable:hover :global(svg),
@@ -688,6 +718,15 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     border: 1px dashed var(--accent);
     pointer-events: none;
     animation: cd-pulse 2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stone.fresh,
+    .stone.current,
+    .stone.evaluating,
+    .stone.you::after,
+    .wall-frame.cd-wall-pulse .wall {
+      animation: none;
+    }
   }
 
   .claim-dialog {

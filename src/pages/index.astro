@@ -428,8 +428,8 @@ const industryCounts = {
             <span class="visually-hidden">Choose a job</span>
             <select class="job-pick-select" data-job-pick-select>
               {sortedJobs.map((j) => (
-                <option value={j.id} selected={j.id === defaultJobId}>
-                  {j.juris} · {j.name}
+                <option value={j.id} selected={j.id === defaultJobId} data-job-lede={j.lede}>
+                  {j.juris} · {j.name}: {j.lede}
                 </option>
               ))}
             </select>
@@ -444,6 +444,7 @@ const industryCounts = {
             brief
           </button>
         </div>
+        <p class="job-pick-compact-lede" data-job-pick-lede>{sortedJobs[0]?.lede}</p>
         <div class="job-pick-full">
         <header class="job-pick-head">
           <h2>The procession</h2>
@@ -704,6 +705,15 @@ const industryCounts = {
         })
         var pickSelect = document.querySelector('[data-job-pick-select]')
         if (pickSelect && pickSelect.value !== id) pickSelect.value = id
+        var pickLede = document.querySelector('[data-job-pick-lede]')
+        if (pickLede) {
+          var activePick = document.querySelector('[data-job-pick="' + id + '"]')
+          var selectedOption = pickSelect && pickSelect.options ? pickSelect.options[pickSelect.selectedIndex] : null
+          pickLede.textContent =
+            (activePick && activePick.getAttribute('data-job-lede')) ||
+            (selectedOption && selectedOption.getAttribute('data-job-lede')) ||
+            ''
+        }
         var briefBtn = document.querySelector('[data-job-spec-current]')
         if (briefBtn) briefBtn.setAttribute('data-job-spec-open', id)
       }
@@ -1027,6 +1037,13 @@ const industryCounts = {
         align-items: stretch;
       }
       .job-pick-full { display: none; }
+      .job-pick-compact-lede {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+        max-width: 62ch;
+      }
       .pick-info-compact {
         position: static;
         align-self: stretch;
@@ -1053,6 +1070,7 @@ const industryCounts = {
       }
       .filter-select-wrap { display: none; }
       .job-pick-compact { display: none; }
+      .job-pick-compact-lede { display: none; }
       .job-pick-full { display: block; }
     }
 
@@ -1537,7 +1555,7 @@ const industryCounts = {
       min-width: 0;
       flex: 1;
       min-height: 0;
-      overflow: hidden;
+      overflow: auto;
     }
     .job-panel {
       display: grid;
@@ -1545,7 +1563,7 @@ const industryCounts = {
       gap: 6px;
       flex: 1;
       min-height: 0;
-      overflow: hidden;
+      overflow: visible;
     }
 
     /* Bell-tower top-strip: round name + liturgical hour ticks +
@@ -1643,8 +1661,8 @@ const industryCounts = {
       padding-top: 6px;
       border-top: 1px solid var(--border-soft);
       flex: 0 0 auto;
-      max-height: min(36vh, 240px);
-      overflow: hidden;
+      max-height: none;
+      overflow: visible;
     }
     @media (max-width: 920px) {
       .canvas-row { grid-template-columns: 1fr; gap: 12px; max-height: none; }
@@ -1671,8 +1689,8 @@ const industryCounts = {
       font-size: 9.5px;
     }
     .job-panel .proc-list {
-      max-height: 132px;
-      overflow: hidden;
+      max-height: none;
+      overflow: visible;
     }
     .job-panel .proc-row {
       grid-template-columns: auto 22px minmax(0, 1fr) auto auto;
@@ -1734,8 +1752,8 @@ const industryCounts = {
     .job-panel .rubric-list {
       gap: 2px;
       margin-top: 4px;
-      max-height: 132px;
-      overflow: hidden;
+      max-height: none;
+      overflow: visible;
     }
     .job-panel .rubric-list .r {
       grid-template-columns: 78px minmax(0, 1fr) 30px;

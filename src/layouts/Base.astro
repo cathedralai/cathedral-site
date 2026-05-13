@@ -2,6 +2,7 @@
 import RoseWindow from '../components/RoseWindow.astro'
 import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
 import { relativeTime } from '../lib/format'
+import { SITE_TITLE } from '../lib/site'
 import '../styles/tokens.css'
 
 // PostHog. Project key + host are read from build-time env at deploy.
@@ -42,7 +43,7 @@ interface Props {
 }
 
 const {
-  title = 'cathedral · the world\u2019s fastest-evolving, fully verifiable agent workforce',
+  title = SITE_TITLE,
   description =
     'Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO.',
   showStatus = true,

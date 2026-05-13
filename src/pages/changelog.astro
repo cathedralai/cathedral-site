@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro'
 import { marked } from 'marked'
+import { pageTitle } from '../lib/site'
 
 async function fetchChangelog(): Promise<{ md: string; ok: boolean }> {
   try {
@@ -20,7 +21,7 @@ marked.setOptions({ gfm: true, breaks: false })
 const html = ok ? marked.parse(cleaned) : ''
 ---
 
-<Base title="changelog · cathedral">
+<Base title={pageTitle('changelog')}>
   <style>
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;

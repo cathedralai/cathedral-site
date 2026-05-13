@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro'
 import { fetchDiscoveryRecent, fetchAvailableCards } from '../lib/cathedral-api'
 import { relativeTime, truncateMiddle, formatBytes, shortHash } from '../lib/format'
+import { pageTitle } from '../lib/site'
 
 const [recent, cards] = await Promise.all([
   fetchDiscoveryRecent(20),
@@ -12,7 +13,7 @@ const cardNameById = new Map(
 )
 ---
 
-<Base title="research · cathedral">
+<Base title={pageTitle('research')}>
   <section class="hd">
     <p class="eyebrow">SN39 · Research &amp; Discovery</p>
     <h1>Research submissions.</h1>

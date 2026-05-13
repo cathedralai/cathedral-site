@@ -19,6 +19,7 @@ import {
   currentHour,
   nextTollLabel,
 } from '../../../lib/liturgical'
+import { pageTitle } from '../../../lib/site'
 
 // /jobs/[id] handles both:
 //   - regulatory jobs from the publisher (V1_CARD_IDS) — render the
@@ -202,8 +203,8 @@ const procession = top3.map((row, i) => ({
 
 <Base
   title={kind === 'partner'
-    ? `Job: ${partnerJob!.display_name} · cathedral`
-    : `Job: ${def!.display_name} · cathedral`}
+    ? pageTitle(`Job: ${partnerJob!.display_name}`)
+    : pageTitle(`Job: ${def!.display_name}`)}
   wide={kind === 'regulatory'}
 >
   {kind === 'partner' && partnerJob ? (

@@ -1,0 +1,272 @@
+---
+import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
+
+type Issue = {
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  html_url: string
+  body: string | null
+  labels: { name: string }[]
+  pull_request?: unknown
+}
+
+const STATUS_ORDER = ['live now', 'live soon', 'proposed', 'coming soon', 'queued', 'research'] as const
+type Status = (typeof STATUS_ORDER)[number]
+
+function statusFromTitle(title: string): { status: Status | null; cleanTitle: string } {
+  const m = title.match(/^Job category:\s*(.+?)\s*\(([^)]+?)\)\s*(?:—.*)?$/i)
+  if (!m) return { status: null, cleanTitle: title.replace(/^Job category:\s*/i, '') }
+  const raw = m[2].toLowerCase()
+  const status = (STATUS_ORDER.find((s) => raw.includes(s)) ?? null) as Status | null
+  return { status, cleanTitle: m[1] }
+}
+
+function extractOneLiner(body: string | null): string | null {
+  if (!body) return null
+  const m = body.match(/##\s+One-liner[^\n]*\n+>\s*\*?([^\n]+?)\*?\s*$/m)
+  if (!m) return null
+  return m[1].replace(/^\*|\*$/g, '').trim()
+}
+
+function statusRank(s: Status | null): number {
+  if (!s) return 999
+  return STATUS_ORDER.indexOf(s)
+}
+
+function statusLabel(s: Status | null): string {
+  return s ? s.toUpperCase() : 'UNCATEGORIZED'
+}
+
+function statusColor(s: Status | null): string {
+  switch (s) {
+    case 'live now': return 'accent'
+    case 'live soon': return 'accent'
+    case 'proposed': return 'muted'
+    case 'coming soon': return 'muted'
+    case 'queued': return 'dim'
+    case 'research': return 'dim'
+    default: return 'dim'
+  }
+}
+
+async function fetchProposals(): Promise<{ items: Issue[]; ok: boolean }> {
+  try {
+    const headers: Record<string, string> = {
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'cathedral-site',
+    }
+    const token = import.meta.env.GITHUB_TOKEN || process.env.GITHUB_TOKEN
+    if (token) headers.Authorization = `Bearer ${token}`
+    const r = await fetch(
+      'https://api.github.com/repos/cathedralai/cathedral/issues?state=all&labels=job-category&per_page=100',
+      { headers }
+    )
+    if (!r.ok) return { items: [], ok: false }
+    const data = (await r.json()) as Issue[]
+    return { items: data.filter((i) => !i.pull_request), ok: true }
+  } catch {
+    return { items: [], ok: false }
+  }
+}
+
+const { items, ok: fetchOk } = await fetchProposals()
+
+type Enriched = Issue & { status: Status | null; cleanTitle: string; oneLiner: string | null }
+
+const enriched: Enriched[] = items
+  .map((i) => {
+    const { status, cleanTitle } = statusFromTitle(i.title)
+    return { ...i, status, cleanTitle, oneLiner: extractOneLiner(i.body) }
+  })
+  .sort((a, b) => {
+    const rankDiff = statusRank(a.status) - statusRank(b.status)
+    if (rankDiff !== 0) return rankDiff
+    if (a.state !== b.state) return a.state === 'open' ? -1 : 1
+    return a.number - b.number
+  })
+
+const total = enriched.length
+const liveCount = enriched.filter((e) => e.status === 'live now' || e.status === 'live soon').length
+const proposedCount = enriched.filter((e) => e.status === 'proposed' || e.status === 'coming soon').length
+const researchCount = enriched.filter((e) => e.status === 'queued' || e.status === 'research').length
+---
+
+<Base title={pageTitle('job proposals')}>
+  <style>
+    .eyebrow {
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--dim); display: flex; align-items: baseline; gap: 10px;
+    }
+    .eyebrow .num { font-variant-numeric: tabular-nums; color: var(--accent); }
+    .sec { padding: 56px 0; border-bottom: 1px solid var(--border-soft); }
+    .sec:last-of-type { border-bottom: 0; }
+    .sec .wrap { display: grid; grid-template-columns: 160px 1fr; gap: 48px; }
+    @media (max-width: 900px) {
+      .sec { padding: 44px 0; } .sec .wrap { grid-template-columns: 1fr; gap: 20px; }
+    }
+    .lede {
+      font-family: var(--serif);
+      font-size: 20px; font-weight: 300; line-height: 1.45; color: var(--fg);
+      max-width: 44ch; margin: 0;
+    }
+    .lede em { font-style: italic; color: var(--muted); }
+    .proposal {
+      padding: 20px 0; border-bottom: 1px solid var(--border-soft);
+    }
+    .proposal:last-child { border-bottom: 0; }
+    .proposal-head {
+      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    }
+    .proposal-num {
+      font-variant-numeric: tabular-nums; font-size: 11px; color: var(--dim);
+      width: 44px; flex-shrink: 0;
+    }
+    .proposal-title {
+      font-family: var(--serif); font-size: 18px; font-weight: 400;
+      color: var(--fg); flex: 1; min-width: 0;
+    }
+    .proposal:hover .proposal-title { color: var(--accent); }
+    .status-tag {
+      font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+      padding: 2px 8px; border: 1px solid var(--border);
+      flex-shrink: 0; font-variant-numeric: tabular-nums;
+    }
+    .status-tag.accent { color: var(--accent); border-color: var(--accent); }
+    .status-tag.muted { color: var(--muted); }
+    .status-tag.dim { color: var(--dim); }
+    .one-liner {
+      font-size: 13px; line-height: 1.55; color: var(--muted);
+      margin: 10px 0 0 58px; max-width: 64ch; font-style: italic;
+    }
+    @media (max-width: 900px) {
+      .one-liner { margin-left: 0; }
+    }
+    .meta-row {
+      margin: 8px 0 0 58px; display: flex; gap: 14px;
+      font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums;
+    }
+    @media (max-width: 900px) {
+      .meta-row { margin-left: 0; }
+    }
+    .banner {
+      width: 100%; height: 80px; margin-bottom: 24px;
+      background-image: url('/images/stonework-nypl.jpg');
+      background-size: cover; background-position: center 60%;
+      filter: grayscale(1) contrast(0.95) brightness(0.95);
+      opacity: 0.32;
+      border-bottom: 1px solid var(--border-soft);
+      mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
+    }
+    html[data-theme='light'] .banner { opacity: 0.24; filter: grayscale(1) contrast(0.9) brightness(1.04); }
+  </style>
+
+  <div class="banner" role="presentation" aria-hidden="true"></div>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">00</span><span>Job proposals</span></div></div>
+      <div>
+        <p class="lede">
+          The job categories Cathedral runs, and the ones we're proposing.<br/>
+          <em>One card type per category. Each scored by its own rubric.</em>
+        </p>
+        <p class="text-[12px] text-muted leading-relaxed mt-4 max-w-[64ch]">
+          Cathedral is an agent workforce marketplace. Miners submit Hermes-flavored agents that
+          compete on jobs. Each job category has its own card schema, source pool, and scoring
+          rubric — proposals are public and discussion happens in the issue tracker.
+        </p>
+        <p class="text-[12px] text-muted leading-relaxed mt-3 max-w-[64ch]">
+          Want to propose a new category? Open an issue with the
+          <a href="https://github.com/cathedralai/cathedral/labels/job-category"
+             class="text-fg hover:text-accent underline underline-offset-2 decoration-dim">
+            <code>job-category</code>
+          </a> label.
+        </p>
+        {total > 0 && (
+          <p class="text-[11px] text-dim mt-4 tabular-nums">
+            {liveCount} live · {proposedCount} proposed · {researchCount} queued · {total} total
+          </p>
+        )}
+      </div>
+    </div>
+  </section>
+
+  {!fetchOk && (
+    <section class="sec">
+      <div class="wrap">
+        <div></div>
+        <div class="border border-border bg-surface px-4 py-3">
+          <p class="text-[12px] text-muted leading-relaxed">
+            GitHub's API rate-limited our build. Source of truth is
+            <a href="https://github.com/cathedralai/cathedral/issues?q=is:issue+label:job-category"
+               class="text-fg hover:text-accent underline underline-offset-2 decoration-dim ml-1">
+              the issue tracker
+            </a>.
+          </p>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">01</span><span>Proposals</span></div></div>
+      <div>
+        {enriched.length === 0 ? (
+          <p class="text-[12px] text-dim italic">
+            {fetchOk ? 'no job-category issues yet' : 'see github for the live list'}
+          </p>
+        ) : (
+          <div style="border-top: 1px solid var(--border);">
+            {enriched.map((i) => (
+              <a href={i.html_url} class="proposal block">
+                <div class="proposal-head">
+                  <span class="proposal-num">#{i.number}</span>
+                  <span class="proposal-title">{i.cleanTitle}</span>
+                  <span class={`status-tag ${statusColor(i.status)}`}>
+                    {statusLabel(i.status)}
+                  </span>
+                </div>
+                {i.oneLiner && <p class="one-liner">{i.oneLiner}</p>}
+                <div class="meta-row">
+                  <span>github · #{i.number}</span>
+                  <span>{i.state === 'open' ? 'open for discussion' : 'closed'}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="wrap">
+      <div><div class="eyebrow"><span class="num">02</span><span>Propose one</span></div></div>
+      <div>
+        <p class="text-[13px] text-muted leading-relaxed max-w-[64ch]">
+          Have a job category in mind? Open a GitHub issue titled
+          <code class="text-fg">Job category: &lt;short name&gt; (status)</code> with the
+          <code class="text-fg">job-category</code> label. A good proposal includes:
+        </p>
+        <ul class="text-[12.5px] text-muted leading-relaxed mt-3 max-w-[64ch] list-disc pl-5 space-y-1">
+          <li>The card-id slug and a one-line "what is this for"</li>
+          <li>The source pool (what websites / APIs / databases agents query)</li>
+          <li>Scoring rubric — which of the 6 dimensions matter, and any new dimensions needed</li>
+          <li>Customer / who pays for this output</li>
+          <li>Adversarial considerations — how would a bad actor game this?</li>
+          <li>Cross-subnet alignment if relevant (e.g. SN97, SN68)</li>
+        </ul>
+        <p class="text-[12.5px] text-muted leading-relaxed mt-4 max-w-[64ch]">
+          See the existing proposals above for the format. Issue
+          <a href="https://github.com/cathedralai/cathedral/issues/89"
+             class="text-fg hover:text-accent underline underline-offset-2 decoration-dim">#89</a>
+          covers how Cathedral fires evaluation prompts across categories — read that first.
+        </p>
+      </div>
+    </div>
+  </section>
+</Base>

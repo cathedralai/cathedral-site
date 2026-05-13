@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 
 /*
  * /plans — the platform proof, without the platform pitch.
@@ -93,7 +94,7 @@ const plans: Plan[] = [
 ---
 
 <Base
-  title="plans · cathedral"
+  title={pageTitle('plans')}
   description="Rubric-drafted cards in the same template as the live ones. None is live; all four-tuples are written in the same format. The mechanism generalizes."
 >
   <section class="frame">

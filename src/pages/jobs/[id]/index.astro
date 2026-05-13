@@ -54,12 +54,22 @@ const [overview, leaderboard, feed, spec, discovery] = kind === 'regulatory'
 const top3 = leaderboard ? leaderboard.items.slice(0, 3) : []
 const recent = feed ? feed.items : []
 
+// Resolve a visible mason name with a fallback chain so the wall never
+// renders an empty handle. Preference: explicit display_name → truncated
+// hotkey (still chain-verifiable) → 'unknown mason' as last resort.
+function resolveDisplayName(displayName: string | null | undefined, hotkey: string | null | undefined): string {
+  const dn = (displayName ?? '').trim()
+  if (dn) return dn
+  if (hotkey && hotkey.length > 10) return truncateMiddle(hotkey, 6, 4)
+  return 'unknown mason'
+}
+
 const nowMs = Date.now()
 const rosterScored = leaderboard
   ? leaderboard.items.map((r) => ({
       kind: 'scored' as const,
       agentId: r.agent_id,
-      displayName: r.display_name,
+      displayName: resolveDisplayName(r.display_name, r.miner_hotkey),
       hotkey: r.miner_hotkey,
       score: r.current_score,
       rank: r.current_rank,
@@ -74,7 +84,7 @@ const rosterEvaluating = discovery
       .map((d) => ({
         kind: 'evaluating' as const,
         agentId: d.agent_id,
-        displayName: d.display_name,
+        displayName: resolveDisplayName(d.display_name, d.miner_hotkey),
         hotkey: d.miner_hotkey,
         bio: d.bio,
         bundleHash: d.bundle_hash,
@@ -162,7 +172,7 @@ const outerPetals = Array.from({ length: 8 }, (_, i) => {
 // Top-3 mason marks (server-rendered SVG strings, embedded with set:html).
 const procession = top3.map((row, i) => ({
   rank: i + 1,
-  name: row.display_name,
+  name: resolveDisplayName(row.display_name, row.miner_hotkey),
   hk: row.miner_hotkey,
   hkShort: truncateMiddle(row.miner_hotkey, 6, 4),
   score: row.current_score,

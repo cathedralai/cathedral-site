@@ -519,28 +519,28 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     flex-direction: column;
   }
   .wall-frame-compact .grid {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-height: clamp(200px, 32vh, 360px);
-    max-height: min(34vh, 380px);
-    height: auto;
-    aspect-ratio: 12 / 5.5;
-    gap: clamp(5px, 0.65vmin, 9px);
+    max-height: none;
+    height: 100%;
+    aspect-ratio: auto;
+    gap: clamp(3px, 0.45vmin, 6px);
     grid-template-rows: repeat(6, minmax(0, 1fr));
-    justify-items: center;
-    align-items: center;
+    justify-items: stretch;
+    align-items: stretch;
   }
   .wall-frame-compact .stone {
-    width: 92%;
+    width: 100%;
     max-width: 100%;
     max-height: 100%;
-    height: auto;
-    aspect-ratio: 11 / 10;
-    align-self: center;
-    justify-self: center;
+    height: 100%;
+    aspect-ratio: auto;
+    align-self: stretch;
+    justify-self: stretch;
   }
   .wall-frame-compact .stone :global(svg) {
-    width: 70%;
-    height: 70%;
+    width: 76%;
+    height: 76%;
     max-width: none;
     max-height: none;
   }

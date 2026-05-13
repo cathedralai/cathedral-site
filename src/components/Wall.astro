@@ -1093,10 +1093,28 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
   }
 
   @media (max-width: 720px) {
-    .grid { gap: 3px; min-height: 220px; }
     .wall-head .legend { display: none; }
     .peek { left: 8px; right: 8px; padding: 10px 12px; gap: 10px; }
     .peek .t { display: none; }
     .peek .who { min-width: 100px; }
+    /* Wider cells on mobile: at 12 cols a 375px viewport gives ~28px
+       cells which barely render the stained-glass glyph. 8×9 keeps the
+       grid roughly the same proportion (wider than tall) while making
+       each stone large enough to read at-a-glance. */
+    .wall-frame .grid {
+      gap: 4px;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(9, minmax(36px, 1fr));
+      aspect-ratio: auto;
+      min-height: auto;
+    }
+  }
+  @media (max-width: 480px) {
+    /* Below 480 (typical phone portrait), 6×12 reads better — fewer
+       columns means each glyph hits its readable size threshold. */
+    .wall-frame .grid {
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(12, minmax(38px, 1fr));
+    }
   }
 </style>

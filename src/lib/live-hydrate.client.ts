@@ -275,6 +275,19 @@ interface FeedPage {
   items: EvalOutput[]
 }
 
+interface DiscoveryItem {
+  agent_id: string
+  display_name: string
+  bio: string | null
+  miner_hotkey: string
+  card_id: string
+  bundle_hash: string
+  submitted_at: string
+}
+interface DiscoveryPage {
+  items: DiscoveryItem[]
+}
+
 interface AgentProfileResponse {
   display_name?: string
   current_score?: number | null
@@ -349,6 +362,81 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         el,
         renderStatusStripInner(latest, totalAgents, latestEpoch),
       )
+    } else if (kind === 'wall' && cardId) {
+      // Live-refresh the wall by re-fetching feed + discovery and
+      // marking the wall element with a 'new stones since render'
+      // count. We don't rebuild the grid (that's an SSR concern); we
+      // just announce drift so the visitor knows the data is alive.
+      // When drift > 0, a small "fresh stone landed" pulse fires on
+      // the wall frame to draw the eye, and the count surfaces above
+      // the legend.
+      const [feed, discovery] = await Promise.all([
+        fetchJSON<FeedPage>(
+          `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/feed?limit=96`,
+        ).catch(() => ({ items: [] }) as FeedPage),
+        fetchJSON<DiscoveryPage>(
+          `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/discovery?limit=48`,
+        ).catch(() => ({ items: [] }) as DiscoveryPage),
+      ])
+      const known = new Set<string>()
+      el.querySelectorAll<HTMLElement>('.stone[data-i]').forEach((s) => {
+        const aid = s.dataset.agentId
+        const ran = s.dataset.ranAt || s.dataset.submittedAt
+        if (aid && ran) known.add(`${aid}|${ran}`)
+      })
+      const now = Date.now()
+      const HOUR_24 = 24 * 60 * 60 * 1000
+      let driftScored = 0
+      let driftEval = 0
+      for (const e of feed.items || []) {
+        const t = new Date(e.ran_at).getTime()
+        if (now - t > HOUR_24 || now - t < 0) continue
+        if (!known.has(`${e.agent_id}|${e.ran_at}`)) driftScored++
+      }
+      for (const d of discovery.items || []) {
+        const t = new Date(d.submitted_at).getTime()
+        if (now - t > HOUR_24 || now - t < 0) continue
+        if (!known.has(`${d.agent_id}|${d.submitted_at}`)) driftEval++
+      }
+      const drift = driftScored + driftEval
+      // Update a drift chip in the wall header if one exists; create it
+      // if not. Click reloads the page (cheaper than a JS rebuild for
+      // now; keeps SSR layout as the source of truth).
+      let chip = el.querySelector<HTMLElement>('[data-wall-drift]')
+      const headRule = el.querySelector<HTMLElement>('.wall-head .rule')
+      if (drift > 0) {
+        if (!chip && headRule) {
+          chip = document.createElement('button')
+          chip.dataset.wallDrift = 'true'
+          chip.type = 'button'
+          chip.className = 'lg lg-new'
+          chip.style.cssText =
+            'cursor:pointer;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);padding:3px 8px;font:inherit;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;font-family:var(--mono);'
+          chip.addEventListener('click', () => location.reload())
+          headRule.insertAdjacentElement('afterend', chip)
+        }
+        if (chip) {
+          const parts: string[] = []
+          if (driftScored) parts.push(`${driftScored} scored`)
+          if (driftEval) parts.push(`${driftEval} pending`)
+          chip.textContent = `+ ${parts.join(' · ')} · reload`
+          chip.setAttribute('aria-label', `${drift} new stones since this page loaded — click to refresh`)
+        }
+        // One-shot pulse on the wall frame to draw attention. Repeats
+        // only if drift count changes.
+        const prev = Number(el.dataset.driftSeen || '0')
+        if (drift !== prev) {
+          el.classList.remove('cd-wall-pulse')
+          // Force reflow so the animation re-triggers when the class
+          // is re-added.
+          void el.offsetWidth
+          el.classList.add('cd-wall-pulse')
+          el.dataset.driftSeen = String(drift)
+        }
+      } else if (chip) {
+        chip.remove()
+        el.dataset.driftSeen = '0'
+      }
     } else if (kind === 'cards-index') {
       // The cards index page renders each tile with [data-card-id]. We
       // refresh just the per-tile agent count + last-update label so new

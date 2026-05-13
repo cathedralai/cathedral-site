@@ -143,6 +143,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   class:list={['wall-frame', compact && 'wall-frame-compact']}
   data-wall
   data-card-id={cardId}
+  data-live="wall"
 >
   <header class="wall-head">
     {num && <span class="num">{num}</span>}
@@ -591,6 +592,18 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   @keyframes cd-wait {
     0%, 100% { opacity: 0.78; }
     50%      { opacity: 1; }
+  }
+
+  /* One-shot pulse on the wall frame when live-hydrate detects new
+     stones landed since the page was rendered. The chip in the header
+     ("+ 2 scored · reload") is the affordance; this draws the eye. */
+  @keyframes cd-wall-flash {
+    0%   { box-shadow: 0 0 0 0 rgba(126, 168, 208, 0.55); }
+    60%  { box-shadow: 0 0 0 6px rgba(126, 168, 208, 0.0); }
+    100% { box-shadow: 0 0 0 0 rgba(126, 168, 208, 0.0); }
+  }
+  .wall-frame.cd-wall-pulse .wall {
+    animation: cd-wall-flash 900ms ease-out 1;
   }
   /* Empty/claimable stones still feel like stones — solid surface fill
      with a faint heraldic glyph baked in. The wall reads as a wall, not

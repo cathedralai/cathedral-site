@@ -231,6 +231,12 @@ const regulatoryPanels = await Promise.all(
         submittedAt: d.submitted_at,
       }))
     const roster = [...rosterScored, ...rosterEvaluating].slice(0, WALL_CAPACITY)
+    const recent24h = recent.filter(
+      (e) => nowMs - new Date(e.ran_at).getTime() < 24 * HOUR_MS,
+    )
+    const eval24h = recent24h.length
+    const eval24hAccepted = recent24h.filter((e) => e.weighted_score > 0).length
+    const eval24hRejected = eval24h - eval24hAccepted
     const rubric = spec.scoring_rubric
     const weightRows = rubric
       ? [
@@ -262,6 +268,9 @@ const regulatoryPanels = await Promise.all(
       roster,
       procession,
       weightRows,
+      eval24h,
+      eval24hAccepted,
+      eval24hRejected,
       cadenceHours: spec.refresh_cadence_hours,
       agentCount: overview.agent_count,
     }
@@ -569,7 +578,14 @@ const industryCounts = {
               </span>
               <span class="toll">score lock <strong>{scoreLockLabel}</strong></span>
             </div>
-            <Wall roster={panel.roster} cardId={panel.cardId} compact />
+            <Wall
+              roster={panel.roster}
+              cardId={panel.cardId}
+              compact
+              eval24h={panel.eval24h}
+              eval24hAccepted={panel.eval24hAccepted}
+              eval24hRejected={panel.eval24hRejected}
+            />
 
             <div class="canvas-row">
               <section class="proc-frame" aria-label="Top three this round">

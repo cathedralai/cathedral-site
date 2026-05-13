@@ -45,9 +45,15 @@ interface Props {
   num?: string
   /** Tighter grid for single-viewport layouts. */
   compact?: boolean
+  /** Scored submissions in the last 24h for this job. */
+  eval24h?: number
+  /** Last-24h submissions that earned a wall stone (score > 0). */
+  eval24hAccepted?: number
+  /** Last-24h submissions scored and rejected (score 0). */
+  eval24hRejected?: number
 }
 
-const { roster, cardId, num, compact = false } = Astro.props
+const { roster, cardId, num, compact = false, eval24h, eval24hAccepted, eval24hRejected } = Astro.props
 
 // 12 columns × 6 rows = 72 cells. Wider than tall reads as a wall, not a
 // timeline. If the roster outgrows this we'll surface a "+N more" deep
@@ -71,14 +77,14 @@ const cells: Cell[] = []
 for (const r of scoredRoster.slice(0, TOTAL)) cells.push(r)
 while (cells.length < TOTAL) cells.push({ kind: 'empty', idx: cells.length })
 
-const counts = { fresh: 0, scored: 0, open: 0 }
+const counts = { laid: 0, open: 0 }
 for (const c of cells) {
   if (c.kind === 'empty') counts.open++
-  else if (c.fresh) counts.fresh++
-  else counts.scored++
+  else counts.laid++
 }
-const laidCount = counts.fresh + counts.scored
+const laidCount = counts.laid
 const claimedCount = Math.max(1, laidCount)
+const showEval24h = typeof eval24h === 'number'
 
 const skillUrl = 'https://api.cathedral.computer/skill.md'
 const enlistLine = `Read ${skillUrl} and mine ${cardId}`
@@ -101,15 +107,34 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>
     <span class="rule"></span>
-    <span class="wall-pressure" aria-label={`${laidCount} of ${TOTAL} stones laid`}>
-      <strong>{laidCount}</strong> / {TOTAL} stones laid
+    <span
+      class="wall-pressure"
+      aria-label={
+        showEval24h
+          ? `${laidCount} of ${TOTAL} on wall. ${eval24h} scored in 24h. ${eval24hAccepted ?? 0} accepted. ${eval24hRejected ?? 0} rejected.`
+          : `${laidCount} of ${TOTAL} on wall`
+      }
+    >
+      <strong>{laidCount}</strong> / {TOTAL} on wall
+      {showEval24h && (
+        <>
+          <span class="wall-pressure-sep" aria-hidden="true">·</span>
+          <span class="wall-pressure-24h">
+            {eval24h} in 24h
+            <span class="wall-pressure-detail">
+              <strong>{eval24hAccepted ?? 0}</strong> accepted
+              <span class="wall-pressure-sep" aria-hidden="true">·</span>
+              <strong>{eval24hRejected ?? 0}</strong> rejected
+            </span>
+          </span>
+        </>
+      )}
     </span>
-    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.open} no stone`}>
-      <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
-      <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
-      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
+    <span class="legend" aria-label={`${counts.laid} laid stones, ${counts.open} bare seats`}>
+      <span class="lg lg-laid"><span class="sw" aria-hidden="true"></span>laid</span>
+      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>bare</span>
     </span>
-    <span class="flow-hint">a scored mason lays one stone · open seats are still claimable</span>
+    <span class="flow-hint">laid stones carry a mason mark · bare seats are claimable</span>
   </header>
 
   <div class="wall">
@@ -396,9 +421,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     flex: 1; height: 1px; min-width: 24px;
     background: var(--border-soft); margin: 0 4px;
   }
-  /* Legend strip on the right of the wall header — four swatches with
-     terse labels. Replaces the old summary-counts strip (counts read
-     as noise next to the heraldic grid). */
+  /* Legend: laid stone vs bare seat. */
   .wall-head .legend {
     display: inline-flex;
     align-items: center;
@@ -421,19 +444,9 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     display: inline-block;
     border: 1px solid currentColor;
   }
-  .wall-head .legend .lg-fresh .sw {
-    background: var(--accent);
-    border-color: var(--accent);
-    box-shadow: 0 0 6px rgba(126, 168, 208, 0.5);
-  }
-  .wall-head .legend .lg-scored .sw {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-  }
-  .wall-head .legend .lg-evaluating .sw {
-    background: var(--warn-dim, rgba(216, 167, 101, 0.16));
-    border-color: var(--warn, #d8a765);
-    border-style: dotted;
+  .wall-head .legend .lg-laid .sw {
+    background: var(--surface);
+    border-color: rgba(126, 168, 208, 0.45);
   }
   .wall-head .legend .lg-open .sw {
     background: rgba(126, 168, 208, 0.08);
@@ -441,12 +454,27 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     border-style: dashed;
   }
   .wall-head .wall-pressure {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 6px;
     font-family: var(--mono);
     font-size: 9.5px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--muted);
-    white-space: nowrap;
+  }
+  .wall-head .wall-pressure-sep {
+    color: var(--faint);
+  }
+  .wall-head .wall-pressure-24h {
+    letter-spacing: 0.08em;
+  }
+  .wall-head .wall-pressure-detail {
+    margin-left: 6px;
+    color: var(--dim);
+    font-size: 9px;
+    letter-spacing: 0.1em;
   }
   .wall-head .wall-pressure strong {
     color: var(--fg);

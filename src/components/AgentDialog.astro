@@ -10,10 +10,19 @@
  *     handler so it doesn't need to know about this dialog's selector)
  *   - any element with `data-agent-modal-open="<agent_id>"` (procession
  *     rows, vitals "you" links, etc.)
+ *
+ * The publisher API base is injected as a data attribute at build time
+ * so the inline script knows where to fetch profiles. Without it the
+ * fetch falls back to the same origin, which 404s on the static
+ * cathedral.computer deploy (no /api/cathedral proxy) and the modal
+ * renders "Unknown mason" for every click.
  */
+const apiBase =
+  (import.meta.env.PUBLIC_CATHEDRAL_API_URL as string | undefined) ||
+  'https://cathedral-publisher-production.up.railway.app'
 ---
 
-<dialog class="agent-dialog" data-agent-dialog>
+<dialog class="agent-dialog" data-agent-dialog data-api-base={apiBase}>
   <form method="dialog" class="agent-shell">
     <header class="agent-head">
       <span class="agent-k" data-agent-rank>·</span>
@@ -64,6 +73,9 @@
   (function () {
     var dialog = document.querySelector('[data-agent-dialog]')
     if (!dialog || typeof dialog.showModal !== 'function') return
+    // Build-time-injected publisher base. The static deploy has no
+    // /api/cathedral proxy, so we have to fetch the publisher directly.
+    var API_BASE = dialog.getAttribute('data-api-base') || ''
 
     var byKey = {
       name: dialog.querySelector('[data-agent-name]'),
@@ -147,7 +159,13 @@
         byKey.recentSec.hidden = true
         return
       }
-      byKey.name.textContent = '@' + (profile.display_name || profile.id.slice(0, 8))
+      // Name fallback chain: display_name → truncated hotkey →
+      // truncated agent id. A short hotkey is more useful than 'Unknown
+      // mason' because the visitor can still verify the mason on chain.
+      var nm = profile.display_name
+        || (profile.miner_hotkey ? truncHotkey(profile.miner_hotkey) : '')
+        || profile.id.slice(0, 8)
+      byKey.name.textContent = '@' + nm
       byKey.rank.textContent = profile.current_rank
         ? 'rank ' + String(profile.current_rank).padStart(2, '0')
         : 'unranked'
@@ -220,7 +238,8 @@
       }
       showLoading()
       var token = ++currentToken
-      fetch('/api/cathedral/v1/agents/' + encodeURIComponent(agentId), {
+      var url = API_BASE + '/v1/agents/' + encodeURIComponent(agentId)
+      fetch(url, {
         headers: { accept: 'application/json' },
       })
         .then(function (r) { return r.ok ? r.json() : null })

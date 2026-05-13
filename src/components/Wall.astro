@@ -354,19 +354,18 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
       })
     }
 
-    // Scored stones open the agent profile modal. Profile data is
-    // fetched on demand by the AgentDialog script; we only need to
-    // forward the id here.
-    grid.addEventListener('click', function (e) {
-      var el = e.target.closest('[data-agent-modal-open]')
-      if (!el) return
-      e.preventDefault()
-      var ev = new CustomEvent('cd:agent-modal-open', {
-        detail: { agentId: el.getAttribute('data-agent-modal-open') },
-        bubbles: true,
-      })
-      el.dispatchEvent(ev)
-    })
+    // Scored stones open the agent profile modal. The modal's own
+    // delegated click handler in AgentDialog.astro picks up every
+    // [data-agent-modal-open] element (wall tiles, procession rows,
+    // you-block) and reads the seed of tile-known fields straight off
+    // the clicked element (name, score, rank, ran-at) so the modal
+    // renders the mason's real handle the instant it opens — even if
+    // the publisher fetch is blocked (the publisher does not send
+    // CORS headers from cathedral.computer, so the client-side fetch
+    // can fail; without this seed the modal would fall through to
+    // "Unknown mason" on every click). No CustomEvent dispatch needed
+    // here; we keep the dialog's click delegation as the single entry
+    // point so wall + procession behave identically.
   })()
 </script>
 

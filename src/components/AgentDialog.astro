@@ -1,21 +1,32 @@
 ---
 /**
- * Centered agent profile modal. Empty on render; populated on first
- * open by fetching /v1/agents/{id}. One modal per page; the same dialog
- * recycles across all wall + procession clicks so we don't ship N copies
- * of identical markup.
+ * Centered agent profile modal. Empty on render; populated on open by
+ * seeding from the clicked tile's data-* attributes first, then
+ * enriching with a /v1/agents/{id} fetch. One modal per page; the
+ * same dialog recycles across all wall + procession clicks so we
+ * don't ship N copies of identical markup.
  *
- * Triggered by either:
- *   - a `cd:agent-modal-open` CustomEvent (used by the wall's click
- *     handler so it doesn't need to know about this dialog's selector)
- *   - any element with `data-agent-modal-open="<agent_id>"` (procession
- *     rows, vitals "you" links, etc.)
+ * Triggered by:
+ *   - any element with `data-agent-modal-open="<agent_id>"` (wall
+ *     stones, procession rows, vitals "you" links, etc.). The dialog's
+ *     delegated click listener reads the rest of the seed (display
+ *     name, score, rank, ran-at) straight off the clicked element so
+ *     the modal renders the mason's real handle the instant it opens.
+ *   - a `cd:agent-modal-open` CustomEvent with
+ *     `detail: { agentId, seed? }` (kept as a public API for callers
+ *     that want to open the modal without an originating click).
  *
- * The publisher API base is injected as a data attribute at build time
- * so the inline script knows where to fetch profiles. Without it the
- * fetch falls back to the same origin, which 404s on the static
- * cathedral.computer deploy (no /api/cathedral proxy) and the modal
- * renders "Unknown mason" for every click.
+ * The publisher API base is injected as a data attribute at build
+ * time so the inline script knows where to fetch profiles. Two
+ * defensive layers cover the historical "Unknown mason" failure
+ * modes:
+ *   1) The static cathedral.computer deploy has no /api/cathedral
+ *      proxy, so the URL must be absolute (PR #123 fix).
+ *   2) The publisher does not send CORS headers from
+ *      cathedral.computer, so the in-browser fetch can fail.
+ *      Seeding the modal from the tile's data-* attributes means
+ *      every scored stone shows its mason's real display_name even
+ *      if the fetch never lands.
  */
 const apiBase =
   (import.meta.env.PUBLIC_CATHEDRAL_API_URL as string | undefined) ||
@@ -229,14 +240,62 @@ const apiBase =
       byKey.last.textContent = '—'
     }
 
-    function open(agentId) {
+    // Seed render — paint everything the caller already knows from the
+    // clicked tile (name, score, rank, last-eval). The publisher fetch
+    // adds vigil, sparkline, and recent stones on top, but the modal
+    // never shows "Loading…" or "Unknown mason" for a tile that already
+    // carries a usable name. This is the load-bearing guarantee:
+    // scored stones display their mason's handle the instant the modal
+    // opens, regardless of network state (the publisher does not send
+    // CORS headers from cathedral.computer, so the in-browser fetch can
+    // fail; without the seed every click would fall through to the
+    // "Unknown mason" empty-state branch).
+    function seedRender(seed) {
+      if (!seed) return
+      byKey.loading.hidden = true
+      byKey.empty.hidden = true
+      byKey.historySec.hidden = true
+      byKey.recentSec.hidden = true
+      var nm = (seed.displayName || '').trim()
+      byKey.name.textContent = nm ? '@' + nm : '—'
+      if (seed.rank) {
+        byKey.rank.textContent = 'rank ' + String(seed.rank).padStart(2, '0')
+      } else if (seed.state === 'evaluating') {
+        byKey.rank.textContent = 'evaluating'
+      } else {
+        byKey.rank.textContent = '·'
+      }
+      byKey.hotkey.textContent = '—'
+      if (seed.state === 'evaluating') {
+        byKey.score.textContent = '·'
+      } else if (seed.score) {
+        byKey.score.textContent = fmtScore(parseFloat(seed.score))
+      } else {
+        byKey.score.textContent = '—'
+      }
+      byKey.vigil.textContent = '—'
+      byKey.last.textContent = seed.ranAt ? relTime(seed.ranAt) : '—'
+      if (seed.bio) {
+        byKey.bio.textContent = seed.bio
+        byKey.bio.hidden = false
+      } else {
+        byKey.bio.hidden = true
+      }
+    }
+
+    function open(agentId, seed) {
       if (!agentId) return
       dialog.showModal()
       if (cache[agentId]) {
         render(cache[agentId])
         return
       }
-      showLoading()
+      var hasSeed = !!(seed && (seed.displayName || seed.score || seed.rank))
+      if (hasSeed) {
+        seedRender(seed)
+      } else {
+        showLoading()
+      }
       var token = ++currentToken
       var url = API_BASE + '/v1/agents/' + encodeURIComponent(agentId)
       fetch(url, {
@@ -247,23 +306,50 @@ const apiBase =
         .then(function (data) {
           if (token !== currentToken) return
           cache[agentId] = data
-          render(data)
+          // If the fetch returned a real profile, render the rich
+          // version. If it failed (CORS, network, 404) and we already
+          // painted a usable seed, leave the seed on screen — falling
+          // through to render(null) would replace the real handle with
+          // "Unknown mason", which is exactly the bug this fix exists
+          // to prevent.
+          if (data && data.id) {
+            render(data)
+          } else if (!hasSeed) {
+            render(data)
+          }
         })
     }
 
-    // Custom-event entry point (used by Wall.astro's click handler).
+    function seedFromEl(el) {
+      if (!el) return null
+      return {
+        displayName: el.getAttribute('data-agent-name') || '',
+        bio: el.getAttribute('data-agent-bio') || '',
+        score: el.getAttribute('data-score') || '',
+        rank: el.getAttribute('data-rank') || '',
+        ranAt: el.getAttribute('data-ran-at') || el.getAttribute('data-submitted-at') || '',
+        state: el.getAttribute('data-state') || '',
+      }
+    }
+
+    // Custom-event entry point (used by Wall.astro's click handler,
+    // which passes the tile's seed values in event.detail.seed so
+    // scored stones paint their name without waiting for the fetch).
     document.addEventListener('cd:agent-modal-open', function (e) {
-      open(e.detail && e.detail.agentId)
+      var d = (e && e.detail) || {}
+      open(d.agentId, d.seed)
     })
 
-    // Click-attribute entry point (procession rows, you-block).
+    // Click-attribute entry point (procession rows, you-block). Read
+    // the seed straight off the clicked element so procession clicks
+    // also get instant-paint without needing a CustomEvent dispatcher.
     document.addEventListener('click', function (e) {
       var el = e.target.closest('[data-agent-modal-open]')
       if (!el) return
       var id = el.getAttribute('data-agent-modal-open')
       if (!id) return
       e.preventDefault()
-      open(id)
+      open(id, seedFromEl(el))
     })
   })()
 </script>

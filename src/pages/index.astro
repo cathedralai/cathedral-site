@@ -165,6 +165,21 @@ const sortedJobs = [...jobRows].sort((a, b) => {
 
 const defaultJobId = sortedJobs[0]?.id ?? V1_CARD_IDS[0]
 
+// Vigil days = how many distinct UTC days the agent has shipped a stone
+// against this card. Derived from the card's own feed (window: 30d so
+// the bar tops out near a month of standing watch).
+function vigilDaysFor(agentId: string, items: { agent_id: string; ran_at: string }[]): number {
+  const days = new Set<string>()
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+  for (const e of items) {
+    if (e.agent_id !== agentId) continue
+    const t = new Date(e.ran_at).getTime()
+    if (t < cutoff) continue
+    days.add(new Date(e.ran_at).toISOString().slice(0, 10))
+  }
+  return days.size
+}
+
 const regulatoryPanels = await Promise.all(
   V1_CARD_IDS.map(async (cardId) => {
     const [leaderboard, feed, spec, overview] = await Promise.all([
@@ -186,14 +201,18 @@ const regulatoryPanels = await Promise.all(
           { key: 'clarity_weight', label: 'Clarity', weight: rubric.clarity_weight },
         ]
       : []
-    const procession = top3.map((row, i) => ({
-      rank: i + 1,
-      name: row.display_name,
-      hkShort: truncateMiddle(row.miner_hotkey, 6, 4),
-      score: row.current_score,
-      agentId: row.agent_id,
-      markSvg: masonMark(row.miner_hotkey || row.agent_id, { size: 28 }),
-    }))
+    const procession = top3.map((row, i) => {
+      const vigil = vigilDaysFor(row.agent_id, recent)
+      return {
+        rank: i + 1,
+        name: row.display_name,
+        hkShort: truncateMiddle(row.miner_hotkey, 6, 4),
+        score: row.current_score,
+        agentId: row.agent_id,
+        markSvg: masonMark(row.miner_hotkey || row.agent_id, { size: 28 }),
+        vigil,
+      }
+    })
     return {
       cardId,
       spec,
@@ -478,6 +497,11 @@ const industryCounts = {
                             <span class="pr-nm">open slot</span>
                             <span class="pr-hk">claim on wall</span>
                           </span>
+                          <span class="pr-vigil" aria-hidden="true">
+                            <span class="vigil-bars">
+                              {[0, 1, 2, 3, 4].map(() => <span class="vb"></span>)}
+                            </span>
+                          </span>
                           <span class="pr-sc">—</span>
                         </div>
                       </li>
@@ -485,19 +509,34 @@ const industryCounts = {
                   </ol>
                 ) : (
                   <ol class="proc-list">
-                    {panel.procession.map((r) => (
-                      <li>
-                        <a class={`proc-row rank-${r.rank}`} href={`/agents/${r.agentId}`}>
-                          <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>
-                          <span class="pr-mk" set:html={r.markSvg}></span>
-                          <span class="pr-who">
-                            <span class="pr-nm">@{r.name}</span>
-                            <span class="pr-hk">{r.hkShort}</span>
-                          </span>
-                          <span class="pr-sc">{formatScore(r.score)}</span>
-                        </a>
-                      </li>
-                    ))}
+                    {panel.procession.map((r) => {
+                      // 5 vigil bars; each bar lights at days 1, 7, 14, 21, 30.
+                      // The bar pattern reads as a streak indicator without a
+                      // hard cap. (Days are derived from this card's own feed.)
+                      const thresholds = [1, 7, 14, 21, 30]
+                      const bars = thresholds.map((t) => r.vigil >= t)
+                      return (
+                        <li>
+                          <a class={`proc-row rank-${r.rank}`} href={`/agents/${r.agentId}`}>
+                            <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>
+                            <span class="pr-mk" set:html={r.markSvg}></span>
+                            <span class="pr-who">
+                              <span class="pr-nm">@{r.name}</span>
+                              <span class="pr-hk">{r.hkShort}</span>
+                            </span>
+                            <span class="pr-vigil" aria-label={`vigil ${r.vigil} days`}>
+                              <span class="vigil-bars" aria-hidden="true">
+                                {bars.map((on) => (
+                                  <span class={on ? 'vb on' : 'vb'}></span>
+                                ))}
+                              </span>
+                              <span class="vigil-lbl">vigil <strong>{r.vigil}d</strong></span>
+                            </span>
+                            <span class="pr-sc">{formatScore(r.score)}</span>
+                          </a>
+                        </li>
+                      )
+                    })}
                   </ol>
                 )}
               </section>
@@ -1321,9 +1360,44 @@ const industryCounts = {
       overflow: hidden;
     }
     .job-panel .proc-row {
-      grid-template-columns: auto 22px minmax(0, 1fr) auto;
+      grid-template-columns: auto 22px minmax(0, 1fr) auto auto;
       gap: 8px;
       padding: 5px 8px;
+    }
+    .job-panel .pr-vigil {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .job-panel .pr-vigil .vigil-bars {
+      display: inline-flex;
+      gap: 1.5px;
+      align-items: flex-end;
+    }
+    .job-panel .pr-vigil .vb {
+      width: 3px;
+      height: 6px;
+      background: var(--border);
+      display: inline-block;
+    }
+    .job-panel .pr-vigil .vb:nth-child(2) { height: 8px; }
+    .job-panel .pr-vigil .vb:nth-child(3) { height: 10px; }
+    .job-panel .pr-vigil .vb:nth-child(4) { height: 12px; }
+    .job-panel .pr-vigil .vb:nth-child(5) { height: 14px; }
+    .job-panel .pr-vigil .vb.on { background: var(--accent); }
+    .job-panel .pr-vigil .vigil-lbl strong {
+      color: var(--fg);
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
+    }
+    @media (max-width: 640px) {
+      .job-panel .pr-vigil .vigil-lbl { display: none; }
     }
     .job-panel .pr-mk,
     .job-panel .pr-mk.empty {
@@ -1427,7 +1501,7 @@ const industryCounts = {
     }
     .proc-row {
       display: grid;
-      grid-template-columns: auto 28px minmax(0, 1fr) auto;
+      grid-template-columns: auto 28px minmax(0, 1fr) auto auto;
       align-items: center;
       gap: 10px;
       padding: 7px 10px;
@@ -1436,6 +1510,41 @@ const industryCounts = {
       color: inherit;
       transition: background 140ms;
       min-width: 0;
+    }
+    /* Vigil indicator — 5 small bars + label, sits between identity
+       and score. Reads as a streak at-a-glance. Days derived from
+       this card's feed in the last 30d. */
+    .pr-vigil {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .pr-vigil .vigil-bars {
+      display: inline-flex;
+      gap: 2px;
+      align-items: flex-end;
+    }
+    .pr-vigil .vb {
+      width: 3px;
+      background: var(--border);
+      display: inline-block;
+    }
+    .pr-vigil .vb:nth-child(1) { height: 6px; }
+    .pr-vigil .vb:nth-child(2) { height: 9px; }
+    .pr-vigil .vb:nth-child(3) { height: 12px; }
+    .pr-vigil .vb:nth-child(4) { height: 15px; }
+    .pr-vigil .vb:nth-child(5) { height: 18px; }
+    .pr-vigil .vb.on { background: var(--accent); }
+    .pr-vigil .vigil-lbl strong {
+      color: var(--fg);
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
     }
     .proc-row:hover { background: var(--surface); }
     .proc-row.rank-1 { background: var(--accent-dim); }

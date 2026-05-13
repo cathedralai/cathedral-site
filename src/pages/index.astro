@@ -574,9 +574,6 @@ const industryCounts = {
                   return <span class={cls} title={h}></span>
                 })}
               </span>
-              <span class="bk">
-                {panel.recent.length} stone{panel.recent.length === 1 ? '' : 's'} &middot; 24h window
-              </span>
               <span class="toll">score lock <strong>{scoreLockLabel}</strong></span>
             </div>
             <Wall
@@ -1641,10 +1638,6 @@ const industryCounts = {
     @keyframes cd-breathe {
       0%, 100% { box-shadow: 0 0 6px rgba(126, 168, 208, 0.35); }
       50%      { box-shadow: 0 0 14px rgba(126, 168, 208, 0.7); }
-    }
-    .top-strip .bk {
-      color: var(--dim);
-      font-variant-numeric: tabular-nums;
     }
     .top-strip .toll {
       margin-left: auto;

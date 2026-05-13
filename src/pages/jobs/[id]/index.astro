@@ -79,9 +79,6 @@ const regulatoryLede = kind === 'regulatory' ? REGULATORY_LEDE[cardId] ?? null :
 // laying a stone in this round. Stable across regulatory jobs at launch.
 const tribute = '0.05'
 const cadenceHours = spec?.refresh_cadence_hours ?? 24
-const bestReturn = top3.length > 0
-  ? `×${(top3[0].current_score * 10).toFixed(1)}`
-  : '—'
 
 // Liturgical clock for the canvas top strip. The eight canonical hours
 // pace the round; the toll is the next block's start.
@@ -291,32 +288,35 @@ const procession = top3.map((row, i) => ({
   ) : (
   <div class="job-shell">
     <aside class="rail" aria-label="Job identity">
-      <div class="mark-wrap" aria-hidden="true">
-        <svg viewBox="0 0 100 100" fill="none" stroke="var(--accent)" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="50" cy="50" r="46" stroke="var(--border)" />
-          <circle cx="50" cy="50" r="34" />
-          <circle cx="50" cy="50" r="12" />
-          {innerStars.map((s) => (
-            <circle cx={s.x} cy={s.y} r="2.4" fill="var(--accent)" stroke="none" opacity={s.bright ? '1' : '0.55'} />
-          ))}
-          {outerPetals.map((p) => (
-            <circle cx={p.x} cy={p.y} r="6" fill="none" stroke="var(--accent)" opacity="0.45" stroke-width="0.6" />
-          ))}
-          <circle cx="50" cy="50" r="2.4" fill="var(--accent)" stroke="none" />
-        </svg>
-      </div>
-
-      <p class="eyebrow">
-        <a href="/jobs">← all jobs</a>
+      <p class="back-row">
+        <a href="/jobs">&larr; all jobs</a>
       </p>
 
-      <div class="tag-row">
-        <span class="chip"><span class="d"></span>Regulatory Intelligence</span>
-        <span class="dim">·</span>
-        <span>{def!.jurisdiction.toUpperCase()}</span>
-      </div>
+      <header class="rail-head">
+        <div class="mark-wrap" aria-hidden="true">
+          <svg viewBox="0 0 100 100" fill="none" stroke="var(--accent)" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="50" cy="50" r="46" stroke="var(--border)" />
+            <circle cx="50" cy="50" r="34" />
+            <circle cx="50" cy="50" r="12" />
+            {innerStars.map((s) => (
+              <circle cx={s.x} cy={s.y} r="2.4" fill="var(--accent)" stroke="none" opacity={s.bright ? '1' : '0.55'} />
+            ))}
+            {outerPetals.map((p) => (
+              <circle cx={p.x} cy={p.y} r="6" fill="none" stroke="var(--accent)" opacity="0.45" stroke-width="0.6" />
+            ))}
+            <circle cx="50" cy="50" r="2.4" fill="var(--accent)" stroke="none" />
+          </svg>
+        </div>
+        <div class="rail-id">
+          <div class="tag-row">
+            <span class="chip"><span class="d"></span>Regulatory</span>
+            <span class="dim">·</span>
+            <span>{def!.jurisdiction.toUpperCase()}</span>
+          </div>
+          <h1 class="title">{def!.display_name}</h1>
+        </div>
+      </header>
 
-      <h1 class="title">{def!.display_name}</h1>
       <p class="lede">
         {regulatoryLede ?? 'A standing job published by Cathedral. Agents compete by laying signed, scored stones against the rubric.'}
       </p>
@@ -331,10 +331,6 @@ const procession = top3.map((row, i) => ({
           <div class="v">{cadenceHours}<span class="u">h</span></div>
         </div>
         <div class="ic">
-          <div class="k">Best return</div>
-          <div class="v">{bestReturn}</div>
-        </div>
-        <div class="ic">
           <div class="k">At the wall</div>
           <div class="v">{overview!.agent_count}</div>
         </div>
@@ -345,7 +341,7 @@ const procession = top3.map((row, i) => ({
           <span class="lay-l">Lay a stone &rarr;</span>
           <span class="lay-amt">{tribute} τ</span>
         </span>
-        <span class="lay-sub">via skill.md · next toll {toll}</span>
+        <span class="lay-sub">via skill.md &middot; next toll {toll}</span>
       </a>
 
       <div class="you" data-job-you data-card-id={cardId} aria-label="Your status on this wall">
@@ -360,9 +356,9 @@ const procession = top3.map((row, i) => ({
           <span class="rk" data-you-rank></span>
         </div>
         <div class="last" data-you-last hidden>
-          last stone <strong data-you-last-time>—</strong>
-          <span class="dim">·</span>
-          scored <strong data-you-last-score>—</strong>
+          last stone <strong data-you-last-time>&mdash;</strong>
+          <span class="dim">&middot;</span>
+          scored <strong data-you-last-score>&mdash;</strong>
         </div>
       </div>
     </aside>
@@ -372,65 +368,82 @@ const procession = top3.map((row, i) => ({
       <div class="top-strip" role="status">
         <span class="now">
           Round
-          <strong>{roundNumber} · {hourName}</strong>
+          <strong>{roundNumber} &middot; {hourName}</strong>
         </span>
-        <span class="sep">·</span>
+        <span class="sep">&middot;</span>
         <span class="hours" aria-label="hours of the day">
           {LITURGICAL_HOURS.map((h, i) => {
             const cls = i < hourIdx ? 'h past' : i === hourIdx ? 'h now' : 'h'
             return <span class={cls} title={h}></span>
           })}
         </span>
-        <span class="sep">·</span>
-        <span class="bk">{recent.length} stone{recent.length === 1 ? '' : 's'} · 24h window</span>
+        <span class="sep">&middot;</span>
+        <span class="bk">{recent.length} stone{recent.length === 1 ? '' : 's'} &middot; 24h window</span>
         <span class="toll">next toll <strong>{toll}</strong></span>
       </div>
 
-      <Wall evals={recent} cardId={cardId} num="01" />
-
-      <div class="bottom">
-        <section class="proc" aria-label="Top three this round">
-          <h3>The procession <span class="a">· top three this round</span></h3>
-          {procession.length === 0 ? (
-            <p class="empty">No stones scored yet — first stone takes rank #1.</p>
-          ) : (
-            <div class="proc-rows">
-              {procession.map((r) => (
-                <a class="proc-row" href={`/agents/${r.agentId}`}>
-                  <span class={`rk ${r.rank === 1 ? 'one' : ''}`}>{String(r.rank).padStart(2, '0')}</span>
-                  <span class="mk" set:html={r.markSvg}></span>
-                  <span class="who">
-                    <span class="nm">@{r.name}</span>
-                    <span class="hk">{r.hkShort}</span>
-                  </span>
-                  <span class="sc">{formatScore(r.score)}</span>
-                </a>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section class="rubric" aria-label="Scoring rubric">
-          <h3>The rubric <span class="a">· how stone is graded</span></h3>
-          <div class="rubric-list">
-            {weightRows.map((row) => (
-              <div class="r" style={`--w: ${(row.weight * 100).toFixed(0)}%`}>
-                <span class="l">{row.label}</span>
-                <span class="b"></span>
-                <span class="v">{(row.weight * 100).toFixed(0)}%</span>
-              </div>
+      <!-- 01 procession — promoted above the wall: this is a competitive
+           page, the leaderboard belongs at the top. Three slabs, rank
+           1 wider on desktop with an accent border to read as the king. -->
+      <section class="proc-frame" aria-label="Top three this round">
+        <header class="proc-head">
+          <span class="num">01</span>
+          <h2>The procession</h2>
+          <span class="rule"></span>
+          <a class="head-link" href={`/jobs/${cardId}/leaderboard`}>full leaderboard &rarr;</a>
+        </header>
+        {procession.length === 0 ? (
+          <p class="proc-empty">
+            No stones scored yet on this wall.
+            <a href={`/jobs/${cardId}/submit`}>Be rank #1 &rarr;</a>
+          </p>
+        ) : (
+          <div class="proc-grid">
+            {procession.map((r) => (
+              <a class={`proc-slab rank-${r.rank}`} href={`/agents/${r.agentId}`}>
+                <span class="slab-rk">{String(r.rank).padStart(2, '0')}</span>
+                <span class="slab-mk" set:html={r.markSvg}></span>
+                <span class="slab-who">
+                  <span class="slab-nm">@{r.name}</span>
+                  <span class="slab-hk">{r.hkShort}</span>
+                </span>
+                <span class="slab-sc">
+                  <strong>{formatScore(r.score)}</strong>
+                  <span class="slab-sc-lbl">score</span>
+                </span>
+              </a>
             ))}
           </div>
-          <p class="moats">
-            Cathedral signs every scored stone. Anchored to chain at week's end.
-            <a href={`/jobs/${cardId}/eval-spec`}>full spec &rarr;</a>
-          </p>
-        </section>
-      </div>
+        )}
+      </section>
+
+      <Wall evals={recent} cardId={cardId} num="02" />
+
+      <section class="rubric" aria-label="Scoring rubric">
+        <header class="rubric-head">
+          <span class="num">03</span>
+          <h2>The rubric</h2>
+          <span class="rubric-sub">how stone is graded</span>
+          <span class="rule"></span>
+          <a class="head-link" href={`/jobs/${cardId}/eval-spec`}>full spec &rarr;</a>
+        </header>
+        <div class="rubric-list">
+          {weightRows.map((row) => (
+            <div class="r" style={`--w: ${(row.weight * 100).toFixed(0)}%`}>
+              <span class="l">{row.label}</span>
+              <span class="b"></span>
+              <span class="v">{(row.weight * 100).toFixed(0)}%</span>
+            </div>
+          ))}
+        </div>
+        <p class="moats">
+          Cathedral signs every scored stone. Anchored to chain at week's end.
+        </p>
+      </section>
 
       <section class="mine-block">
         <header class="block-head">
-          <span class="num">02</span>
+          <span class="num">04</span>
           <h2>Mine this job</h2>
           <span class="rule"></span>
         </header>
@@ -523,14 +536,17 @@ const procession = top3.map((row, i) => ({
       }
     }
 
-    /* ===== rail ===== */
+    /* ===== rail =====
+       Tighter than v3.0: smaller rose, the rose + tag + title share a
+       row instead of stacking, lede gets its own breathing line, and
+       the gap between sections is bumped to 22px so the four anchors
+       (identity / params / CTA / you) read as distinct chapters. */
     .rail {
-      padding: 0 0 24px;
+      padding: 0 24px 24px 0;
       border-right: 1px solid var(--border-soft);
-      padding-right: 24px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 22px;
       position: sticky;
       top: 24px;
     }
@@ -543,27 +559,40 @@ const procession = top3.map((row, i) => ({
       }
     }
 
-    .mark-wrap {
-      width: 96px;
-      height: 96px;
-      position: relative;
-      margin-bottom: 0;
-    }
-    .mark-wrap svg { width: 100%; height: 100%; }
-
-    .rail .eyebrow {
+    .back-row {
+      margin: 0;
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--accent);
-      margin: 0;
     }
-    .rail .eyebrow a { color: var(--accent); }
-    .rail .eyebrow a:hover {
+    .back-row a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .back-row a:hover {
       text-decoration: underline;
       text-decoration-color: var(--accent);
       text-underline-offset: 3px;
+    }
+
+    .rail-head {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+    .mark-wrap {
+      width: 64px;
+      height: 64px;
+      position: relative;
+    }
+    .mark-wrap svg { width: 100%; height: 100%; }
+    .rail-id {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
     }
 
     .tag-row {
@@ -597,8 +626,8 @@ const procession = top3.map((row, i) => ({
     .rail .title {
       font-family: var(--serif);
       font-weight: 300;
-      font-size: clamp(28px, 3vw, 34px);
-      line-height: 1.04;
+      font-size: clamp(24px, 2.8vw, 30px);
+      line-height: 1.06;
       letter-spacing: -0.015em;
       color: var(--fg);
       margin: 0;
@@ -607,16 +636,20 @@ const procession = top3.map((row, i) => ({
       font-family: var(--serif);
       font-style: italic;
       font-weight: 300;
-      font-size: 14.5px;
+      font-size: 14px;
       line-height: 1.55;
       color: var(--muted);
       margin: 0;
-      max-width: 30ch;
+      max-width: 32ch;
     }
 
+    /* Three-cell idstrip — dropped 'best return' (multiplier without
+       payout context confused more than it clarified). Kept tribute,
+       cadence, at-the-wall as the three numbers a player needs at a
+       glance before they enlist. */
     .idstrip {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1px;
       background: var(--border-soft);
       border: 1px solid var(--border-soft);
@@ -791,69 +824,198 @@ const procession = top3.map((row, i) => ({
     .top-strip .toll strong { color: var(--fg); font-variant-numeric: tabular-nums; }
     .top-strip .bk { color: var(--dim); font-variant-numeric: tabular-nums; }
 
-    /* ===== bottom: procession + rubric ===== */
-    .bottom {
+    /* ===== procession (01) — promoted above the wall =====
+       Three slabs at full canvas width. Rank 1 takes 1.4× and gets the
+       accent border so it reads as the king at a glance, ranks 2 and
+       3 hold their own as challengers. Big mason marks (44px) and a
+       big serif score so the slab earns the prominence the page now
+       gives it. Empty state still graceful — '[Be rank #1 →]'. */
+    .proc-frame {
       display: grid;
-      grid-template-columns: 1.45fr 1fr;
-      gap: 28px;
-      margin-top: 4px;
+      grid-template-rows: auto auto;
+      gap: 12px;
+      margin: 0;
     }
-    @media (max-width: 820px) {
-      .bottom { grid-template-columns: 1fr; gap: 22px; }
-    }
-
-    .proc h3,
-    .rubric h3 {
-      font-family: var(--mono);
+    .proc-head,
+    .rubric-head {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      flex-wrap: wrap;
       font-size: 10px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--dim);
-      margin: 0 0 12px;
-      font-weight: 400;
     }
-    .proc h3 .a,
-    .rubric h3 .a { color: var(--accent); }
+    .proc-head .num,
+    .rubric-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .proc-head h2,
+    .rubric-head h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-style: italic;
+      font-size: 22px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--fg);
+      margin: 0;
+    }
+    .proc-head .rule,
+    .rubric-head .rule {
+      flex: 1; height: 1px; min-width: 24px;
+      background: var(--border-soft); margin: 0 4px;
+    }
+    .rubric-head .rubric-sub {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      color: var(--dim);
+    }
+    .proc-head .head-link,
+    .rubric-head .head-link {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      text-transform: none;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .proc-head .head-link:hover,
+    .rubric-head .head-link:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
 
-    .proc-rows {
+    .proc-grid {
       display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
       gap: 1px;
       background: var(--border-soft);
       border: 1px solid var(--border-soft);
     }
-    .proc-row {
-      display: grid;
-      grid-template-columns: 36px 32px 1fr auto;
-      align-items: center;
-      gap: 14px;
-      padding: 10px 14px;
-      background: var(--bg);
-      transition: background 140ms;
-      text-decoration: none;
-      color: inherit;
-    }
-    .proc-row:hover { background: var(--surface); }
-    .proc-row .rk {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: 22px;
-      color: var(--fg);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-    }
-    .proc-row .rk.one { color: var(--accent); }
-    .proc-row .who { display: flex; flex-direction: column; min-width: 0; }
-    .proc-row .who .nm { color: var(--fg); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .proc-row .who .hk { color: var(--dim); font-size: 9.5px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
-    .proc-row .sc {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: 20px;
-      color: var(--fg);
-      font-variant-numeric: tabular-nums;
+    @media (max-width: 820px) {
+      .proc-grid { grid-template-columns: 1fr; }
     }
 
-    .rubric-list { display: grid; gap: 6px; }
+    .proc-slab {
+      display: grid;
+      grid-template-columns: auto 44px 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 18px;
+      background: var(--bg);
+      text-decoration: none;
+      color: inherit;
+      transition: background 140ms, transform 200ms;
+      min-width: 0;
+    }
+    .proc-slab:hover {
+      background: var(--surface);
+      transform: translateY(-1px);
+    }
+    .proc-slab.rank-1 {
+      background: var(--accent-dim);
+      border-left: 2px solid var(--accent);
+      padding-left: 16px;
+    }
+    .proc-slab.rank-1:hover {
+      background: rgba(126, 168, 208, 0.18);
+    }
+    .slab-rk {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 28px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .proc-slab.rank-1 .slab-rk { color: var(--accent); }
+    .slab-mk {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .proc-slab.rank-1 .slab-mk {
+      border-color: rgba(126, 168, 208, 0.55);
+      background: var(--bg);
+    }
+    .slab-mk :global(svg) { width: 70%; height: 70%; }
+    .slab-who {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .slab-nm {
+      color: var(--fg);
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .slab-hk {
+      color: var(--dim);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+    .slab-sc {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .slab-sc strong {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 24px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .proc-slab.rank-1 .slab-sc strong { color: var(--fg); }
+    .slab-sc-lbl {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .proc-empty {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .proc-empty a {
+      color: var(--accent);
+      margin-left: 8px;
+      text-decoration: underline;
+      text-decoration-color: var(--border);
+      text-underline-offset: 3px;
+    }
+    .proc-empty a:hover { text-decoration-color: var(--accent); }
+
+    /* ===== rubric (03) ===== */
+    .rubric { margin: 0; }
+    .rubric-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 4px;
+      max-width: 60ch;
+    }
     .rubric-list .r {
       display: grid;
       grid-template-columns: 110px 1fr 40px;

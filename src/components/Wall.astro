@@ -58,7 +58,15 @@ for (const e of evals) {
   }
 }
 
-const stoneCount = slots.filter((s) => s.kind !== 'empty').length
+// Tally states once for the summary strip above the grid. Reading the
+// wall as a heat-pattern is faster than counting cells, so we hand the
+// reader the counts up front and let the grid carry the texture.
+const counts = { fresh: 0, scored: 0, low: 0, miss: 0 }
+for (const s of slots) {
+  if (s.kind === 'empty') counts.miss++
+  else counts[s.kind]++
+}
+const stoneCount = counts.fresh + counts.scored + counts.low
 
 // Hours axis: every 6h gets a label, current hour is "now".
 const hourLabels: { txt: string; current: boolean }[] = []
@@ -74,15 +82,36 @@ for (let i = 0; i < NUM_HOURS; i++) {
 <section class="wall-frame" data-wall data-card-id={cardId}>
   <header class="wall-head">
     <span class="num">{num}</span>
-    <h2>The wall &mdash; last 24 hours</h2>
+    <h2>Stones laid today</h2>
     <span class="rule"></span>
-    <span class="legend" aria-hidden="true">
-      <span class="l fresh">fresh</span>
-      <span class="l scored">scored</span>
-      <span class="l low">below break-even</span>
-      <span class="l miss">no stone</span>
-    </span>
+    <span class="window">24h window</span>
   </header>
+
+  <div class="wall-summary" aria-label="Stone counts">
+    <span class="ws-stat ws-fresh">
+      <span class="sw" aria-hidden="true"></span>
+      <strong>{counts.fresh}</strong>
+      <span class="lbl">fresh</span>
+    </span>
+    <span class="ws-sep" aria-hidden="true">·</span>
+    <span class="ws-stat ws-scored">
+      <span class="sw" aria-hidden="true"></span>
+      <strong>{counts.scored}</strong>
+      <span class="lbl">scored</span>
+    </span>
+    <span class="ws-sep" aria-hidden="true">·</span>
+    <span class="ws-stat ws-low">
+      <span class="sw" aria-hidden="true"></span>
+      <strong>{counts.low}</strong>
+      <span class="lbl">below break-even</span>
+    </span>
+    <span class="ws-sep" aria-hidden="true">·</span>
+    <span class="ws-stat ws-miss">
+      <span class="sw" aria-hidden="true"></span>
+      <strong>{counts.miss}</strong>
+      <span class="lbl">empty slots</span>
+    </span>
+  </div>
 
   <div class="wall">
     <div class="hours-axis" aria-hidden="true">
@@ -211,14 +240,14 @@ for (let i = 0; i < NUM_HOURS; i++) {
 <style>
   .wall-frame {
     display: grid;
-    grid-template-rows: auto auto;
-    gap: 14px;
+    grid-template-rows: auto auto auto;
+    gap: 12px;
     margin: 0 0 28px;
   }
   .wall-head {
     display: flex;
     align-items: baseline;
-    gap: 18px;
+    gap: 14px;
     font-size: 10px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -230,7 +259,7 @@ for (let i = 0; i < NUM_HOURS; i++) {
     font-family: var(--serif);
     font-weight: 300;
     font-style: italic;
-    font-size: 19px;
+    font-size: 22px;
     letter-spacing: 0;
     text-transform: none;
     color: var(--fg);
@@ -240,27 +269,74 @@ for (let i = 0; i < NUM_HOURS; i++) {
     flex: 1; height: 1px; min-width: 24px;
     background: var(--border-soft); margin: 0 4px;
   }
-  .wall-head .legend { display: inline-flex; gap: 12px; flex-wrap: wrap; }
-  .wall-head .legend .l {
-    display: inline-flex; gap: 5px; align-items: center;
-    font-size: 9px; letter-spacing: 0.16em; color: var(--dim);
+  .wall-head .window {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    color: var(--dim);
   }
-  .wall-head .legend .l::before {
-    content: ''; width: 8px; height: 8px; display: inline-block;
+
+  /* Summary strip — reads as a single sentence so the grid below is
+     decorative texture, not a counting exercise. Dot swatch + count +
+     label per state, separated by mono dots. */
+  .wall-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .wall-summary .ws-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .wall-summary .ws-stat strong {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 17px;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .wall-summary .ws-stat .lbl {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.06em;
+  }
+  .wall-summary .ws-stat .sw {
+    width: 9px;
+    height: 9px;
+    display: inline-block;
     border: 1px solid currentColor;
   }
-  .wall-head .legend .l.fresh::before {
-    background: var(--accent); border-color: var(--accent);
+  .wall-summary .ws-fresh .sw {
+    background: var(--accent);
+    border-color: var(--accent);
     box-shadow: 0 0 6px rgba(126, 168, 208, 0.5);
   }
-  .wall-head .legend .l.scored::before {
-    background: var(--accent-dim); border-color: var(--accent);
+  .wall-summary .ws-scored .sw {
+    background: var(--accent-dim);
+    border-color: var(--accent);
   }
-  .wall-head .legend .l.low::before {
-    background: transparent; border-color: var(--warn);
+  .wall-summary .ws-low .sw {
+    background: transparent;
+    border-color: var(--warn);
   }
-  .wall-head .legend .l.miss::before {
-    background: transparent; border-color: var(--faint);
+  .wall-summary .ws-miss .sw {
+    background: transparent;
+    border-color: var(--faint);
+    border-style: dashed;
+  }
+  .wall-summary .ws-sep {
+    color: var(--faint);
+    font-family: var(--mono);
   }
 
   .wall {
@@ -302,17 +378,25 @@ for (let i = 0; i < NUM_HOURS; i++) {
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-  .stone :global(svg) { width: 60%; height: 60%; opacity: 0.6; }
+  .stone :global(svg) {
+    width: 60%; height: 60%;
+    opacity: 0.85;
+    transition: opacity 160ms;
+  }
+  /* Default state: scored stones are quiet colour blocks. Their mark
+     stays in the DOM so the peek tooltip can read it on hover, but
+     the tile itself reads as texture, not as 96 individual icons. */
+  .stone.scored :global(svg) { opacity: 0; }
   .stone:hover {
     transform: translateY(-2px);
     border-color: var(--accent);
     z-index: 2;
   }
+  .stone.scored:hover :global(svg) { opacity: 0.85; }
   .stone.scored {
     background: var(--accent-dim);
     border-color: rgba(126, 168, 208, 0.55);
   }
-  .stone.scored :global(svg) { opacity: 0.85; }
   .stone.fresh {
     background: var(--accent);
     border-color: var(--accent);

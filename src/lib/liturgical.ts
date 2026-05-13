@@ -51,3 +51,8 @@ export function nextTollLabel(now: Date = new Date()): string {
   const rem = m % 60
   return rem ? `${h}h ${rem}m` : `${h}h`
 }
+
+/** One-line consequence for the liturgical toll countdown. */
+export function nextTollNote(): string {
+  return 'Opens the next liturgical block. Scores pin at toll.'
+}

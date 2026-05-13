@@ -248,7 +248,7 @@ function renderStatusStripInner(
   latestEpoch: number | null,
 ): string {
   const { label } = deriveStatusTone(latest?.ran_at)
-  const lastCardAge = latest?.ran_at ? RELATIVE_TIME(latest.ran_at) : '—'
+  const lastStoneAge = latest?.ran_at ? RELATIVE_TIME(latest.ran_at) : '—'
   const epochSegment =
     latestEpoch !== null
       ? `<span class="cd-status-sep" aria-hidden="true">·</span><span class="cd-status-stat">merkle epoch <strong>${ESC(String(latestEpoch))}</strong></span>`
@@ -257,12 +257,12 @@ function renderStatusStripInner(
     <span class="cd-status-dot" aria-hidden="true"></span>
     <span class="cd-status-tone">${ESC(label)}</span>
     <span class="cd-status-sep" aria-hidden="true">·</span>
-    <span class="cd-status-stat"><strong>${ESC(String(agentCount))}</strong> agents</span>
+    <span class="cd-status-stat"><strong>${ESC(String(agentCount))}</strong> masons</span>
     <span class="cd-status-sep" aria-hidden="true">·</span>
-    <span class="cd-status-stat">last card <strong>${ESC(lastCardAge)}</strong></span>
+    <span class="cd-status-stat">last stone <strong>${ESC(lastStoneAge)}</strong></span>
     ${epochSegment}
     <span class="cd-status-spacer" aria-hidden="true"></span>
-    <a class="cd-status-link" href="/jobs">Mine a job →</a>
+    <a class="cd-status-link" href="/">Mine a job →</a>
   `
 }
 

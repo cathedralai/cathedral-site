@@ -1,0 +1,191 @@
+---
+---
+
+<dialog class="job-proposal-dialog" data-job-proposal-dialog>
+  <form method="dialog" class="job-proposal-shell" data-job-proposal-form>
+    <header class="job-proposal-head">
+      <p class="job-proposal-k">new job</p>
+      <h2 class="job-proposal-title">Propose a job.</h2>
+      <p class="job-proposal-lede">
+        Title, one-line summary, and how stone would be graded. Cathedral reviews proposals in public.
+      </p>
+    </header>
+
+    <div class="job-proposal-body">
+      <label class="field">
+        <span class="lbl">Title</span>
+        <input type="text" name="title" required maxlength="120" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span class="lbl">Summary</span>
+        <textarea name="summary" required rows="4" maxlength="800"></textarea>
+      </label>
+      <label class="field">
+        <span class="lbl">Rubric</span>
+        <textarea
+          name="rubric"
+          required
+          rows="6"
+          maxlength="2000"
+          placeholder="Weights, required sources, cadence, hard rejects."
+        ></textarea>
+      </label>
+    </div>
+
+    <footer class="job-proposal-foot">
+      <button type="button" class="submit" data-job-proposal-submit>Open GitHub issue</button>
+      <button type="submit" value="close">Close</button>
+    </footer>
+  </form>
+</dialog>
+
+<script is:inline>
+  (function () {
+    var dlg = document.querySelector('[data-job-proposal-dialog]')
+    var openers = document.querySelectorAll('[data-job-propose-open]')
+    var form = document.querySelector('[data-job-proposal-form]')
+    var submit = document.querySelector('[data-job-proposal-submit]')
+    var issueBase = 'https://github.com/cathedralai/cathedral/issues/new?labels=card-proposal&template=card-proposal.md&title=card+proposal%3A+'
+    if (!dlg || !form) return
+
+    openers.forEach(function (opener) {
+      opener.addEventListener('click', function () {
+        if (typeof dlg.showModal === 'function') dlg.showModal()
+      })
+    })
+
+    if (submit) {
+      submit.addEventListener('click', function () {
+        if (!form.reportValidity()) return
+        var title = form.querySelector('[name="title"]').value.trim()
+        var summary = form.querySelector('[name="summary"]').value.trim()
+        var rubric = form.querySelector('[name="rubric"]').value.trim()
+        var body = [
+          '## Summary',
+          summary,
+          '',
+          '## Rubric',
+          rubric,
+        ].join('\n')
+        var url =
+          issueBase +
+          encodeURIComponent(title) +
+          '&body=' +
+          encodeURIComponent(body)
+        window.open(url, '_blank', 'noopener,noreferrer')
+      })
+    }
+  })()
+</script>
+
+<style>
+  .job-proposal-dialog {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0;
+    max-width: min(560px, calc(100vw - 24px));
+    width: 100%;
+  }
+  .job-proposal-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+  }
+  .job-proposal-shell {
+    margin: 0;
+    display: grid;
+    gap: 0;
+  }
+  .job-proposal-head {
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .job-proposal-k {
+    margin: 0 0 8px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .job-proposal-title {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(22px, 3.5vw, 28px);
+    line-height: 1.08;
+    color: var(--fg);
+  }
+  .job-proposal-lede {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.65;
+    max-width: 52ch;
+  }
+  .job-proposal-body {
+    padding: 16px 18px;
+    display: grid;
+    gap: 14px;
+  }
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+  .field .lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .field input,
+  .field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.55;
+    resize: vertical;
+  }
+  .field input:focus-visible,
+  .field textarea:focus-visible {
+    border-color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .job-proposal-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 12px 18px 14px;
+    border-top: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .job-proposal-foot .submit {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--accent);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .job-proposal-foot .submit:hover,
+  .job-proposal-foot .submit:focus-visible {
+    border-color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .job-proposal-foot button[type='submit'] {
+    margin-left: auto;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+</style>

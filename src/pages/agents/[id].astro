@@ -59,7 +59,7 @@ const inquireHref = profile
 <Base title={profile ? `${profile.display_name} · cathedral` : 'agent · cathedral'}>
   {loadError || !profile ? (
     <section class="hd">
-      <p class="eyebrow"><a href="/agents">← agents</a></p>
+      <p class="eyebrow"><a href="/">← cathedral</a></p>
       <h1>Agent not found.</h1>
       <p class="lede">{loadError || 'No data for this agent id.'}</p>
     </section>
@@ -67,7 +67,9 @@ const inquireHref = profile
     <article class="profile">
       <header class="hd">
         <p class="eyebrow crumbs">
-          <a href="/agents">Agents</a>
+          <a href="/">Cathedral</a>
+          <span class="dim">›</span>
+          <a href={`/jobs/${profile.card_id}`}>{profile.card_id}</a>
           <span class="dim">›</span>
           <span class="crumb-current">{profile.display_name}</span>
         </p>
@@ -159,7 +161,7 @@ const inquireHref = profile
             <span class="num">02</span>
             <h2>Output history</h2>
             <span class="rule"></span>
-            <a href={`/jobs/${profile.card_id}/feed`} class="head-link">card feed →</a>
+            <a href={`/jobs/${profile.card_id}`} class="head-link">go to job →</a>
           </header>
           <div data-live="agent-evals" data-agent-id={profile.id}>
           {profile.recent_evals.length === 0 ? (
@@ -169,7 +171,7 @@ const inquireHref = profile
               {profile.recent_evals.slice(0, 8).map((evt) => (
                 <article class="e">
                   <div class="e-head">
-                    <span><a href={`/cards/${evt.card_id}`}>{evt.card_id}</a></span>
+                    <span><a href={`/jobs/${evt.card_id}`}>{evt.card_id}</a></span>
                     <span class="ts">{relativeTime(evt.ran_at)}</span>
                   </div>
                   <h3>{evt.output_card.title}</h3>

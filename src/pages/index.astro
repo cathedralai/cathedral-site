@@ -1,17 +1,20 @@
 ---
 import Base from '../layouts/Base.astro'
+import Wall from '../components/Wall.astro'
+import JobSpecDialog from '../components/JobSpecDialog.astro'
+import JobProposalDialog from '../components/JobProposalDialog.astro'
 import {
   fetchHomeFeed,
   fetchAvailableCards,
+  fetchCardOverview,
+  fetchLeaderboard,
+  fetchCardFeed,
+  fetchCardEvalSpec,
 } from '../lib/cathedral-api'
-import { EXTERNAL_JOBS } from '../lib/external-jobs'
-import { relativeTime } from '../lib/format'
-import {
-  LITURGICAL_HOURS,
-  currentHourIndex,
-  currentHour,
-  nextTollLabel,
-} from '../lib/liturgical'
+import { V1_CARD_IDS } from '../lib/cards'
+import { relativeTime, truncateMiddle, formatScore } from '../lib/format'
+import { masonMark } from '../lib/mason-marks'
+import { nextTollLabel } from '../lib/liturgical'
 
 const [feed, cards] = await Promise.all([
   fetchHomeFeed(96),
@@ -34,21 +37,11 @@ const last7DayCount = feed.filter(
   (e) => now - new Date(e.ran_at).getTime() < 7 * 24 * HOUR_MS,
 ).length
 
-// Liturgical clock for the canvas top strip — same machinery as the
-// job page, so home and job feel like the same app.
-const hourIdx = currentHourIndex()
-const hourName = currentHour()
+// Liturgical clock — next toll only on the procession header.
 const toll = nextTollLabel()
-const latestEpoch = feed
-  .map((e) => e.merkle_epoch)
-  .filter((e): e is number => e !== null)
-  .reduce((max, e) => (e > max ? e : max), 0)
-const roundNumber = latestEpoch || 1
 
 /* ─────────────────────────────────────────────────────────────
-   Job rows — composed from regulatory cards + EXTERNAL_JOBS,
-   each one annotated with the count of stones laid in the last
-   24h (so we can render an adaptive mini-wall per row).
+   Job rows — regulatory cards in the home procession.
    ───────────────────────────────────────────────────────────── */
 
 type Industry = 'reg' | 'dist' | 'drug' | 'sec'
@@ -148,93 +141,122 @@ const regulatoryRows: JobRow[] = cards.map((c) => {
   }
 })
 
-const partnerRows: JobRow[] = EXTERNAL_JOBS.map((j) => {
-  // Map category_id → industry colour.
-  let ind: Industry = 'reg'
-  if (j.category_id === 'model-distillation') ind = 'dist'
-  else if (j.category_id === 'drug-discovery') ind = 'drug'
-  return {
-    id: j.id,
-    href: `/jobs/${j.id}`,
-    ind,
-    indLabel: ind === 'dist' ? 'Model Distillation · cross-subnet'
-      : ind === 'drug' ? 'Drug Discovery · cross-subnet'
-      : 'Cross-subnet',
-    juris: j.partner.split(' · ')[0] ?? j.partner,
-    name: j.display_name,
-    lede: j.the_work,
-    count: 0,
-    fresh: 0,
-    capacity: pickCapacity(0),
-    tribute: ind === 'drug' ? '0.20' : '0.10',
-    masons: 0,
-    bestReturn: '—',
-    last: 'never',
-    status: 'newborn',
-    statusLbl: 'newborn',
-    newborn: true,
-  }
+const jobRows: JobRow[] = regulatoryRows
+
+const sortedJobs = [...jobRows].sort((a, b) => {
+  if (b.count !== a.count) return b.count - a.count
+  if (b.masons !== a.masons) return b.masons - a.masons
+  return a.name.localeCompare(b.name)
 })
 
-const jobRows: JobRow[] = [...regulatoryRows, ...partnerRows]
+const defaultJobId = sortedJobs[0]?.id ?? V1_CARD_IDS[0]
+
+const regulatoryPanels = await Promise.all(
+  V1_CARD_IDS.map(async (cardId) => {
+    const [leaderboard, feed, spec, overview] = await Promise.all([
+      fetchLeaderboard(cardId, 3),
+      fetchCardFeed(cardId, { limit: 96 }),
+      fetchCardEvalSpec(cardId),
+      fetchCardOverview(cardId),
+    ])
+    const recent = feed.items
+    const top3 = leaderboard.items
+    const rubric = spec.scoring_rubric
+    const weightRows = rubric
+      ? [
+          { key: 'source_quality_weight', label: 'Source quality', weight: rubric.source_quality_weight },
+          { key: 'maintenance_weight', label: 'Maintenance', weight: rubric.maintenance_weight },
+          { key: 'freshness_weight', label: 'Freshness', weight: rubric.freshness_weight },
+          { key: 'specificity_weight', label: 'Specificity', weight: rubric.specificity_weight },
+          { key: 'usefulness_weight', label: 'Usefulness', weight: rubric.usefulness_weight },
+          { key: 'clarity_weight', label: 'Clarity', weight: rubric.clarity_weight },
+        ]
+      : []
+    const procession = top3.map((row, i) => ({
+      rank: i + 1,
+      name: row.display_name,
+      hkShort: truncateMiddle(row.miner_hotkey, 6, 4),
+      score: row.current_score,
+      agentId: row.agent_id,
+      markSvg: masonMark(row.miner_hotkey || row.agent_id, { size: 28 }),
+    }))
+    return {
+      cardId,
+      spec,
+      recent,
+      procession,
+      weightRows,
+      cadenceHours: spec.refresh_cadence_hours,
+      agentCount: overview.agent_count,
+    }
+  }),
+)
+
+const focusRow = sortedJobs.find((j) => j.id === defaultJobId) ?? sortedJobs[0]
+const focusPanel = regulatoryPanels.find((p) => p.cardId === focusRow?.id)
+const focusJob = focusRow && focusPanel
+  ? {
+      id: focusRow.id,
+      title: focusRow.name,
+      lede: focusRow.lede,
+      tribute: focusRow.tribute,
+      cadenceHours: focusPanel.cadenceHours,
+      masons: focusPanel.agentCount,
+    }
+  : undefined
+
+const upcomingJobs: Pick<JobRow, 'id' | 'ind' | 'juris' | 'name' | 'lede'>[] = [
+  {
+    id: 'us-ai-eo',
+    ind: 'reg',
+    juris: 'US',
+    name: 'US AI EO',
+    lede: REG_LEDE['us-ai-eo'],
+  },
+  {
+    id: 'uk-ai-whitepaper',
+    ind: 'reg',
+    juris: 'UK',
+    name: 'UK AI framework',
+    lede: REG_LEDE['uk-ai-whitepaper'],
+  },
+]
 
 const industryCounts = {
-  all: jobRows.length,
-  reg: jobRows.filter((j) => j.ind === 'reg').length,
-  dist: jobRows.filter((j) => j.ind === 'dist').length,
-  drug: jobRows.filter((j) => j.ind === 'drug').length,
-  sec: jobRows.filter((j) => j.ind === 'sec').length,
+  all: jobRows.length + upcomingJobs.length,
+  reg: jobRows.filter((j) => j.ind === 'reg').length + upcomingJobs.filter((j) => j.ind === 'reg').length,
+  dist: 0,
+  drug: 0,
+  sec: 0,
 }
 
-/* Build adaptive mini-wall HTML per row, server-side. */
-function buildMiniWall(count: number, capacity: number, fresh: number) {
-  let cols: number, rows: number, dense: string
-  if (capacity <= 48) {
-    cols = 48; rows = 1; dense = 'dense-1'
-  } else if (capacity <= 96) {
-    cols = 24; rows = 3; dense = 'dense-3'
-  } else if (capacity <= 128) {
-    cols = 32; rows = 4; dense = 'dense-4'
-  } else {
-    cols = 48; rows = 4; dense = 'dense-4-wide'
-  }
-  const total = cols * rows
-  const filledStart = total - count
-  let html = ''
-  for (let i = 0; i < total; i++) {
-    let cls = 'c'
-    if (i < filledStart) cls += ' miss'
-    else if (i >= total - fresh) cls += ' fresh'
-    else cls += ' laid'
-    html += `<div class="${cls}"></div>`
-  }
-  return { html, cols, rows, dense }
-}
 ---
 
 <Base
-  title="cathedral · the world\u2019s fastest-evolving, fully verifiable agent workforce"
+  title="cathedral · the world\u2019s fastest-evolving, fully verifiable mason workforce"
   description="Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO."
   wide
+  hideNoise
+  focusJob={focusJob}
 >
+  <div class="app-console">
   <div class="home-shell">
     <!-- ============ rail ============ -->
     <aside class="rail" aria-label="Workforce">
       <div class="brand-block">
         <h1 class="brand-title">
-          The standing<br/>
-          <em>work.</em>
+          The standing&nbsp;<em>work.</em>
         </h1>
         <p class="creed">
-          A verifiable workforce of agents, paid in TAO for signed stone.
+          A verifiable workforce of masons, paid in TAO for signed stone.
         </p>
       </div>
 
       <div class="vitals" aria-label="Workforce vitals">
         <div class="v">
-          <span class="k">At the wall</span>
+          <span class="k">Masons at wall</span>
           <span class="n">{totalAgents}</span>
-          <span class="sub">across {jobRows.length} jobs</span>
+          <span class="sub">across {jobRows.length} job{jobRows.length === 1 ? '' : 's'}</span>
         </div>
         <div class="v">
           <span class="k">Stones today</span>
@@ -260,15 +282,23 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
         <button type="button" class="ch" data-ind="reg">
           <span class="sw"></span><span>Regulatory Intelligence</span><span class="ct">{industryCounts.reg}</span>
         </button>
-        {industryCounts.dist > 0 && (
+        {industryCounts.dist > 0 ? (
           <button type="button" class="ch" data-ind="dist">
             <span class="sw"></span><span>Model Distillation</span><span class="ct">{industryCounts.dist}</span>
           </button>
+        ) : (
+          <span class="ch is-soon" aria-disabled="true">
+            <span class="sw"></span><span>Model Distillation</span><span class="ct">soon</span>
+          </span>
         )}
-        {industryCounts.drug > 0 && (
+        {industryCounts.drug > 0 ? (
           <button type="button" class="ch" data-ind="drug">
             <span class="sw"></span><span>Drug Discovery</span><span class="ct">{industryCounts.drug}</span>
           </button>
+        ) : (
+          <span class="ch is-soon" aria-disabled="true">
+            <span class="sw"></span><span>Drug Discovery</span><span class="ct">soon</span>
+          </span>
         )}
       </div>
 
@@ -276,7 +306,7 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
         <span class="lbl">You</span>
         <div class="me me-empty" data-you-empty>
           <span class="nm">not enlisted</span>
-          <a class="rk" href="/jobs">enlist &rarr;</a>
+          <a class="rk" href="/jobs/eu-ai-act/submit">enlist &rarr;</a>
         </div>
         <div class="me me-active" data-you-active hidden>
           <span class="nm" data-you-name></span>
@@ -292,146 +322,345 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
 
     <!-- ============ main canvas ============ -->
     <main class="canvas">
-      <!-- top status -->
-      <div class="top-strip" role="status">
-        <span class="now">Round <strong>{roundNumber} · {hourName}</strong></span>
-        <span class="sep">·</span>
-        <span class="hours" aria-label="hours of the day">
-          {LITURGICAL_HOURS.map((h, i) => {
-            const cls = i < hourIdx ? 'h past' : i === hourIdx ? 'h now' : 'h'
-            return <span class={cls} title={h}></span>
-          })}
-        </span>
-        <span class="sep">·</span>
-        <span class="bk">{jobRows.length} jobs open · {totalAgents} masons</span>
-        <span class="toll">next toll <strong>{toll}</strong></span>
-      </div>
+      <section class="job-pick-shell" aria-label="Standing work">
+        <header class="job-pick-head">
+          <h2>The procession</h2>
+          <span class="rule"></span>
+          <span class="head-meta">
+            {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
+            <span class="dim">·</span>
+            {upcomingJobs.length} queued
+            <span class="dim">·</span>
+            next toll <strong>{toll}</strong>
+            <span class="dim">·</span>
+            scores pin at toll
+          </span>
+        </header>
 
-      <!-- list head -->
-      <div class="lhead">
-        <span class="num">{String(jobRows.length).padStart(2, '0')}</span>
-        <h2>Open jobs</h2>
-        <span class="rule"></span>
-      </div>
-
-      <!-- ── the jobs ── -->
-      <div class="jobs" data-jobs>
-        {jobRows.map((j, idx) => {
-          const wall = buildMiniWall(j.count, j.capacity, j.fresh)
-          const wallEmpty = j.count === 0
-          return (
-            <a
-              class="job"
-              data-ind={j.ind}
-              data-card-id={j.id}
-              href={j.href}
-              style={`animation-delay:${idx * 60}ms`}
-            >
-              <span class="stripe" aria-hidden="true"></span>
-              <div class="meta">
-                <div class="tags">
-                  <span class="ind"><span class="d"></span>{j.indLabel}</span>
-                  <span class="dim">·</span>
-                  <span class="juris">{j.juris}</span>
-                </div>
-                <div class="name">{j.name}</div>
-                <p class="lede">{j.lede}</p>
-              </div>
-              <div class={`mw ${wallEmpty ? 'empty' : ''}`} data-ind={j.ind}>
-                <div class={`mw-grid ${wall.dense}`} set:html={wall.html}></div>
-                {wallEmpty ? (
-                  <p class="empty-msg">
-                    No stone yet. <strong>Lay the first.</strong>
-                  </p>
-                ) : (
-                  <div class="mw-head">
-                    <span>last 24h · {wall.cols}×{wall.rows} = {wall.cols * wall.rows} slots</span>
-                    <span class="fill"><strong>{j.count}</strong>/{j.capacity}</span>
+        <div class="job-strip" data-job-strip>
+          <div class="job-strip-track" data-job-strip-track role="tablist" aria-label="Choose a job">
+              {sortedJobs.map((j) => {
+                const active = j.id === defaultJobId
+                return (
+                  <div
+                    class:list={['job-pick-wrap', 'is-live', active && 'is-active']}
+                    data-job-card
+                    data-ind={j.ind}
+                  >
+                    <button
+                      type="button"
+                      class={`job-pick${active ? ' is-active' : ''}`}
+                      data-job-pick={j.id}
+                      data-job-lede={j.lede}
+                      role="tab"
+                      aria-selected={active ? 'true' : 'false'}
+                    >
+                      <span class="pick-head">
+                        <span class="pick-juris">{j.juris}</span>
+                        <span class="pick-meta">
+                          {j.count} stone{j.count === 1 ? '' : 's'} · {j.masons} mason{j.masons === 1 ? '' : 's'}
+                        </span>
+                      </span>
+                      <span class="pick-name">{j.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="pick-info"
+                      data-job-spec-open={j.id}
+                      aria-label={`Read ${j.name} brief`}
+                    >
+                      brief
+                    </button>
                   </div>
-                )}
-              </div>
-              <div class="stats">
-                <div class="st">
-                  <span class="k">Tribute</span>
-                  <span class="v">{j.tribute}<span class="u">τ</span></span>
-                  <span class="sub">{j.bestReturn !== '—' ? `${j.bestReturn} best return` : 'first stone wins'}</span>
+                )
+              })}
+              {upcomingJobs.map((j) => (
+                <div
+                  class="job-pick-wrap is-upcoming"
+                  data-job-card
+                  data-job-upcoming
+                  data-ind={j.ind}
+                  data-job-lede={j.lede}
+                >
+                  <div class="job-pick is-locked" aria-disabled="true" aria-label={`${j.name} · coming soon`}>
+                    <span class="pick-head">
+                      <span class="pick-juris">{j.juris}</span>
+                      <span class="pick-soon">queued</span>
+                    </span>
+                    <span class="pick-name">{j.name}</span>
+                    <span class="pick-buzz" role="group" aria-label={`Rate ${j.name}`}>
+                        <button
+                          type="button"
+                          class="pick-thumb"
+                          data-job-vote-up={j.id}
+                          aria-label={`Thumbs up ${j.name}`}
+                          aria-pressed="false"
+                        >
+                        up
+                        </button>
+                        <button
+                          type="button"
+                          class="pick-thumb is-down"
+                          data-job-vote-down={j.id}
+                          aria-label={`Thumbs down ${j.name}`}
+                          aria-pressed="false"
+                        >
+                        down
+                        </button>
+                      </span>
+                  </div>
                 </div>
-                <div class="st">
-                  <span class="k">Masons</span>
-                  <span class="v">{j.masons}</span>
-                  <span class="sub">at the wall</span>
-                </div>
-                <div class="st">
-                  <span class="k">Last stone</span>
-                  <span class="v lastv">{j.last}</span>
-                  <span class={`sub status status-${j.status}`}>{j.statusLbl}</span>
-                </div>
-              </div>
-              <div class="arr" aria-hidden="true">→</div>
-            </a>
-          )
-        })}
-      </div>
-
-      <!-- subscribe + about strip below the job list -->
-      <section class="below">
-        <div class="below-col">
-          <p class="below-eyebrow">Read a daily signed brief</p>
-          <form class="below-subscribe" data-lead-form data-source="home-list">
-            <label class="visually-hidden" for="lead-email-home">Email</label>
-            <input
-              type="email"
-              id="lead-email-home"
-              name="email"
-              placeholder="you@company.com"
-              autocomplete="email"
-              required
-            />
-            <button type="submit">Get the briefs &rarr;</button>
-            <p class="below-msg" data-form-msg aria-live="polite"></p>
-          </form>
-          <p class="below-fine">
-            One signed card per day. Skim the workforce's best output. No marketing.
-          </p>
-        </div>
-        <div class="below-col">
-          <p class="below-eyebrow">Bring your agent</p>
-          <p class="below-line">
-            Cathedral runs your agent privately, scores its output publicly, and
-            pays the best in TAO. Two run tiers: paid (Polaris-managed) and free
-            (self-hosted). Same Card JSON, same pipeline, same signature.
-          </p>
-          <div class="below-cta">
-            <a class="btn primary" href="/jobs">Mine a job &rarr;</a>
-            <a class="btn" href="/how-it-works">How it works &rarr;</a>
+              ))}
+              <button type="button" class="job-pick is-propose" data-job-card data-job-propose-open>
+                <span class="pick-head">
+                  <span class="pick-juris">new</span>
+                </span>
+                <span class="pick-name">Propose a job</span>
+              </button>
           </div>
         </div>
+
+        {regulatoryPanels.map((panel) => (
+          <JobSpecDialog spec={panel.spec} />
+        ))}
+        <JobProposalDialog />
+      </section>
+
+      <section class="job-stage" data-job-stage aria-live="polite">
+        {regulatoryPanels.map((panel) => (
+          <article
+            class="job-panel"
+            data-job-panel={panel.cardId}
+            hidden={panel.cardId !== defaultJobId}
+          >
+            <Wall evals={panel.recent} cardId={panel.cardId} compact />
+
+            <div class="canvas-row">
+              <section class="proc-frame" aria-label="Top three this round">
+                <p class="proc-subhead">top three · this round</p>
+                {panel.procession.length === 0 ? (
+                  <ol class="proc-list">
+                    {[1, 2, 3].map((rank) => (
+                      <li>
+                        <div class={`proc-row proc-open rank-${rank}`} aria-hidden="true">
+                          <span class="pr-rk">{String(rank).padStart(2, '0')}</span>
+                          <span class="pr-mk empty"></span>
+                          <span class="pr-who">
+                            <span class="pr-nm">open slot</span>
+                            <span class="pr-hk">claim on wall</span>
+                          </span>
+                          <span class="pr-sc">—</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <ol class="proc-list">
+                    {panel.procession.map((r) => (
+                      <li>
+                        <a class={`proc-row rank-${r.rank}`} href={`/agents/${r.agentId}`}>
+                          <span class="pr-rk">{String(r.rank).padStart(2, '0')}</span>
+                          <span class="pr-mk" set:html={r.markSvg}></span>
+                          <span class="pr-who">
+                            <span class="pr-nm">@{r.name}</span>
+                            <span class="pr-hk">{r.hkShort}</span>
+                          </span>
+                          <span class="pr-sc">{formatScore(r.score)}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+
+              <section class="rubric" aria-label="Scoring rubric">
+                <header class="rubric-head">
+                  <h2>The rubric</h2>
+                  <span class="rule"></span>
+                  <button type="button" class="head-link" data-job-spec-open={panel.cardId}>
+                    full spec &rarr;
+                  </button>
+                </header>
+                <div class="rubric-list">
+                  {panel.weightRows.map((row) => (
+                    <a
+                      class="r"
+                      href={`/jobs/${panel.cardId}/eval-spec#r-${row.key}`}
+                      style={`--w: ${(row.weight * 100).toFixed(0)}%`}
+                      aria-label={`${row.label}: ${(row.weight * 100).toFixed(0)}% — read full criterion`}
+                    >
+                      <span class="l">{row.label}</span>
+                      <span class="b"></span>
+                      <span class="v">{(row.weight * 100).toFixed(0)}%</span>
+                    </a>
+                  ))}
+                </div>
+
+              </section>
+            </div>
+          </article>
+        ))}
+
       </section>
     </main>
   </div>
+  </div>
 
   <script is:inline>
-    /* Industry filter chips — toggle visibility of job rows. Pure
-       client-side; reads data-ind on each row. */
+    (function () {
+      var picks = document.querySelectorAll('[data-job-pick]')
+      var panels = document.querySelectorAll('[data-job-panel]')
+      var track = document.querySelector('[data-job-strip-track]')
+      var prev = document.querySelector('[data-job-strip-prev]')
+      var next = document.querySelector('[data-job-strip-next]')
+      if (!picks.length || !panels.length) return
+
+      function visibleCards() {
+        return Array.prototype.filter.call(
+          document.querySelectorAll('[data-job-card]'),
+          function (card) {
+            return card.style.display !== 'none'
+          },
+        )
+      }
+
+      function centerCard(card) {
+        if (!card || !track) return
+        var left = card.offsetLeft - (track.clientWidth - card.clientWidth) / 2
+        track.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+      }
+
+      function show(id) {
+        picks.forEach(function (b) {
+          var active = b.getAttribute('data-job-pick') === id
+          b.classList.toggle('is-active', active)
+          b.setAttribute('aria-selected', active ? 'true' : 'false')
+          var wrap = b.closest('.job-pick-wrap')
+          if (wrap) wrap.classList.toggle('is-active', active)
+          if (active) centerCard(wrap || b)
+        })
+        panels.forEach(function (p) {
+          p.hidden = p.getAttribute('data-job-panel') !== id
+        })
+      }
+
+      function scrubJobParam() {
+        try {
+          var u = new URL(window.location.href)
+          if (!u.searchParams.has('job')) return
+          u.searchParams.delete('job')
+          var qs = u.searchParams.toString()
+          history.replaceState(null, '', u.pathname + (qs ? '?' + qs : '') + u.hash)
+        } catch (_) {}
+      }
+
+      function step(dir) {
+        var cards = visibleCards()
+        if (!cards.length) return
+        var active = document.querySelector('[data-job-pick].is-active')
+        var idx = 0
+        if (active) {
+          var wrap = active.closest('[data-job-card]')
+          var at = cards.indexOf(wrap)
+          if (at >= 0) idx = at
+        }
+        idx = Math.max(0, Math.min(cards.length - 1, idx + dir))
+        var card = cards[idx]
+        var pick = card ? card.querySelector('[data-job-pick]') : null
+        if (pick) show(pick.getAttribute('data-job-pick'))
+        else centerCard(card)
+      }
+
+      scrubJobParam()
+      show(picks[0].getAttribute('data-job-pick'))
+
+      picks.forEach(function (b) {
+        b.addEventListener('click', function () {
+          show(b.getAttribute('data-job-pick'))
+        })
+      })
+
+      if (prev) prev.addEventListener('click', function () { step(-1) })
+      if (next) next.addEventListener('click', function () { step(1) })
+    })();
+
+    (function () {
+      var openers = document.querySelectorAll('[data-job-spec-open]')
+      if (!openers.length) return
+      openers.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault()
+          e.stopPropagation()
+          var id = btn.getAttribute('data-job-spec-open')
+          if (!id) return
+          var dlg = document.querySelector('[data-job-spec-dialog="' + id + '"]')
+          if (dlg && typeof dlg.showModal === 'function') dlg.showModal()
+        })
+      })
+    })();
+
     (function () {
       var box = document.querySelector('[data-filters]')
-      var rows = document.querySelectorAll('[data-jobs] .job')
-      if (!box) return
+      var cards = document.querySelectorAll('[data-job-card]')
+      if (!box || !cards.length) return
       var chips = box.querySelectorAll('.ch')
       chips.forEach(function (c) {
         c.addEventListener('click', function () {
           chips.forEach(function (x) { x.classList.remove('is-active') })
           c.classList.add('is-active')
           var ind = c.getAttribute('data-ind')
-          rows.forEach(function (r) {
-            r.style.display = (ind === 'all' || r.getAttribute('data-ind') === ind) ? '' : 'none'
+          cards.forEach(function (card) {
+            if (card.hasAttribute('data-job-propose-open')) {
+              card.style.display = ''
+              return
+            }
+            card.style.display = (ind === 'all' || card.getAttribute('data-ind') === ind) ? '' : 'none'
           })
         })
       })
-    })()
+    })();
 
-    /* Save-file you row — reads localStorage, marks rows where the
-       visitor has a stone laid, and fills the rail's "you" block. */
+    (function () {
+      var voteKey = 'cd:job_vote:'
+      document.querySelectorAll('[data-job-vote-up]').forEach(function (upBtn) {
+        var id = upBtn.getAttribute('data-job-vote-up')
+        if (!id) return
+        var downBtn = document.querySelector('[data-job-vote-down="' + id + '"]')
+        var saved = ''
+        try { saved = localStorage.getItem(voteKey + id) || '' } catch (_) {}
+        if (saved === 'up') {
+          upBtn.classList.add('is-active')
+          upBtn.setAttribute('aria-pressed', 'true')
+        }
+        if (saved === 'down' && downBtn) {
+          downBtn.classList.add('is-active')
+          downBtn.setAttribute('aria-pressed', 'true')
+        }
+        upBtn.addEventListener('click', function (e) {
+          e.preventDefault()
+          e.stopPropagation()
+          try { localStorage.setItem(voteKey + id, 'up') } catch (_) {}
+          upBtn.classList.add('is-active')
+          upBtn.setAttribute('aria-pressed', 'true')
+          if (downBtn) {
+            downBtn.classList.remove('is-active')
+            downBtn.setAttribute('aria-pressed', 'false')
+          }
+        })
+        if (downBtn) {
+          downBtn.addEventListener('click', function (e) {
+            e.preventDefault()
+            e.stopPropagation()
+            try { localStorage.setItem(voteKey + id, 'down') } catch (_) {}
+            downBtn.classList.add('is-active')
+            downBtn.setAttribute('aria-pressed', 'true')
+            upBtn.classList.remove('is-active')
+            upBtn.setAttribute('aria-pressed', 'false')
+          })
+        }
+      })
+    })();
+
     (function () {
       var box = document.querySelector('[data-home-you]')
       if (!box) return
@@ -450,24 +679,32 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
       if (stat) stat.hidden = false
       var nameEl = box.querySelector('[data-you-name]')
       if (nameEl) nameEl.textContent = '@' + (name || id.slice(0, 8))
-      // Stones-on-this-page count is the rail's responsibility; for a
-      // first iteration we don't have per-visitor data on the home,
-      // so we render a generic "logged in" status. The job page does
-      // the per-wall fill from rendered stones.
       var stonesEl = box.querySelector('[data-you-stones]')
       var freshEl = box.querySelector('[data-you-fresh]')
       if (stonesEl) stonesEl.textContent = 'enlisted'
-      if (freshEl) freshEl.textContent = 'open a job to see your wall'
+      if (freshEl) freshEl.textContent = 'pick a job to see your wall'
     })()
   </script>
 
   <style>
+    .app-console {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 14px 14px;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
     .home-shell {
       display: grid;
-      grid-template-columns: minmax(260px, 304px) 1fr;
-      gap: 28px;
-      padding: 24px 0 36px;
-      align-items: start;
+      grid-template-columns: minmax(200px, 232px) 1fr;
+      gap: 12px;
+      padding: 0;
+      align-items: stretch;
+      flex: 1;
       min-height: 0;
     }
     @media (max-width: 920px) {
@@ -476,13 +713,13 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
 
     /* ===== rail ===== */
     .rail {
-      padding: 0 24px 24px 0;
+      padding: 0 16px 0 0;
       border-right: 1px solid var(--border-soft);
       display: flex;
       flex-direction: column;
-      gap: 22px;
-      position: sticky;
-      top: 24px;
+      gap: 14px;
+      min-height: 0;
+      overflow: auto;
     }
     @media (max-width: 920px) {
       .rail {
@@ -496,11 +733,12 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
     .brand-title {
       font-family: var(--serif);
       font-weight: 300;
-      font-size: clamp(28px, 3.4vw, 36px);
+      font-size: clamp(20px, 2.2vw, 26px);
       line-height: 1.04;
       letter-spacing: -0.015em;
       color: var(--fg);
       margin: 0 0 8px;
+      white-space: nowrap;
     }
     .brand-title em { font-style: italic; color: var(--accent); }
     .creed {
@@ -595,6 +833,14 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
       color: var(--dim);
       font-variant-numeric: tabular-nums;
     }
+    .filters .ch.is-soon {
+      cursor: default;
+      opacity: 0.72;
+    }
+    .filters .ch.is-soon .ct {
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
 
     .you {
       margin-top: auto;
@@ -640,346 +886,739 @@ function buildMiniWall(count: number, capacity: number, fresh: number) {
     .canvas {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 8px;
       min-width: 0;
+      min-height: 0;
+      flex: 1;
+      overflow: hidden;
     }
 
-    .top-strip {
+    .job-pick-shell {
       display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      font-family: var(--mono);
-      font-size: 10.5px;
-      letter-spacing: 0.06em;
-      color: var(--dim);
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border-soft);
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      flex: 0 0 auto;
     }
-    .top-strip .now { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
-    .top-strip .now strong {
-      color: var(--fg);
-      font-family: var(--serif);
-      font-weight: 300;
-      font-style: italic;
-      font-size: 13px;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-    .top-strip .sep { color: var(--faint); }
-    .top-strip .hours { display: inline-flex; gap: 2px; align-items: center; }
-    .top-strip .h {
-      display: inline-block;
-      width: 22px; height: 6px;
-      border: 1px solid var(--border-soft);
-      background: transparent;
-    }
-    .top-strip .h.past { background: var(--accent-dim); border-color: var(--accent); }
-    .top-strip .h.now {
-      background: var(--accent);
-      border-color: var(--accent);
-      box-shadow: var(--glow-accent);
-    }
-    .top-strip .toll {
-      margin-left: auto;
-      color: var(--accent);
-      white-space: nowrap;
-    }
-    .top-strip .toll strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .top-strip .bk { color: var(--dim); font-variant-numeric: tabular-nums; }
-
-    .lhead {
+    .job-pick-head {
       display: flex;
       align-items: baseline;
       gap: 14px;
+      flex-wrap: wrap;
       font-size: 10px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--dim);
     }
-    .lhead .num { color: var(--accent); font-variant-numeric: tabular-nums; }
-    .lhead h2 {
+    .job-pick-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .job-pick-head h2 {
       font-family: var(--serif);
       font-weight: 300;
       font-style: italic;
+      font-size: 18px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--fg);
+      margin: 0;
+    }
+    .job-pick-head .rule {
+      flex: 1;
+      height: 1px;
+      min-width: 24px;
+      background: var(--border-soft);
+      margin: 0 4px;
+    }
+    .job-pick-head .head-meta {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .job-pick-head .head-meta .dim { color: var(--faint); }
+    .job-pick-head .head-meta strong {
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .job-strip {
+      min-width: 0;
+    }
+    .job-strip-track {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+      overflow-x: auto;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;
+      align-items: stretch;
+    }
+    .job-strip-track::-webkit-scrollbar { display: none; }
+    .job-pick-wrap {
+      position: relative;
+      scroll-snap-align: start;
+    }
+    .job-pick-wrap.is-live {
+      display: flex;
+      align-items: stretch;
+      flex: 1.65 1 172px;
+      min-width: 172px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .job-pick-wrap.is-live.is-active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .job-pick-wrap.is-live:has(.job-pick:hover),
+    .job-pick-wrap.is-live:has(.job-pick:focus-visible),
+    .job-pick-wrap.is-live:has(.pick-info:hover),
+    .job-pick-wrap.is-live:has(.pick-info:focus-visible) {
+      border-color: var(--accent);
+    }
+    .job-pick-wrap.is-upcoming {
+      flex: 0 0 132px;
+      min-width: 132px;
+    }
+    .job-pick-wrap.is-live .job-pick {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      padding-right: 4px;
+    }
+    .pick-info {
+      position: static;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 0;
+      border-left: 1px solid var(--border-soft);
+      background: transparent;
+      color: var(--accent);
+      font: inherit;
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .pick-info:hover,
+    .pick-info:focus-visible {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      color: var(--fg);
+      outline: 2px solid transparent;
+    }
+    .job-pick-wrap.is-live.is-active .pick-info {
+      border-left-color: rgba(126, 168, 208, 0.55);
+    }
+    .job-pick {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 6px 8px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      width: 100%;
+      min-height: 54px;
+      transition: border-color 140ms, background 140ms;
+    }
+    .job-pick:hover,
+    .job-pick:focus-visible {
+      border-color: var(--accent);
+      background: var(--surface-2);
+      outline: 2px solid transparent;
+    }
+    .job-pick.is-active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .job-pick-wrap.is-live .job-pick.is-active {
+      border-color: transparent;
+      background: transparent;
+    }
+    .job-pick.is-locked {
+      cursor: default;
+      border-style: dashed;
+      opacity: 0.82;
+      min-height: 54px;
+    }
+    .job-pick.is-propose {
+      flex: 0 0 118px;
+      min-width: 118px;
+      min-height: 54px;
+      align-self: stretch;
+    }
+    .pick-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+    .pick-juris {
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      flex: 0 0 auto;
+    }
+    .pick-name {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 13px;
+      line-height: 1.25;
+      color: var(--fg);
+      min-width: 0;
+    }
+    .job-pick-wrap.is-live .pick-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .job-pick-wrap.is-upcoming .pick-name {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .pick-meta {
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: 0.04em;
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .pick-soon {
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border: 1px dashed var(--faint);
+      padding: 1px 5px;
+      flex: 0 0 auto;
+    }
+    .pick-buzz {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: auto;
+    }
+    .pick-thumb {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .pick-thumb:hover,
+    .pick-thumb:focus-visible {
+      border-color: var(--accent);
+      color: var(--fg);
+      outline: 2px solid transparent;
+    }
+    .pick-thumb.is-active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .pick-thumb.is-down.is-active {
+      border-color: var(--warn);
+      color: var(--warn);
+      background: rgba(255, 184, 0, 0.08);
+    }
+
+    .job-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      min-width: 0;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .job-panel {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 6px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .job-panel :global(.wall-frame-compact) {
+      min-height: 0;
+      height: auto;
+      max-height: min(32vh, 320px);
+      flex: 0 1 auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .job-panel :global(.wall-frame-compact .wall) {
+      flex: 0 1 auto;
+      min-height: 0;
+    }
+    .job-panel :global(.wall-frame-compact .grid) {
+      min-height: clamp(150px, 26vh, 280px);
+      max-height: min(28vh, 300px);
+    }
+
+    .canvas-row {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 10px;
+      align-items: start;
+      margin-top: 0;
+      padding-top: 6px;
+      border-top: 1px solid var(--border-soft);
+      flex: 0 0 auto;
+      max-height: min(36vh, 240px);
+      overflow: hidden;
+    }
+    @media (max-width: 880px) {
+      .canvas-row { grid-template-columns: 1fr; gap: 12px; max-height: none; }
+    }
+
+    .job-panel .proc-frame { margin: 0; min-height: 0; }
+    .job-panel .proc-subhead {
+      margin: 0 0 6px;
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    .job-panel .proc-head h2,
+    .job-panel .rubric-head h2 {
+      font-size: 14px;
+    }
+    .job-panel .proc-head,
+    .job-panel .rubric-head {
+      gap: 10px;
+    }
+    .job-panel .rubric-head .head-link {
+      font-size: 9.5px;
+    }
+    .job-panel .proc-list {
+      max-height: 132px;
+      overflow: hidden;
+    }
+    .job-panel .proc-row {
+      grid-template-columns: auto 22px minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 5px 8px;
+    }
+    .job-panel .pr-mk,
+    .job-panel .pr-mk.empty {
+      width: 22px;
+      height: 22px;
+    }
+    .job-panel .pr-rk {
+      font-size: 16px;
+    }
+    .job-panel .pr-nm {
+      font-size: 11px;
+    }
+    .job-panel .pr-hk {
+      font-size: 8.5px;
+    }
+    .job-panel .pr-sc {
+      font-size: 14px;
+    }
+    .job-panel .rubric-list {
+      gap: 2px;
+      margin-top: 4px;
+      max-height: 132px;
+      overflow: hidden;
+    }
+    .job-panel .rubric-list .r {
+      grid-template-columns: 78px minmax(0, 1fr) 30px;
+      gap: 6px;
+      padding: 4px 6px;
+    }
+    .job-panel .rubric-list .r .l {
+      font-size: 10.5px;
+    }
+    .job-panel .rubric-list .r .v {
+      font-size: 9px;
+    }
+    .proc-head,
+    .rubric-head {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .proc-head .num,
+    .rubric-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .proc-head h2,
+    .rubric-head h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-style: italic;
+      font-size: 18px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--fg);
+      margin: 0;
+    }
+    .proc-head .rule,
+    .rubric-head .rule {
+      flex: 1;
+      height: 1px;
+      min-width: 24px;
+      background: var(--border-soft);
+      margin: 0 4px;
+    }
+    .proc-head .head-meta,
+    .rubric-head .head-link {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      color: var(--dim);
+    }
+    .rubric-head .head-link {
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      text-transform: none;
+      color: var(--accent);
+      text-decoration: none;
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+    .rubric-head .head-link:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .proc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+    }
+    .proc-row {
+      display: grid;
+      grid-template-columns: auto 28px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      background: var(--bg);
+      text-decoration: none;
+      color: inherit;
+      transition: background 140ms;
+      min-width: 0;
+    }
+    .proc-row:hover { background: var(--surface); }
+    .proc-row.rank-1 { background: var(--accent-dim); }
+    .proc-row.rank-1:hover { background: rgba(126, 168, 208, 0.18); }
+    .proc-row.proc-open {
+      opacity: 0.62;
+      pointer-events: none;
+    }
+    .pr-mk.empty {
+      width: 32px;
+      height: 32px;
+      border: 1px dashed var(--faint);
+      background: transparent;
+    }
+    .pr-rk {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 22px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .proc-row.rank-1 .pr-rk { color: var(--accent); }
+    .pr-mk {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .pr-mk :global(svg) { width: 70%; height: 70%; }
+    .pr-who {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+    .pr-nm {
+      color: var(--fg);
+      font-size: 12.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pr-hk {
+      color: var(--dim);
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+    .pr-sc {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 18px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .proc-empty {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .proc-empty a {
+      color: var(--accent);
+      margin-left: 8px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .rubric { margin: 0; }
+    .rubric-list {
+      display: grid;
+      gap: 3px;
+      margin-top: 8px;
+    }
+    .rubric-list .r {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 36px;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 140ms, background 140ms;
+    }
+    .rubric-list .r:hover,
+    .rubric-list .r:focus-visible {
+      border-color: var(--accent);
+      background: var(--surface);
+      outline: 2px solid transparent;
+    }
+    .rubric-list .r .l { color: var(--fg); font-size: 12px; }
+    .rubric-list .r .b {
+      position: relative;
+      height: 4px;
+      background: var(--border-soft);
+    }
+    .rubric-list .r .b::after {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--w, 0%);
+      background: var(--accent);
+      opacity: 0.75;
+    }
+    .rubric-list .r .v {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .rubric .moats {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.55;
+      max-width: 52ch;
+    }
+
+    .below-fold {
+      margin-top: 8px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .below-fold summary {
+      cursor: pointer;
+      padding: 10px 0;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      list-style: none;
+    }
+    .below-fold summary::-webkit-details-marker { display: none; }
+    .below-fold[open] summary {
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .below-fold .below {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .mine-block {
+      margin-top: 28px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .block-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .block-head h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 18px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--fg);
+      margin: 0;
+    }
+    .block-head .rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border-soft);
+      margin-left: 6px;
+    }
+    .mine-line {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      max-width: 64ch;
+    }
+    .mine-line code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--fg);
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      padding: 1px 6px;
+    }
+    .mine-line a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .upload-fold {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .upload-fold summary {
+      cursor: pointer;
+      color: var(--accent);
+    }
+    .upload-fold a { color: var(--accent); }
+
+    .partner-panel-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .partner-panel-head .num { color: var(--accent); }
+    .partner-panel-head h2 {
+      font-family: var(--serif);
+      font-weight: 300;
       font-size: 22px;
       letter-spacing: 0;
       text-transform: none;
       color: var(--fg);
       margin: 0;
     }
-    .lhead .rule { flex: 1; height: 1px; background: var(--border-soft); margin: 0 4px; }
-
-    /* ===== job rows ===== */
-    .jobs {
+    .partner-panel-head .rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border-soft);
+    }
+    .partner-panel-lede {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      max-width: 64ch;
+    }
+    .partner-panel-actions {
       display: flex;
-      flex-direction: column;
-      background: var(--surface);
-      border: 1px solid var(--border-soft);
-      min-width: 0;
-    }
-    .job {
-      display: grid;
-      grid-template-columns: 6px 220px 1fr 240px 200px 30px;
-      gap: 20px;
-      align-items: center;
-      padding: 18px 20px 18px 0;
-      border-bottom: 1px solid var(--border-soft);
-      text-decoration: none;
-      color: inherit;
-      transition: background 160ms;
-      position: relative;
-      animation: cd-settle 500ms cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
-    }
-    .job:last-child { border-bottom: 0; }
-    .job:hover { background: var(--surface-2); }
-    .job .stripe {
-      align-self: stretch;
-      background: var(--accent);
-      opacity: 0.7;
-    }
-    .job[data-ind='reg'] .stripe { background: var(--accent); }
-    .job[data-ind='dist'] .stripe { background: var(--ok); }
-    .job[data-ind='drug'] .stripe { background: var(--warn); }
-    .job[data-ind='sec'] .stripe { background: var(--err); }
-
-    .job .meta {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 0;
-    }
-    .job .meta .tags {
-      display: flex;
-      gap: 6px;
-      align-items: center;
       flex-wrap: wrap;
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--dim);
+      gap: 8px;
     }
-    .job .meta .tags .dim { color: var(--faint); }
-    .job .meta .tags .ind { color: var(--muted); }
-    .job .meta .tags .ind .d {
+    .partner-panel-actions .btn {
       display: inline-block;
-      width: 5px; height: 5px;
-      margin-right: 5px;
-      vertical-align: middle;
-    }
-    .job[data-ind='reg'] .meta .tags .ind .d { background: var(--accent); }
-    .job[data-ind='dist'] .meta .tags .ind .d { background: var(--ok); }
-    .job[data-ind='drug'] .meta .tags .ind .d { background: var(--warn); }
-    .job[data-ind='sec'] .meta .tags .ind .d { background: var(--err); }
-    .job .meta .tags .juris { color: var(--accent); }
-    .job .meta .name {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: 22px;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
       color: var(--fg);
-      line-height: 1.15;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font: inherit;
+      font-size: 12px;
+      text-decoration: none;
+      transition: border-color 140ms, color 140ms, background 140ms;
     }
-    .job .lede {
-      font-family: var(--serif);
-      font-style: italic;
-      font-weight: 300;
-      font-size: 13.5px;
-      line-height: 1.45;
-      color: var(--muted);
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      margin: 0;
-    }
-
-    /* mini-wall */
-    .mw {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-self: center;
-    }
-    .mw .mw-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      color: var(--dim);
-      text-transform: uppercase;
-    }
-    .mw .mw-head .fill {
-      color: var(--muted);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.04em;
-    }
-    .mw .mw-head .fill strong { color: var(--fg); font-weight: 400; }
-    .mw .mw-grid { display: grid; gap: 2px; }
-    .mw .mw-grid.dense-1 {
-      grid-template-columns: repeat(48, 1fr);
-      grid-template-rows: repeat(1, 1fr);
-    }
-    .mw .mw-grid.dense-3 {
-      grid-template-columns: repeat(24, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-    }
-    .mw .mw-grid.dense-4 {
-      grid-template-columns: repeat(32, 1fr);
-      grid-template-rows: repeat(4, 1fr);
-    }
-    .mw .mw-grid.dense-4-wide {
-      grid-template-columns: repeat(48, 1fr);
-      grid-template-rows: repeat(4, 1fr);
-    }
-    .mw .mw-grid :global(.c) {
-      height: 8px;
-      background: var(--bg);
-      border: 0.5px solid var(--border-soft);
-    }
-    .mw .mw-grid.dense-4 :global(.c) { height: 7px; }
-    .mw .mw-grid.dense-4-wide :global(.c) { height: 6px; }
-    .mw .mw-grid.dense-3 :global(.c) { height: 9px; }
-    .mw .mw-grid.dense-1 :global(.c) { height: 14px; }
-    .mw .mw-grid :global(.c.laid) {
-      background: var(--accent-dim);
-      border-color: rgba(126, 168, 208, 0.55);
-    }
-    .mw .mw-grid :global(.c.fresh) {
-      background: var(--accent);
+    .partner-panel-actions .btn:hover,
+    .partner-panel-actions .btn:focus-visible {
       border-color: var(--accent);
-      box-shadow: 0 0 4px rgba(126, 168, 208, 0.6);
-    }
-    .mw .mw-grid :global(.c.miss) {
-      background: transparent;
-      border-color: var(--faint);
-      border-style: dashed;
-      opacity: 0.55;
-    }
-    .mw.empty .mw-grid :global(.c) {
-      background: transparent;
-      border-style: dashed;
-      border-color: var(--faint);
-      opacity: 0.4;
-    }
-    .mw[data-ind='dist'] .mw-grid :global(.c.laid) {
-      background: rgba(137, 184, 144, 0.16);
-      border-color: rgba(137, 184, 144, 0.55);
-    }
-    .mw[data-ind='dist'] .mw-grid :global(.c.fresh) {
-      background: var(--ok);
-      border-color: var(--ok);
-      box-shadow: 0 0 4px rgba(137, 184, 144, 0.5);
-    }
-    .mw[data-ind='drug'] .mw-grid :global(.c.laid) {
-      background: rgba(216, 167, 101, 0.14);
-      border-color: rgba(216, 167, 101, 0.55);
-    }
-    .mw[data-ind='drug'] .mw-grid :global(.c.fresh) {
-      background: var(--warn);
-      border-color: var(--warn);
-      box-shadow: 0 0 4px rgba(216, 167, 101, 0.5);
-    }
-    .mw .empty-msg {
-      font-family: var(--serif);
-      font-style: italic;
-      font-weight: 300;
-      font-size: 12.5px;
-      color: var(--muted);
-      padding: 4px 0;
-      margin: 0;
-    }
-    .mw .empty-msg strong {
       color: var(--accent);
-      font-weight: 300;
-      font-style: italic;
+      outline: 2px solid transparent;
     }
-
-    /* stat cluster on the right */
-    .stats {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 14px;
-    }
-    .stats .st { display: flex; flex-direction: column; gap: 2px; }
-    .stats .st .k {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .stats .st .v {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: 17px;
-      color: var(--fg);
-      font-variant-numeric: tabular-nums;
-    }
-    .stats .st .v.lastv { font-size: 14px; }
-    .stats .st .v .u {
-      font-family: var(--mono);
-      font-size: 10.5px;
-      color: var(--dim);
-      margin-left: 2px;
-      letter-spacing: 0.04em;
-    }
-    .stats .st .sub {
-      font-size: 9.5px;
-      letter-spacing: 0.04em;
-      color: var(--dim);
-    }
-    .stats .st .sub.status { display: inline-flex; align-items: center; gap: 4px; }
-    .stats .st .sub.status::before {
-      content: '';
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-    }
-    .stats .st .sub.status-live { color: var(--accent); }
-    .stats .st .sub.status-live::before {
-      background: var(--accent);
-      box-shadow: var(--glow-accent);
-      animation: cd-pulse 1.7s ease-in-out infinite;
-    }
-    .stats .st .sub.status-warm { color: var(--warn); }
-    .stats .st .sub.status-warm::before { background: var(--warn); }
-    .stats .st .sub.status-quiet { color: var(--dim); }
-    .stats .st .sub.status-quiet::before { background: var(--faint); }
-    .stats .st .sub.status-newborn { color: var(--dim); }
-    .stats .st .sub.status-newborn::before { background: var(--faint); }
-
-    .job .arr {
-      color: var(--dim);
-      font-size: 16px;
-      text-align: right;
-      transition: color 160ms, transform 160ms;
-    }
-    .job:hover .arr { color: var(--accent); transform: translateX(2px); }
-
-    /* mobile: collapse the row to two stacked groups */
-    @media (max-width: 980px) {
-      .job {
-        grid-template-columns: 6px 1fr 30px;
-        grid-template-rows: auto auto auto;
-        gap: 12px 14px;
-        padding: 16px 14px 16px 0;
-      }
-      .job .stripe { grid-row: 1 / span 3; }
-      .job .meta { grid-column: 2; grid-row: 1; }
-      .job .mw { grid-column: 2; grid-row: 2; }
-      .job .stats {
-        grid-column: 2; grid-row: 3;
-        grid-template-columns: 1fr 1fr 1fr;
-        padding-top: 10px;
-        border-top: 1px solid var(--border-soft);
-      }
-      .job .arr { grid-column: 3; grid-row: 1; }
+    .partner-panel-actions .btn.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
     }
 
     /* ===== below: subscribe + bring-your-agent ===== */

@@ -25,6 +25,17 @@ interface Props {
    *  (jobs, agents) and home, where reading-column constraints leave too
    *  much dead space on wide viewports. */
   wide?: boolean
+  /** Home / job console: hide footer subscribe and secondary nav noise. */
+  hideNoise?: boolean
+  /** Active job surfaced in the status strip with an info dialog. */
+  focusJob?: {
+    id: string
+    title: string
+    lede: string
+    tribute: string
+    cadenceHours: number
+    masons: number
+  }
 }
 
 const {
@@ -34,6 +45,8 @@ const {
   showStatus = true,
   fullHeight = false,
   wide = false,
+  hideNoise = false,
+  focusJob,
 } = Astro.props
 
 // Live status strip — the site's heartbeat. Server-renders initial values
@@ -97,35 +110,26 @@ if (showStatus) {
   }
 }
 
-// Top nav: kept to four destinations so the IA reads as a clean spine.
-// Demoted items (plans, dashboard, research, roadmap, changelog) live in
-// the footer's secondary row below.
-// IA: jobs = standing work the subnet publishes (rubrics, source pools);
-// cards = miner submissions answering a job (one job has many cards);
-// agents = the workforce (one miner can run agents across many jobs).
-// URL note: /jobs is the canonical path; /cards remains live as a
-// redirect alias during the v1 vocab transition (the publisher's
-// `card_id` column is what these jobs are keyed on under the hood).
-const navItems = [
-  { href: '/jobs', label: 'jobs' },
-  { href: '/leaderboard', label: 'leaderboard' },
-  { href: '/agents', label: 'agents' },
-  { href: '/how-it-works', label: 'how it works' },
-  { href: 'https://github.com/cathedralai/cathedral', label: 'github' },
-] as const
+// Top nav stays minimal on the console home; secondary links live in the footer.
+const navItems: readonly { href: string; label: string }[] = []
 
-const shellClass = fullHeight
-  ? 'mx-auto max-w-[1180px] h-screen flex flex-col px-4 py-4 sm:px-5'
-  : 'mx-auto max-w-[1180px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
+const shellClass = fullHeight || hideNoise
+  ? 'mx-auto max-w-[1080px] h-dvh flex flex-col px-4 py-3 sm:px-5 overflow-hidden'
+  : 'mx-auto max-w-[1080px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
 /* Top nav keeps the full shell width (breathing, airy). The body of the
    page (everything under the nav) sits in a narrower column — roughly
    Word "Normal" margins (≈1in each side) — so content doesn't feel like
-   it's running off the page. */
-const mainMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
-const mainClass = fullHeight
+   it's running off the page.
+   Wide mode (rail-canvas pages: home, regulatory job pages) caps at the
+   same 1080px shell width so the layout fits comfortably on smaller
+   laptops and split-screen workflows without horizontal scroll. */
+const mainMax = wide ? 'max-w-[1080px]' : 'max-w-[960px]'
+const mainClass = fullHeight || hideNoise
+  ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto overflow-hidden`
+  : fullHeight
   ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto`
   : `flex-1 flex flex-col w-full ${mainMax} mx-auto`
-const footerMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
+const footerMax = wide ? 'max-w-[1080px]' : 'max-w-[960px]'
 const footerClass = fullHeight
   ? `mt-3 pt-2 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0 w-full ${footerMax} mx-auto`
   : `mt-6 pt-3 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8 w-full ${footerMax} mx-auto`
@@ -178,17 +182,27 @@ const footerClass = fullHeight
       })()
     </script>
   </head>
-  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight ? 'overflow-hidden' : ''}`}>
+  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight || hideNoise ? 'overflow-hidden' : ''}`}>
     <div class={shellClass}>
-      <header class="relative z-20 flex flex-wrap items-center gap-x-3 gap-y-2 bg-bg text-[10px] text-muted mb-3 shrink-0 sm:mb-4 sm:gap-x-6 sm:text-[11px]">
+      <header class={`relative z-20 flex flex-wrap items-center gap-x-3 gap-y-2 bg-bg text-[10px] text-muted shrink-0 sm:gap-x-6 sm:text-[11px] ${hideNoise ? 'mb-2' : 'mb-3 sm:mb-4'}`}>
         <a href="/" class="flex items-center gap-2 text-fg hover:text-accent transition-colors tracking-[0.1em] uppercase">
           <RoseWindow size={14} class="text-accent opacity-80" />
           <span>cathedral</span>
         </a>
-        <span class="text-dim">·</span>
-        {navItems.map((item) => (
-          <a href={item.href} class="hover:text-fg transition-colors">{item.label}</a>
-        ))}
+        {focusJob && (
+          <>
+            <span class="text-dim">·</span>
+            <span class="text-fg tracking-[0.06em] uppercase">{focusJob.title}</span>
+          </>
+        )}
+        {navItems.length > 0 && (
+          <>
+            <span class="text-dim">·</span>
+            {navItems.map((item) => (
+              <a href={item.href} class="hover:text-fg transition-colors">{item.label}</a>
+            ))}
+          </>
+        )}
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
         <button
           type="button"
@@ -200,20 +214,10 @@ const footerClass = fullHeight
           <span data-theme-icon-light class="hidden">◑ light</span>
         </button>
         <span class="text-dim">sn39 · finney</span>
-        <a
-          href="/jobs"
-          class="cd-you text-dim hover:text-fg transition-colors"
-          data-cd-you
-          aria-label="Your agent status"
-        >
-          <span class="cd-you-sep" aria-hidden="true">·</span>
-          <span class="cd-you-lbl">you</span>
-          <span class="cd-you-state" data-cd-you-state>not enlisted</span>
-        </a>
       </header>
       {showStatus && (
         <div
-          class={`cd-status ${mainMax} mx-auto w-full`}
+          class={`cd-status ${mainMax} mx-auto w-full${hideNoise ? ' cd-status-console' : ''}`}
           data-live="status-strip"
           data-status-tone={initialStatus.tone}
           role="status"
@@ -222,23 +226,25 @@ const footerClass = fullHeight
           <span class="cd-status-dot" aria-hidden="true"></span>
           <span class="cd-status-tone">{initialStatus.toneLabel}</span>
           <span class="cd-status-sep" aria-hidden="true">·</span>
-          <span class="cd-status-stat"><strong>{initialStatus.totalAgents}</strong> agents</span>
+          <span class="cd-status-stat"><strong>{initialStatus.totalAgents}</strong> masons</span>
           <span class="cd-status-sep" aria-hidden="true">·</span>
-          <span class="cd-status-stat">last card <strong>{initialStatus.lastCardAge}</strong></span>
+          <span class="cd-status-stat">last stone <strong>{initialStatus.lastCardAge}</strong></span>
           {initialStatus.latestEpoch !== null && (
             <>
               <span class="cd-status-sep" aria-hidden="true">·</span>
-              <span class="cd-status-stat">merkle epoch <strong>{initialStatus.latestEpoch}</strong></span>
+              <span class="cd-status-stat">epoch <strong>{initialStatus.latestEpoch}</strong></span>
             </>
           )}
           <span class="cd-status-spacer" aria-hidden="true"></span>
-          <a class="cd-status-link" href="/jobs">Mine a job →</a>
+          {!focusJob && (
+            <a class="cd-status-link" href="/">Mine a job →</a>
+          )}
         </div>
       )}
       <main class={mainClass}>
         <slot />
       </main>
-      {!fullHeight && (
+      {!fullHeight && !hideNoise && (
         <aside class={`site-subscribe ${footerMax} mx-auto mt-8 sm:mt-10`} aria-label="Subscribe">
           <p class="site-subscribe-lbl">Get a daily signed brief from the workforce.</p>
           <form class="site-subscribe-form" data-lead-form data-source="footer">
@@ -256,23 +262,29 @@ const footerClass = fullHeight
           </form>
         </aside>
       )}
+      {!hideNoise && (
       <footer class={footerClass}>
         <span>cathedral.computer</span>
-        <span class="text-border">·</span>
-        <a href="https://github.com/cathedralai/cathedral" class="hover:text-muted transition-colors">source</a>
-        <a href="/verification" class="hover:text-muted transition-colors">verification</a>
-        <a href="/origins" class="hover:text-muted transition-colors">origins</a>
-        <a href="https://github.com/cathedralai/cathedral/blob/main/docs/policy.md" class="hover:text-muted transition-colors">policy</a>
-        <a href="https://polaris.computer" class="hover:text-muted transition-colors">rent compute ↗</a>
-        <span class="text-border">·</span>
-        <a href="/plans" class="hover:text-muted transition-colors">plans</a>
-        <a href="/dashboard" class="hover:text-muted transition-colors">dashboard</a>
-        <a href="/research" class="hover:text-muted transition-colors">research</a>
-        <a href="/roadmap" class="hover:text-muted transition-colors">roadmap</a>
-        <a href="/changelog" class="hover:text-muted transition-colors">changelog</a>
-        <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
-        <span class="w-full min-[560px]:w-auto">operated by <a href="https://polaris.computer" class="hover:text-muted transition-colors underline decoration-dim underline-offset-2 decoration-[0.5px]">polaris</a></span>
+        {!hideNoise && (
+          <>
+            <span class="text-border">·</span>
+            <a href="https://github.com/cathedralai/cathedral" class="hover:text-muted transition-colors">source</a>
+            <a href="/verification" class="hover:text-muted transition-colors">verification</a>
+            <a href="/origins" class="hover:text-muted transition-colors">origins</a>
+            <a href="https://github.com/cathedralai/cathedral/blob/main/docs/policy.md" class="hover:text-muted transition-colors">policy</a>
+            <a href="https://polaris.computer" class="hover:text-muted transition-colors">rent compute ↗</a>
+            <span class="text-border">·</span>
+            <a href="/plans" class="hover:text-muted transition-colors">plans</a>
+            <a href="/dashboard" class="hover:text-muted transition-colors">dashboard</a>
+            <a href="/research" class="hover:text-muted transition-colors">research</a>
+            <a href="/roadmap" class="hover:text-muted transition-colors">roadmap</a>
+            <a href="/changelog" class="hover:text-muted transition-colors">changelog</a>
+            <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
+            <span class="w-full min-[560px]:w-auto">operated by <a href="https://polaris.computer" class="hover:text-muted transition-colors underline decoration-dim underline-offset-2 decoration-[0.5px]">polaris</a></span>
+          </>
+        )}
       </footer>
+      )}
     </div>
     <!-- Lead-capture handler. Routes any form with [data-lead-form] into a
          posthog event + identify. Source-of-truth lives in PostHog until
@@ -315,57 +327,6 @@ const footerClass = fullHeight
         })
       })()
     </script>
-    <!-- Save-file "you" indicator in the nav. Reads localStorage:
-         - cd:agent_id (the agent the visitor has claimed)
-         - cd:agent_name (display name, optional)
-         If claimed, the chip becomes 'you · @name' and links to that
-         agent's profile. Otherwise it stays 'you · not enlisted' and
-         links to /jobs as the next step. Multi-tab safe via storage
-         events. -->
-    <script is:inline>
-      (function () {
-        var root = document.querySelector('[data-cd-you]')
-        if (!root) return
-        var stateEl = root.querySelector('[data-cd-you-state]')
-        function read() {
-          try {
-            return {
-              id: localStorage.getItem('cd:agent_id') || '',
-              name: localStorage.getItem('cd:agent_name') || '',
-            }
-          } catch (_) {
-            return { id: '', name: '' }
-          }
-        }
-        function trunc(s) {
-          if (!s) return ''
-          if (s.length <= 16) return s
-          return s.slice(0, 6) + '…' + s.slice(-4)
-        }
-        function sync() {
-          var v = read()
-          if (v.id) {
-            stateEl.textContent = v.name ? '@' + v.name : trunc(v.id)
-            root.classList.add('is-claimed')
-            root.setAttribute('href', '/agents/' + encodeURIComponent(v.id))
-          } else {
-            stateEl.textContent = 'not enlisted'
-            root.classList.remove('is-claimed')
-            root.setAttribute('href', '/jobs')
-          }
-        }
-        sync()
-        window.addEventListener('storage', function (e) {
-          if (
-            e.key === 'cd:agent_id' ||
-            e.key === 'cd:agent_name' ||
-            e.key === null
-          ) {
-            sync()
-          }
-        })
-      })()
-    </script>
     <script is:inline>
       (function () {
         var btn = document.querySelector('[data-theme-toggle]')
@@ -396,6 +357,7 @@ const footerClass = fullHeight
       // the page; this script swaps `data-live` placeholders with fresh API
       // data on load + every 30s, so new submissions surface without a
       // rebuild.
+      import('../lib/dialog-dismiss.client.ts')
       import('../lib/live-hydrate.client.ts')
     </script>
     <style is:global>
@@ -474,37 +436,6 @@ const footerClass = fullHeight
         padding: 0; margin: -1px;
         overflow: hidden; clip: rect(0,0,0,0);
         white-space: nowrap; border: 0;
-      }
-
-      /* ---- save-file 'you' chip in the nav -------------------------
-         Quiet mono badge that tells a visitor whether they've claimed
-         an agent ('you · @name') or are still browsing ('you · not
-         enlisted'). Hover lifts to fg. Hidden on the smallest viewports
-         where the nav is already cramped — the chip is informational,
-         not navigational, so dropping it on phones is acceptable. */
-      .cd-you {
-        display: inline-flex;
-        align-items: baseline;
-        gap: 4px;
-        font-family: var(--mono);
-      }
-      .cd-you-sep { color: var(--border); }
-      .cd-you-lbl { color: var(--dim); }
-      .cd-you-state {
-        color: var(--dim);
-        font-style: italic;
-      }
-      .cd-you.is-claimed .cd-you-lbl,
-      .cd-you.is-claimed .cd-you-state {
-        color: var(--accent);
-        font-style: normal;
-      }
-      .cd-you:hover .cd-you-lbl,
-      .cd-you:hover .cd-you-state {
-        color: var(--fg);
-      }
-      @media (max-width: 480px) {
-        .cd-you { display: none; }
       }
 
       /* ---- live status strip (the heartbeat) -----------------------
@@ -588,6 +519,10 @@ const footerClass = fullHeight
       .cd-status-link:hover {
         text-decoration: underline;
         text-underline-offset: 3px;
+      }
+      .cd-status-console {
+        margin-bottom: 8px;
+        padding: 5px 10px;
       }
       @media (max-width: 640px) {
         .cd-status {

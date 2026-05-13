@@ -5,24 +5,32 @@ export default defineConfig({
   site: 'https://cathedral.computer',
   integrations: [tailwind()],
   output: 'static',
-  // IA cleanup: /workforce was renamed to /agents (the agent registry).
-  // Astro emits a static HTML redirect page for each entry so legacy links
-  // and external references keep resolving. /afrotensor was killed; we
-  // bounce it home rather than 404 so any inbound link still lands.
+  // IA cleanup: the home page is now the jobs list, and each job page
+  // carries its own procession (top agents) and wall (last 24h of stones),
+  // so the old standalone /jobs, /leaderboard, /agents indexes are gone —
+  // along with per-job /feed, /leaderboard, /discovery sub-pages, which
+  // the wall + procession + stone clicks now cover. Old paths bounce to
+  // the closest live surface so inbound links keep resolving.
+  // /afrotensor was killed earlier; we bounce it home as well.
   // /cards → /jobs: vocab rename. In the v1 model, "jobs" are the
   // standing work Cathedral publishes (rubric + source pool) and "cards"
-  // are miner submissions answering a job. Old /cards URLs continue to
-  // resolve via these redirects so external links don't break.
+  // are miner submissions answering a job.
   redirects: {
-    '/workforce': '/agents',
+    '/workforce': '/',
     '/afrotensor': '/',
-    '/cards': '/jobs',
+    '/jobs': '/',
+    '/leaderboard': '/',
+    '/agents': '/',
+    '/cards': '/',
     '/cards/[id]': '/jobs/[id]',
-    '/cards/[id]/feed': '/jobs/[id]/feed',
-    '/cards/[id]/leaderboard': '/jobs/[id]/leaderboard',
+    '/cards/[id]/feed': '/jobs/[id]',
+    '/cards/[id]/leaderboard': '/jobs/[id]',
+    '/cards/[id]/discovery': '/jobs/[id]',
     '/cards/[id]/submit': '/jobs/[id]/submit',
-    '/cards/[id]/discovery': '/jobs/[id]/discovery',
     '/cards/[id]/eval-spec': '/jobs/[id]/eval-spec',
+    '/jobs/[id]/feed': '/jobs/[id]',
+    '/jobs/[id]/leaderboard': '/jobs/[id]',
+    '/jobs/[id]/discovery': '/jobs/[id]',
   },
   vite: {
     server: { port: 4321 },

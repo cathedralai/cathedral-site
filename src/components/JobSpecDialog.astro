@@ -1,0 +1,370 @@
+---
+import { marked } from 'marked'
+import type { CardEvalSpec } from '../lib/types'
+
+interface Props {
+  spec: CardEvalSpec
+}
+
+const { spec } = Astro.props
+const r = spec.scoring_rubric
+const weightRows = [
+  { key: 'source_quality_weight', label: 'Source quality', weight: r.source_quality_weight },
+  { key: 'maintenance_weight', label: 'Maintenance', weight: r.maintenance_weight },
+  { key: 'freshness_weight', label: 'Freshness', weight: r.freshness_weight },
+  { key: 'specificity_weight', label: 'Specificity', weight: r.specificity_weight },
+  { key: 'usefulness_weight', label: 'Usefulness', weight: r.usefulness_weight },
+  { key: 'clarity_weight', label: 'Clarity', weight: r.clarity_weight },
+]
+const descriptionHtml = await marked.parse(spec.description_md ?? '')
+const evalSpecHtml = await marked.parse(spec.eval_spec_md ?? '')
+const schema = `{
+  "id": "${spec.card_id}",
+  "jurisdiction": "${spec.jurisdiction}",
+  "topic": "string",
+  "title": "string",
+  "summary": "${r.min_summary_chars}-${r.max_summary_chars} chars",
+  "what_changed": "string",
+  "why_it_matters": "string",
+  "action_notes": "string",
+  "risks": "string",
+  "citations": [{
+    "url": "string",
+    "class": "official_journal | regulator | court | ...",
+    "fetched_at": "iso 8601",
+    "status": 200,
+    "content_hash": "blake3 hex"
+  }],
+  "confidence": 0.0..1.0,
+  "no_legal_advice": true,
+  "last_refreshed_at": "iso 8601",
+  "refresh_cadence_hours": ${spec.refresh_cadence_hours}
+}`
+---
+
+<dialog class="job-spec-dialog" data-job-spec-dialog={spec.card_id}>
+  <form method="dialog" class="job-spec-shell">
+    <header class="job-spec-head">
+      <p class="job-spec-k">{spec.jurisdiction} · eval spec</p>
+      <h2 class="job-spec-title">{spec.display_name}</h2>
+      <p class="job-spec-lede">
+        Build to this. Source pool, task templates, scoring rubric. All public so miners know what cathedral evaluates against.
+      </p>
+    </header>
+
+    <div class="job-spec-body">
+      <section class="job-spec-block">
+        <h3>Description</h3>
+        <div class="prose md" set:html={descriptionHtml}></div>
+        {evalSpecHtml && evalSpecHtml.trim().length > 0 && (
+          <div class="prose md" set:html={evalSpecHtml}></div>
+        )}
+      </section>
+
+      <section class="job-spec-block">
+        <h3>Scoring rubric</h3>
+        <div class="rubric">
+          {weightRows.map((row) => (
+            <div class="r-row" id={`r-${spec.card_id}-${row.key}`}>
+              <span class="lbl">{row.label}</span>
+              <span class="bar"><span class="bar-fill" style={`width: ${row.weight * 100}%`}></span></span>
+              <span class="val">{(row.weight * 100).toFixed(0)}%</span>
+            </div>
+          ))}
+        </div>
+        <ul class="constraints">
+          <li>summary length: {r.min_summary_chars}-{r.max_summary_chars} chars</li>
+          <li>citations: minimum {r.min_citations}</li>
+          <li>required source classes: {r.required_source_classes.join(', ')}</li>
+          <li>refresh cadence: every {spec.refresh_cadence_hours}h</li>
+        </ul>
+      </section>
+
+      <section class="job-spec-block">
+        <h3>Task templates</h3>
+        <ol class="tasks">
+          {spec.task_templates.map((t) => (
+            <li>{t}</li>
+          ))}
+        </ol>
+        <p class="hint">Each round picks one template at random. Sources rotate from the pool below.</p>
+      </section>
+
+      <section class="job-spec-block">
+        <h3>Source pool</h3>
+        <div class="sources">
+          {spec.source_pool.map((src) => (
+            <a class="src" href={src.url} target="_blank" rel="noopener noreferrer">
+              <span class="cls">{src.class}</span>
+              <span class="name">{src.name}</span>
+              <span class="url">{src.url}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="job-spec-block">
+        <h3>Output schema</h3>
+        <p class="prose">
+          Your agent must produce a Card JSON. Each field shapes the score. The schema is closed. Extra fields are ignored.
+          <code>no_legal_advice</code> must be the literal boolean <code>true</code>.
+        </p>
+        <pre class="schema"><code>{schema}</code></pre>
+      </section>
+    </div>
+
+    <footer class="job-spec-foot">
+      <a href={`/jobs/${spec.card_id}/eval-spec`}>Open full page</a>
+      <a href={`/jobs/${spec.card_id}/submit`}>Lay a tribute</a>
+      <button type="submit" value="close">Close</button>
+    </footer>
+  </form>
+</dialog>
+
+<style>
+  .job-spec-dialog {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0;
+    max-width: min(720px, calc(100vw - 24px));
+    width: 100%;
+    max-height: min(88dvh, 920px);
+  }
+  .job-spec-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+  }
+  .job-spec-shell {
+    margin: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: min(88dvh, 920px);
+  }
+  .job-spec-head {
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .job-spec-k {
+    margin: 0 0 8px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .job-spec-title {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(24px, 4vw, 32px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    color: var(--fg);
+  }
+  .job-spec-lede {
+    margin: 10px 0 0;
+    max-width: 58ch;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  .job-spec-body {
+    overflow: auto;
+    padding: 16px 18px 8px;
+    display: grid;
+    gap: 22px;
+  }
+  .job-spec-block h3 {
+    margin: 0 0 12px;
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 18px;
+    color: var(--fg);
+  }
+  .prose {
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.7;
+    max-width: 62ch;
+    margin: 0;
+  }
+  .prose code {
+    font-family: inherit;
+    color: var(--fg);
+    background: var(--surface);
+    padding: 0 4px;
+  }
+  .prose.md + .prose.md { margin-top: 12px; }
+  .prose.md :global(p) { margin: 0 0 12px; }
+  .prose.md :global(p:last-child) { margin-bottom: 0; }
+  .prose.md :global(h2),
+  .prose.md :global(h3) {
+    font-family: var(--serif);
+    font-weight: 300;
+    color: var(--fg);
+    margin: 16px 0 8px;
+    letter-spacing: 0;
+  }
+  .prose.md :global(h2) { font-size: 17px; }
+  .prose.md :global(h3) { font-size: 15px; }
+  .prose.md :global(a) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose.md :global(ul),
+  .prose.md :global(ol) {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .prose.md :global(li) { padding: 2px 0; }
+  .prose.md :global(strong) { color: var(--fg); font-weight: 500; }
+  .rubric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 560px;
+  }
+  .r-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 50px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .r-row .lbl { font-size: 12px; color: var(--fg); }
+  .r-row .bar {
+    height: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    position: relative;
+  }
+  .r-row .bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  .r-row .val {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .constraints {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .constraints li {
+    padding: 4px 0;
+    border-top: 1px solid var(--border-soft);
+  }
+  .constraints li:first-child { border-top: 0; }
+  .tasks {
+    list-style: none;
+    counter-reset: task;
+    padding: 0;
+    margin: 0;
+  }
+  .tasks li {
+    counter-increment: task;
+    padding: 10px 0 10px 36px;
+    position: relative;
+    border-top: 1px solid var(--border-soft);
+    font-size: 13px;
+    color: var(--fg);
+    line-height: 1.55;
+  }
+  .tasks li:first-child { border-top: 0; }
+  .tasks li::before {
+    content: counter(task, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 11px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+  .hint {
+    margin: 12px 0 0;
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .sources { display: grid; gap: 8px; }
+  .src {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    transition: border-color 140ms;
+  }
+  .src:hover { border-color: var(--accent); }
+  .src .cls {
+    color: var(--accent);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .src .name { color: var(--fg); font-size: 13px; }
+  .src .url {
+    grid-column: 2;
+    color: var(--muted);
+    font-size: 11px;
+    word-break: break-all;
+  }
+  .schema {
+    margin: 12px 0 0;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    overflow-x: auto;
+    font-size: 11.5px;
+    color: var(--fg);
+    line-height: 1.55;
+  }
+  .schema code { font-family: inherit; }
+  .job-spec-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 12px 18px 14px;
+    border-top: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .job-spec-foot a {
+    color: var(--accent);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .job-spec-foot button {
+    margin-left: auto;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .job-spec-foot button:hover,
+  .job-spec-foot button:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  @media (max-width: 640px) {
+    .src { grid-template-columns: 1fr; gap: 4px; }
+    .src .url { grid-column: 1; }
+    .r-row { grid-template-columns: 1fr; gap: 6px; }
+    .r-row .val { text-align: left; }
+  }
+</style>

@@ -11,7 +11,7 @@
  * marks; a small inline script attaches peek behaviour and you-detection
  * after first paint.
  */
-import { masonMark } from '../lib/mason-marks'
+import { stoneMark } from '../lib/stone-marks'
 import type { EvalOutput } from '../lib/types'
 
 interface Props {
@@ -19,11 +19,13 @@ interface Props {
   evals: EvalOutput[]
   /** Job id, for context and the empty-state CTA. */
   cardId: string
-  /** Optional section number (default '01'). */
+  /** Optional section eyebrow number. Omit on dense console layouts. */
   num?: string
+  /** Tighter grid for single-viewport layouts. */
+  compact?: boolean
 }
 
-const { evals, cardId, num = '01' } = Astro.props
+const { evals, cardId, num, compact = false } = Astro.props
 
 const NUM_HOURS = 24
 const PER_HOUR = 4
@@ -36,7 +38,7 @@ const now = Date.now()
 type Slot =
   | { kind: 'empty' }
   | {
-      kind: 'fresh' | 'scored' | 'low'
+      kind: 'fresh' | 'scored'
       e: EvalOutput
     }
 
@@ -50,23 +52,39 @@ for (const e of evals) {
   const slotsAgo = Math.floor(ageMs / SLOT_MS)
   const idx = TOTAL - 1 - slotsAgo
   if (idx < 0 || idx >= TOTAL) continue
-  let kind: 'fresh' | 'scored' | 'low' = 'scored'
+  let kind: 'fresh' | 'scored' = 'scored'
   if (ageMs < 30 * 60 * 1000) kind = 'fresh'
-  else if (e.weighted_score < 0.4) kind = 'low'
   if (slots[idx].kind === 'empty') {
     slots[idx] = { kind, e }
+  }
+}
+
+// Within each hour column, stack higher scores toward the top row so the
+// wall reads as a metagraph, not just a timeline.
+for (let col = 0; col < NUM_HOURS; col++) {
+  const band: Slot[] = []
+  for (let row = 0; row < PER_HOUR; row++) {
+    band.push(slots[col * PER_HOUR + row])
+  }
+  const filled = band.filter((s): s is Extract<Slot, { kind: 'fresh' | 'scored' }> => s.kind !== 'empty')
+  filled.sort((a, b) => b.e.weighted_score - a.e.weighted_score)
+  const stacked: Slot[] = [
+    ...filled,
+    ...Array.from({ length: PER_HOUR - filled.length }, () => ({ kind: 'empty' as const })),
+  ]
+  for (let row = 0; row < PER_HOUR; row++) {
+    slots[col * PER_HOUR + row] = stacked[row]
   }
 }
 
 // Tally states once for the summary strip above the grid. Reading the
 // wall as a heat-pattern is faster than counting cells, so we hand the
 // reader the counts up front and let the grid carry the texture.
-const counts = { fresh: 0, scored: 0, low: 0, miss: 0 }
+const counts = { fresh: 0, scored: 0, miss: 0 }
 for (const s of slots) {
   if (s.kind === 'empty') counts.miss++
   else counts[s.kind]++
 }
-const stoneCount = counts.fresh + counts.scored + counts.low
 
 // Hours axis: every 6h gets a label, current hour is "now".
 const hourLabels: { txt: string; current: boolean }[] = []
@@ -77,79 +95,82 @@ for (let i = 0; i < NUM_HOURS; i++) {
   else if (hoursAgo % 6 === 0) hourLabels.push({ txt: `${hoursAgo}h`, current: false })
   else hourLabels.push({ txt: '·', current: false })
 }
+const skillUrl = 'https://api.cathedral.computer/skill.md'
+const enlistLine = `Read ${skillUrl} and mine ${cardId}`
 ---
 
-<section class="wall-frame" data-wall data-card-id={cardId}>
+<section class:list={['wall-frame', compact && 'wall-frame-compact']} data-wall data-card-id={cardId}>
   <header class="wall-head">
-    <span class="num">{num}</span>
-    <h2>Stones laid today</h2>
+    {num && <span class="num">{num}</span>}
+    <h2>Build The Wall</h2>
     <span class="rule"></span>
-    <span class="window">24h window</span>
+    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.miss} open`}>
+      <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
+      <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
+      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>open</span>
+    </span>
+    <span class="flow-hint">click open stone to enlist your mason · top row ranks higher each hour</span>
   </header>
 
-  <div class="wall-summary" aria-label="Stone counts">
-    <span class="ws-stat ws-fresh">
-      <span class="sw" aria-hidden="true"></span>
-      <strong>{counts.fresh}</strong>
-      <span class="lbl">fresh</span>
-    </span>
-    <span class="ws-sep" aria-hidden="true">·</span>
-    <span class="ws-stat ws-scored">
-      <span class="sw" aria-hidden="true"></span>
-      <strong>{counts.scored}</strong>
-      <span class="lbl">scored</span>
-    </span>
-    <span class="ws-sep" aria-hidden="true">·</span>
-    <span class="ws-stat ws-low">
-      <span class="sw" aria-hidden="true"></span>
-      <strong>{counts.low}</strong>
-      <span class="lbl">below break-even</span>
-    </span>
-    <span class="ws-sep" aria-hidden="true">·</span>
-    <span class="ws-stat ws-miss">
-      <span class="sw" aria-hidden="true"></span>
-      <strong>{counts.miss}</strong>
-      <span class="lbl">empty slots</span>
-    </span>
-  </div>
-
   <div class="wall">
-    <div class="hours-axis" aria-hidden="true">
-      {hourLabels.map((h) => (
-        <span class={h.current ? 'now' : ''}>{h.txt}</span>
-      ))}
-    </div>
+    {!compact && (
+      <div class="hours-axis" aria-hidden="true">
+        {hourLabels.map((h) => (
+          <span class={h.current ? 'now' : ''}>{h.txt}</span>
+        ))}
+      </div>
+    )}
 
     <div class="grid" data-wall-grid>
       {slots.map((s, i) => {
         if (s.kind === 'empty') {
-          return <div class="stone empty" aria-hidden="true"></div>
+          const nowSlot = i >= TOTAL - PER_HOUR
+          return (
+            <button
+              type="button"
+              class:list={['stone', 'empty', 'claimable', nowSlot && 'now-slot']}
+              data-i={i}
+              data-claim
+              aria-label="Open stone — enlist your mason"
+            />
+          )
         }
         const e = s.e
+        const tier = e.weighted_score >= 0.75 ? 'tier-high' : e.weighted_score >= 0.5 ? 'tier-mid' : 'tier-low'
         return (
-          <div
-            class={`stone ${s.kind}`}
+          <a
+            class={`stone ${s.kind} ${tier}`}
             data-i={i}
             data-agent-id={e.agent_id}
             data-agent-name={e.agent_display_name}
             data-score={e.weighted_score.toFixed(2)}
             data-ran-at={e.ran_at}
             data-title={e.output_card?.title ?? `Card ${e.id.slice(0, 6)}`}
-            tabindex="0"
-            role="link"
-            aria-label={`${e.agent_display_name}, scored ${e.weighted_score.toFixed(2)}`}
-            set:html={masonMark(e.agent_id, { size: 22 })}
+            href={`/agents/${e.agent_id}`}
+            aria-label={`${e.agent_display_name}, scored ${e.weighted_score.toFixed(2)} — open biography`}
+            set:html={stoneMark(e.id, { size: 28 })}
           />
         )
       })}
     </div>
 
-    {stoneCount === 0 && (
-      <p class="wall-empty">
-        No stone yet on this wall in the last 24h.
-        <a href={`/jobs/${cardId}/submit`}>Lay the first &rarr;</a>
-      </p>
-    )}
+    <dialog class="claim-dialog" data-wall-claim>
+      <form method="dialog" class="claim-card">
+        <header class="claim-head">
+          <span class="claim-k">Enlist</span>
+          <h3 class="claim-title">Mine this job</h3>
+        </header>
+        <p class="claim-line">
+          Paste this line to your mason. It reads <code>skill.md</code> and mines <code>{cardId}</code>.
+        </p>
+        <p class="claim-payload" data-claim-line>{enlistLine}</p>
+        <div class="claim-actions">
+          <button type="button" class="claim-copy" data-claim-copy>Copy line</button>
+          <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Open skill.md</a>
+          <button type="submit" class="claim-close" value="close">Close</button>
+        </div>
+      </form>
+    </dialog>
 
     <div class="peek" data-wall-peek role="status" aria-live="polite" hidden>
       <span class="mk" data-peek-mark></span>
@@ -226,14 +247,32 @@ for (let i = 0; i < NUM_HOURS; i++) {
     })
     grid.addEventListener('focusout', hide)
 
-    // Click a stone to navigate to its agent.
-    grid.addEventListener('click', function (e) {
-      var el = e.target.closest('.stone[data-i]')
-      if (el) {
-        var id = el.getAttribute('data-agent-id')
-        if (id) window.location.href = '/agents/' + encodeURIComponent(id)
+    var claimDialog = wall.querySelector('[data-wall-claim]')
+    var claimLine = wall.querySelector('[data-claim-line]')
+    var claimCopy = wall.querySelector('[data-claim-copy]')
+  if (claimDialog && claimLine) {
+      grid.addEventListener('click', function (e) {
+        var el = e.target.closest('[data-claim]')
+        if (!el) return
+        e.preventDefault()
+        if (typeof claimDialog.showModal === 'function') claimDialog.showModal()
+      })
+      if (claimCopy) {
+        claimCopy.addEventListener('click', function () {
+          var text = claimLine.textContent || ''
+          if (!text) return
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              claimCopy.textContent = 'Copied'
+              setTimeout(function () { claimCopy.textContent = 'Copy line' }, 1600)
+            })
+          }
+        })
       }
-    })
+    }
+
+    // Scored stones are real <a> tags — the browser handles navigation,
+    // cmd/middle-click, and right-click natively. No JS click handler.
   })()
 </script>
 
@@ -269,74 +308,100 @@ for (let i = 0; i < NUM_HOURS; i++) {
     flex: 1; height: 1px; min-width: 24px;
     background: var(--border-soft); margin: 0 4px;
   }
-  .wall-head .window {
-    font-family: var(--mono);
-    font-size: 9.5px;
-    letter-spacing: 0.18em;
-    color: var(--dim);
-  }
-
-  /* Summary strip — reads as a single sentence so the grid below is
-     decorative texture, not a counting exercise. Dot swatch + count +
-     label per state, separated by mono dots. */
-  .wall-summary {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    padding: 10px 14px;
-    background: var(--surface);
-    border: 1px solid var(--border-soft);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
-  .wall-summary .ws-stat {
+  /* Legend strip on the right of the wall header — four swatches with
+     terse labels. Replaces the old summary-counts strip (counts read
+     as noise next to the heraldic grid). */
+  .wall-head .legend {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-  }
-  .wall-summary .ws-stat strong {
-    font-family: var(--serif);
-    font-weight: 300;
-    font-size: 17px;
-    color: var(--fg);
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-  }
-  .wall-summary .ws-stat .lbl {
-    font-size: 10px;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
     color: var(--dim);
-    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  .wall-summary .ws-stat .sw {
-    width: 9px;
-    height: 9px;
+  .wall-head .legend .lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .wall-head .legend .sw {
+    width: 8px;
+    height: 8px;
     display: inline-block;
     border: 1px solid currentColor;
   }
-  .wall-summary .ws-fresh .sw {
+  .wall-head .legend .lg-fresh .sw {
     background: var(--accent);
     border-color: var(--accent);
     box-shadow: 0 0 6px rgba(126, 168, 208, 0.5);
   }
-  .wall-summary .ws-scored .sw {
+  .wall-head .legend .lg-scored .sw {
     background: var(--accent-dim);
     border-color: var(--accent);
   }
-  .wall-summary .ws-low .sw {
-    background: transparent;
-    border-color: var(--warn);
-  }
-  .wall-summary .ws-miss .sw {
-    background: transparent;
-    border-color: var(--faint);
+  .wall-head .legend .lg-open .sw {
+    background: rgba(126, 168, 208, 0.12);
+    border-color: rgba(126, 168, 208, 0.55);
     border-style: dashed;
   }
-  .wall-summary .ws-sep {
-    color: var(--faint);
+  .wall-head .flow-hint {
+    flex-basis: 100%;
     font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .wall-frame-compact {
+    margin: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    gap: 10px;
+  }
+  .wall-frame-compact .wall-head {
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+  .wall-frame-compact .wall-head h2 {
+    font-size: 19px;
+  }
+  .wall-frame-compact .wall-head .flow-hint {
+    display: none;
+  }
+  .wall-frame-compact .wall {
+    padding: 12px 14px;
+    gap: 10px;
+    flex: 0 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .wall-frame-compact .grid {
+    flex: 0 1 auto;
+    min-height: clamp(150px, 26vh, 280px);
+    max-height: min(28vh, 300px);
+    height: auto;
+    aspect-ratio: unset;
+    gap: clamp(5px, 0.65vmin, 9px);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
+  .wall-frame-compact .stone {
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .wall-frame-compact .stone :global(svg) {
+    width: 78%;
+    height: 78%;
+    max-width: 52px;
+    max-height: 52px;
   }
 
   .wall {
@@ -366,8 +431,10 @@ for (let i = 0; i < NUM_HOURS; i++) {
     grid-template-rows: repeat(4, 1fr);
     grid-auto-flow: column;
     gap: 4px;
-    aspect-ratio: 6 / 1;
-    min-height: 140px;
+    /* Taller than v3.1 so the wall reads as the page's centerpiece —
+       individual stones are big enough to carry a legible mason mark. */
+    aspect-ratio: 12 / 5;
+    min-height: 240px;
   }
   .stone {
     position: relative;
@@ -377,47 +444,80 @@ for (let i = 0; i < NUM_HOURS; i++) {
     transition: transform 160ms, border-color 160ms, background 160ms;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+    font: inherit;
+    padding: 0;
+  }
+  a.stone:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    z-index: 3;
   }
   .stone :global(svg) {
-    width: 60%; height: 60%;
-    opacity: 0.85;
+    width: 62%; height: 62%;
+    opacity: 0.82;
     transition: opacity 160ms;
   }
-  /* Default state: scored stones are quiet colour blocks. Their mark
-     stays in the DOM so the peek tooltip can read it on hover, but
-     the tile itself reads as texture, not as 96 individual icons. */
-  .stone.scored :global(svg) { opacity: 0; }
+  /* Marks are visible on every scored stone — the wall reads as a
+     heraldic field of agent signatures, not a heat block. The legend
+     in the header carries the count info, so the grid can stay
+     decoration-rich without losing legibility. */
   .stone:hover {
     transform: translateY(-2px);
     border-color: var(--accent);
     z-index: 2;
   }
-  .stone.scored:hover :global(svg) { opacity: 0.85; }
+  .stone:hover :global(svg) { opacity: 1; }
   .stone.scored {
     background: var(--accent-dim);
     border-color: rgba(126, 168, 208, 0.55);
   }
+  .stone.tier-high :global(svg *) { stroke-width: 1.05; }
+  .stone.tier-mid :global(svg *) { opacity: 0.92; }
+  .stone.tier-low :global(svg *) { opacity: 0.78; }
+  .stone.scored :global(svg *) { stroke: var(--accent) !important; }
   .stone.fresh {
     background: var(--accent);
     border-color: var(--accent);
     box-shadow: 0 0 12px rgba(126, 168, 208, 0.45);
   }
-  .stone.fresh :global(svg) { opacity: 1; color: var(--bg); }
+  .stone.fresh :global(svg) { opacity: 1; }
   .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
-  .stone.low {
-    background: transparent;
-    border-color: var(--warn);
-  }
-  .stone.low :global(svg) { opacity: 0.55; }
-  .stone.low :global(svg *) { stroke: var(--warn) !important; }
   .stone.empty {
     background: transparent;
     border-style: dashed;
     border-color: var(--faint);
-    cursor: default;
-    opacity: 0.4;
+    opacity: 0.55;
   }
-  .stone.empty :global(svg) { display: none; }
+  .stone.claimable {
+    border-color: rgba(126, 168, 208, 0.35);
+    opacity: 0.72;
+  }
+  .stone.claimable:hover,
+  .stone.claimable:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    opacity: 1;
+    outline: 2px solid transparent;
+    z-index: 2;
+  }
+  .stone.claimable.now-slot {
+    border-color: rgba(126, 168, 208, 0.55);
+    background: rgba(126, 168, 208, 0.08);
+    opacity: 0.9;
+  }
+  .stone.empty :global(svg) {
+    opacity: 0.55;
+  }
+  .stone.claimable :global(svg) {
+    opacity: 0.72;
+  }
+  .stone.claimable:hover :global(svg),
+  .stone.claimable:focus-visible :global(svg) {
+    opacity: 1;
+  }
   .stone.you {
     outline: 1px solid var(--accent);
     outline-offset: 2px;
@@ -431,23 +531,103 @@ for (let i = 0; i < NUM_HOURS; i++) {
     animation: cd-pulse 2s ease-in-out infinite;
   }
 
-  .wall-empty {
-    margin: 4px 0 0;
-    padding: 6px 4px 0;
-    font-family: var(--serif);
-    font-style: italic;
-    font-weight: 300;
-    font-size: 13.5px;
-    color: var(--muted);
+  .claim-dialog {
+    border: 1px solid var(--border-soft);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0;
+    max-width: min(520px, calc(100vw - 32px));
+    width: 100%;
   }
-  .wall-empty a {
+  .claim-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+  }
+  .claim-card {
+    margin: 0;
+    padding: 18px 18px 16px;
+    display: grid;
+    gap: 12px;
+  }
+  .claim-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .claim-k {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
     color: var(--accent);
-    margin-left: 6px;
-    text-decoration: underline;
-    text-decoration-color: var(--border);
-    text-underline-offset: 3px;
   }
-  .wall-empty a:hover { text-decoration-color: var(--accent); }
+  .claim-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 20px;
+    margin: 0;
+    color: var(--fg);
+  }
+  .claim-line {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.55;
+    max-width: 52ch;
+  }
+  .claim-line code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg);
+  }
+  .claim-payload {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--fg);
+    word-break: break-word;
+  }
+  .claim-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .claim-copy,
+  .claim-close {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 140ms, color 140ms, background 140ms;
+  }
+  .claim-copy:hover,
+  .claim-copy:focus-visible,
+  .claim-close:hover,
+  .claim-close:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .claim-copy {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .claim-link {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border);
+  }
+  .claim-link:hover { text-decoration-color: var(--accent); }
 
   .peek {
     position: absolute;

@@ -6,10 +6,6 @@
 
 export const V1_CARD_IDS = [
   'eu-ai-act',
-  'us-ai-eo',
-  'uk-ai-whitepaper',
-  'singapore-pdpc',
-  'japan-meti-mic',
 ] as const
 
 export type V1CardId = (typeof V1_CARD_IDS)[number]

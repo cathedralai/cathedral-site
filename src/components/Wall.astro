@@ -554,13 +554,59 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
 
   .wall {
     position: relative;
-    background: var(--surface);
+    /* Geological strata: older stones (left, 24h ago) sit in slightly
+       darker ground; fresher stones (right, now) sit in slightly lighter
+       ground. The wall reads as time-of-day depth, not a flat surface. */
+    background:
+      linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.18) 0%,
+        rgba(0, 0, 0, 0.06) 50%,
+        rgba(126, 168, 208, 0.03) 100%
+      ),
+      var(--surface);
     border: 1px solid var(--border-soft);
     padding: 18px 18px 14px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    overflow: hidden;
   }
+  /* 6h boundary markers — three vertical rules at 25/50/75% so the wall
+     reads as four six-hour bands, the unit the bell tower also counts in
+     (roughly two liturgical blocks per band). Pure decoration; doesn't
+     interfere with stone hit targets. */
+  .wall::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(90deg, transparent calc(25% - 0.5px), var(--border-soft) calc(25% - 0.5px), var(--border-soft) calc(25% + 0.5px), transparent calc(25% + 0.5px)),
+      linear-gradient(90deg, transparent calc(50% - 0.5px), var(--border-soft) calc(50% - 0.5px), var(--border-soft) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+      linear-gradient(90deg, transparent calc(75% - 0.5px), var(--border-soft) calc(75% - 0.5px), var(--border-soft) calc(75% + 0.5px), transparent calc(75% + 0.5px));
+    opacity: 0.5;
+    z-index: 0;
+  }
+  /* Now-column glow — soft accent column on the right edge so the eye
+     reads 'this is the live edge of the wall'. */
+  .wall::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 4.166%; /* one column = 100/24 */
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(126, 168, 208, 0.06) 70%,
+      rgba(126, 168, 208, 0.10) 100%
+    );
+    z-index: 0;
+  }
+  .wall > * { position: relative; z-index: 1; }
   .hours-axis {
     display: grid;
     grid-template-columns: repeat(24, 1fr);

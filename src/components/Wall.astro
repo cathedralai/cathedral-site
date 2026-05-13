@@ -78,6 +78,7 @@ for (const c of cells) {
   else counts.scored++
 }
 const laidCount = counts.fresh + counts.scored
+const claimedCount = Math.max(1, laidCount)
 
 const skillUrl = 'https://api.cathedral.computer/skill.md'
 const enlistLine = `Read ${skillUrl} and mine ${cardId}`
@@ -129,13 +130,13 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
         const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
         const state = s.fresh ? 'fresh' : 'scored'
         const cls = s.fresh ? 'scored fresh' : 'scored'
-        const current = s.rank < 4 ? 'current' : ''
         return (
           <button
             type="button"
-            class={`stone ${cls} ${tier} ${current}`}
+            class={`stone ${cls} ${tier} current`}
             data-i={i}
             data-state={state}
+            style={`--cd-slot: ${i}; --cd-claimed: ${claimedCount}`}
             data-agent-id={s.agentId}
             data-agent-name={s.displayName}
             data-agent-bio={s.bio ?? ''}
@@ -631,10 +632,9 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
-  /* Top-three stones carry a single arc of current along their border.
-     The stone itself stays muted (inherits .scored / .fresh fill); only
-     a thin traced ring animates. Ranks 1/2/3 stagger so the current
-     moves between stones one at a time, not all three at once. */
+  /* Every claimed stone carries a single arc of current along its
+     border. The stone fill stays muted; only the traced ring animates.
+     Slots stagger so the current visits one stone at a time. */
   @property --cd-trace {
     syntax: '<angle>';
     initial-value: 0deg;
@@ -666,11 +666,9 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     mask-composite: exclude;
     opacity: 0;
     animation: cd-current-trace 5.4s linear infinite;
+    animation-delay: calc((var(--cd-slot, 0) / var(--cd-claimed, 1)) * -5.4s);
     z-index: 3;
   }
-  .stone.current[data-rank='1']::after { animation-delay: 0s; }
-  .stone.current[data-rank='2']::after { animation-delay: -1.8s; }
-  .stone.current[data-rank='3']::after { animation-delay: -3.6s; }
   @keyframes cd-current-trace {
     0%   { opacity: 0;    --cd-trace: 0deg;   }
     6%   { opacity: 0.9;  }

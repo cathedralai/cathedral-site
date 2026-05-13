@@ -104,6 +104,13 @@ const rosterEvaluating = discovery
       }))
   : []
 const wallRoster = [...rosterScored, ...rosterEvaluating].slice(0, WALL_CAPACITY)
+const HOUR_MS = 60 * 60 * 1000
+const recent24h = recent.filter(
+  (e) => nowMs - new Date(e.ran_at).getTime() < 24 * HOUR_MS,
+)
+const eval24h = recent24h.length
+const eval24hAccepted = recent24h.filter((e) => e.weighted_score > 0).length
+const eval24hRejected = eval24h - eval24hAccepted
 const def = overview ? overview.definition : null
 const rubric = spec ? spec.scoring_rubric : null
 // `key` matches the `id` on each row in /jobs/[id]/eval-spec so the
@@ -457,7 +464,14 @@ const procession = top3.map((row, i) => ({
       <!-- 01 wall — the page's centerpiece. Marks visible on every
            scored stone so the grid reads as a heraldic field of agent
            signatures. Procession + rubric live below as a 2-col row. -->
-      <Wall roster={wallRoster} cardId={cardId} num="01" />
+      <Wall
+        roster={wallRoster}
+        cardId={cardId}
+        num="01"
+        eval24h={eval24h}
+        eval24hAccepted={eval24hAccepted}
+        eval24hRejected={eval24hRejected}
+      />
 
       <!-- Bottom row: procession (left) + rubric (right). The procession
            is preserved as its own section per the user's request — kept

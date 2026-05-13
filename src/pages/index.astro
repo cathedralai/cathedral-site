@@ -810,7 +810,33 @@ const industryCounts = {
       min-height: 0;
     }
     @media (max-width: 920px) {
-      .home-shell { grid-template-columns: 1fr; gap: 20px; }
+      .home-shell {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        /* On narrow viewports the desktop's flex:1 + min-height:0
+           viewport-fit chain breaks down — releases the height
+           ceiling so content can scroll naturally rather than clip
+           into adjacent panels. */
+        flex: none;
+        min-height: auto;
+      }
+      .app-console { overflow: visible; flex: none; min-height: auto; }
+      .job-stage { overflow: visible; flex: none; min-height: auto; }
+      .job-panel {
+        overflow: visible;
+        grid-template-rows: auto auto auto auto;
+        min-height: auto;
+      }
+      .job-panel :global(.wall-frame-compact),
+      .job-panel :global(.wall-frame-compact .wall),
+      .job-panel :global(.wall-frame-compact .grid) {
+        max-height: none;
+        height: auto;
+      }
+      .job-panel :global(.wall-frame-compact .grid) {
+        min-height: 200px;
+        aspect-ratio: auto;
+      }
     }
 
     /* ===== rail ===== */
@@ -1387,7 +1413,7 @@ const industryCounts = {
       max-height: min(36vh, 240px);
       overflow: hidden;
     }
-    @media (max-width: 880px) {
+    @media (max-width: 920px) {
       .canvas-row { grid-template-columns: 1fr; gap: 12px; max-height: none; }
     }
 

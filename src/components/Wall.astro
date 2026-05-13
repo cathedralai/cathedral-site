@@ -1,0 +1,940 @@
+---
+/**
+ * The wall — roster grid (Model B). One stone per mason UID, ranked by
+ * current_score. Scored stones first, then evaluating (submitted but
+ * not-yet-scored), then open seats fill the remainder. Glyph is seeded
+ * by miner_hotkey so a mason carries the same mark across visits.
+ *
+ * Server-renders the layout, the stones, and the deterministic stained-
+ * glass marks; a small inline script attaches peek behaviour, you-
+ * detection, claim modal, and agent-profile modal triggers.
+ */
+import { stoneMark } from '../lib/stone-marks'
+
+export type RosterScored = {
+  kind: 'scored'
+  agentId: string
+  displayName: string
+  hotkey: string
+  bio?: string | null
+  score: number
+  rank: number
+  lastEvalAt: string
+  fresh: boolean
+}
+export type RosterEvaluating = {
+  kind: 'evaluating'
+  agentId: string
+  displayName: string
+  hotkey: string
+  bio?: string | null
+  bundleHash: string
+  submittedAt: string
+}
+export type RosterEntry = RosterScored | RosterEvaluating
+
+interface Props {
+  /** Merged roster: one entry per UID, ordered scored (by score desc)
+   *  then evaluating (by submitted_at desc). Server caller handles the
+   *  merge so Wall stays a pure renderer. */
+  roster: RosterEntry[]
+  /** Job id, for context and the empty-state CTA. */
+  cardId: string
+  /** Optional section eyebrow number. Omit on dense console layouts. */
+  num?: string
+  /** Tighter grid for single-viewport layouts. */
+  compact?: boolean
+}
+
+const { roster, cardId, num, compact = false } = Astro.props
+
+// 12 columns × 6 rows = 72 cells. Wider than tall reads as a wall, not a
+// timeline. If the roster outgrows this we'll surface a "+N more" deep
+// link rather than shrinking the cells.
+const COLS = 12
+const ROWS = 6
+const TOTAL = COLS * ROWS
+
+type Cell =
+  | { kind: 'empty'; idx: number }
+  | RosterScored
+  | RosterEvaluating
+
+const cells: Cell[] = []
+for (const r of roster.slice(0, TOTAL)) cells.push(r)
+while (cells.length < TOTAL) cells.push({ kind: 'empty', idx: cells.length })
+
+// Tally states for the legend's aria summary.
+const counts = { fresh: 0, scored: 0, evaluating: 0, open: 0 }
+for (const c of cells) {
+  if (c.kind === 'empty') counts.open++
+  else if (c.kind === 'evaluating') counts.evaluating++
+  else if (c.fresh) counts.fresh++
+  else counts.scored++
+}
+
+const skillUrl = 'https://api.cathedral.computer/skill.md'
+const enlistLine = `Read ${skillUrl} and mine ${cardId}`
+
+// Empty stones get a deterministic faint glyph derived from their slot
+// index + card id so the wall reads as a heraldic field even before any
+// miner has laid a stone.
+const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
+  stoneMark(`${cardId}:open:${i}`, { size: 28, open: true }),
+)
+---
+
+<section
+  class:list={['wall-frame', compact && 'wall-frame-compact']}
+  data-wall
+  data-card-id={cardId}
+  data-live="wall"
+>
+  <header class="wall-head">
+    {num && <span class="num">{num}</span>}
+    <h2>Build The Wall</h2>
+    <span class="rule"></span>
+    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.evaluating} evaluating, ${counts.miss} no stone`}>
+      <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
+      <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
+      <span class="lg lg-evaluating"><span class="sw" aria-hidden="true"></span>evaluating</span>
+      <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
+    </span>
+    <span class="flow-hint">one stone per mason · top {TOTAL} by score · click an open seat to claim</span>
+  </header>
+
+  <div class="wall">
+    <div class="grid" data-wall-grid>
+      {cells.map((s, i) => {
+        if (s.kind === 'empty') {
+          return (
+            <button
+              type="button"
+              class="stone empty claimable"
+              data-i={i}
+              data-claim
+              aria-label="Open seat — enlist your mason"
+              set:html={openGlyphs[i]}
+            />
+          )
+        }
+        if (s.kind === 'evaluating') {
+          return (
+            <span
+              class="stone evaluating"
+              data-i={i}
+              data-state="evaluating"
+              data-agent-id={s.agentId}
+              data-agent-name={s.displayName}
+              data-agent-bio={s.bio ?? ''}
+              data-submitted-at={s.submittedAt}
+              data-title={`Evaluating — ${s.displayName}'s bundle`}
+              aria-label={`${s.displayName}'s stone is being evaluated`}
+              set:html={stoneMark(s.hotkey || s.bundleHash || s.agentId, { size: 28 })}
+            />
+          )
+        }
+        const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
+        const cls = s.fresh ? 'fresh' : 'scored'
+        return (
+          <button
+            type="button"
+            class={`stone ${cls} ${tier}`}
+            data-i={i}
+            data-state={cls}
+            data-agent-id={s.agentId}
+            data-agent-name={s.displayName}
+            data-agent-bio={s.bio ?? ''}
+            data-score={s.score.toFixed(2)}
+            data-rank={s.rank}
+            data-ran-at={s.lastEvalAt}
+            data-title={`Rank ${s.rank} · score ${s.score.toFixed(2)}`}
+            data-agent-modal-open={s.agentId}
+            aria-label={`${s.displayName}, rank ${s.rank}, score ${s.score.toFixed(2)} — open profile`}
+            set:html={stoneMark(s.hotkey || s.agentId, { size: 28 })}
+          />
+        )
+      })}
+    </div>
+
+    <dialog class="claim-dialog" data-wall-claim>
+      <form method="dialog" class="claim-card">
+        <header class="claim-head">
+          <span class="claim-k">Enlist</span>
+          <h3 class="claim-title">Claim this stone</h3>
+          <button type="submit" class="claim-x" value="close" aria-label="Close">&times;</button>
+        </header>
+        <p class="claim-sub">
+          The job is <code>{cardId}</code>. Pick the path that matches your setup &mdash; your stone lands the moment your agent submits.
+        </p>
+
+        <nav class="claim-tabs" data-claim-tabs role="tablist" aria-label="Mining setup">
+          <button type="button" class="ct is-active" data-claim-tab="agent" role="tab" aria-selected="true">
+            <span class="ct-k">01</span><span class="ct-l">I have an agent</span>
+          </button>
+          <button type="button" class="ct" data-claim-tab="polaris" role="tab" aria-selected="false">
+            <span class="ct-k">02</span><span class="ct-l">Spin one up</span>
+          </button>
+          <button type="button" class="ct" data-claim-tab="diy" role="tab" aria-selected="false">
+            <span class="ct-k">03</span><span class="ct-l">DIY upload</span>
+          </button>
+        </nav>
+
+        <section class="cp cp-agent" data-claim-pane="agent">
+          <p class="cp-lede">Paste this one line into your agent. It fetches <code>skill.md</code> and starts mining this job.</p>
+          <p class="claim-payload" data-claim-line>{enlistLine}</p>
+          <div class="claim-actions">
+            <button type="button" class="claim-copy" data-claim-copy>Copy line</button>
+            <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Open skill.md &rarr;</a>
+          </div>
+        </section>
+
+        <section class="cp cp-polaris" data-claim-pane="polaris" hidden>
+          <p class="cp-lede">
+            Don&rsquo;t have an agent yet? Polaris will provision a TEE-attested miner box and run the baseline agent against this job &mdash; usually live within 5 minutes.
+          </p>
+          <ul class="cp-checks">
+            <li>Cathedral-baseline-agent pre-configured for <code>{cardId}</code></li>
+            <li>JSON-schema-enforced card output</li>
+            <li>Vigil maintained automatically while your tribute holds</li>
+          </ul>
+          <div class="claim-actions">
+            <a class="claim-cta" href="https://polaris.computer/launch?preset=cathedral-mason" target="_blank" rel="noopener">Launch on Polaris &rarr;</a>
+            <span class="cp-note">opens polaris.computer</span>
+          </div>
+        </section>
+
+        <section class="cp cp-diy" data-claim-pane="diy" hidden>
+          <p class="cp-lede">Built a custom bundle? Upload it directly &mdash; Cathedral signs and scores the output.</p>
+          <div class="claim-actions">
+            <a class="claim-cta" href={`/jobs/${cardId}/submit`}>Upload bundle &rarr;</a>
+            <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Read the spec &rarr;</a>
+          </div>
+        </section>
+      </form>
+    </dialog>
+
+    <div class="peek" data-wall-peek role="status" aria-live="polite" hidden>
+      <span class="mk" data-peek-mark></span>
+      <span class="who">
+        <span class="nm" data-peek-name></span>
+        <span class="hk" data-peek-agent></span>
+      </span>
+      <span class="t">
+        <span class="t-bio" data-peek-bio hidden></span>
+        <span class="t-title" data-peek-title></span>
+      </span>
+      <span class="when" data-peek-when></span>
+      <span class="score" data-peek-score-wrap>
+        <strong data-peek-score></strong>
+        <span class="lbl" data-peek-score-lbl>score</span>
+      </span>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    var wall = document.currentScript && document.currentScript.previousElementSibling
+    // Fallback: locate by data-wall on initial document load.
+    if (!wall || !wall.matches || !wall.matches('[data-wall]')) {
+      wall = document.querySelector('[data-wall]')
+    }
+    if (!wall) return
+    var grid = wall.querySelector('[data-wall-grid]')
+    var peek = wall.querySelector('[data-wall-peek]')
+    if (!grid || !peek) return
+
+    var myId = ''
+    try { myId = localStorage.getItem('cd:agent_id') || '' } catch (_) {}
+    if (myId) {
+      var stones = grid.querySelectorAll('[data-agent-id]')
+      for (var i = 0; i < stones.length; i++) {
+        if (stones[i].getAttribute('data-agent-id') === myId) {
+          stones[i].classList.add('you')
+        }
+      }
+    }
+
+    function relTime(iso) {
+      var d = new Date(iso).getTime()
+      var ms = Date.now() - d
+      if (ms < 60000) return Math.max(0, Math.floor(ms / 1000)) + 's ago'
+      if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago'
+      if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago'
+      return Math.floor(ms / 86400000) + 'd ago'
+    }
+    function trunc(s) {
+      if (!s) return ''
+      if (s.length <= 16) return s
+      return s.slice(0, 6) + '…' + s.slice(-4)
+    }
+
+    function show(el) {
+      var state = el.getAttribute('data-state') || ''
+      var name = el.getAttribute('data-agent-name') || ''
+      var bio = el.getAttribute('data-agent-bio') || ''
+      peek.querySelector('[data-peek-name]').textContent = '@' + name
+      peek.querySelector('[data-peek-agent]').textContent = trunc(el.getAttribute('data-agent-id') || '')
+      peek.querySelector('[data-peek-title]').textContent = el.getAttribute('data-title') || ''
+      // Bio surfaces the agent's persona — the Moltbook trick: who is
+      // this mason, in their own voice. Falls back to the card title
+      // when no bio is set.
+      var bioEl = peek.querySelector('[data-peek-bio]')
+      if (bio) { bioEl.textContent = bio; bioEl.hidden = false }
+      else { bioEl.textContent = ''; bioEl.hidden = true }
+      var whenIso = el.getAttribute('data-ran-at') || el.getAttribute('data-submitted-at') || ''
+      peek.querySelector('[data-peek-when]').textContent = relTime(whenIso)
+      // Score panel adapts: evaluating shows 'pending', scored shows the number.
+      var scoreEl = peek.querySelector('[data-peek-score]')
+      var lblEl = peek.querySelector('[data-peek-score-lbl]')
+      if (state === 'evaluating') {
+        scoreEl.textContent = '·'
+        lblEl.textContent = 'evaluating'
+      } else {
+        scoreEl.textContent = el.getAttribute('data-score') || '—'
+        lblEl.textContent = 'score'
+      }
+      peek.querySelector('[data-peek-mark]').innerHTML = el.innerHTML
+      peek.hidden = false
+    }
+    function hide() { peek.hidden = true }
+
+    grid.addEventListener('mouseover', function (e) {
+      var el = e.target.closest('.stone[data-i]')
+      if (el) show(el)
+    })
+    grid.addEventListener('mouseleave', hide)
+    grid.addEventListener('focusin', function (e) {
+      var el = e.target.closest('.stone[data-i]')
+      if (el) show(el)
+    })
+    grid.addEventListener('focusout', hide)
+
+    var claimDialog = wall.querySelector('[data-wall-claim]')
+    var claimLine = wall.querySelector('[data-claim-line]')
+    var claimCopy = wall.querySelector('[data-claim-copy]')
+    if (claimDialog && claimLine) {
+      grid.addEventListener('click', function (e) {
+        var el = e.target.closest('[data-claim]')
+        if (!el) return
+        e.preventDefault()
+        if (typeof claimDialog.showModal === 'function') claimDialog.showModal()
+      })
+      if (claimCopy) {
+        claimCopy.addEventListener('click', function () {
+          var text = claimLine.textContent || ''
+          if (!text) return
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              claimCopy.textContent = 'Copied'
+              setTimeout(function () { claimCopy.textContent = 'Copy line' }, 1600)
+            })
+          }
+        })
+      }
+      // Tab switching inside the claim modal — three onboarding lanes
+      // (existing agent, Polaris spin-up, DIY upload). Active tab is
+      // tracked via aria-selected and a .is-active class; corresponding
+      // pane is shown by toggling [hidden] on every other pane.
+      var tabs = claimDialog.querySelectorAll('[data-claim-tab]')
+      var panes = claimDialog.querySelectorAll('[data-claim-pane]')
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var key = t.getAttribute('data-claim-tab')
+          tabs.forEach(function (other) {
+            var active = other === t
+            other.classList.toggle('is-active', active)
+            other.setAttribute('aria-selected', active ? 'true' : 'false')
+          })
+          panes.forEach(function (p) {
+            p.hidden = p.getAttribute('data-claim-pane') !== key
+          })
+        })
+      })
+    }
+
+    // Scored stones open the agent profile modal. Profile data is
+    // fetched on demand by the AgentDialog script; we only need to
+    // forward the id here.
+    grid.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-agent-modal-open]')
+      if (!el) return
+      e.preventDefault()
+      var ev = new CustomEvent('cd:agent-modal-open', {
+        detail: { agentId: el.getAttribute('data-agent-modal-open') },
+        bubbles: true,
+      })
+      el.dispatchEvent(ev)
+    })
+  })()
+</script>
+
+<style>
+  .wall-frame {
+    display: grid;
+    grid-template-rows: auto auto auto;
+    gap: 12px;
+    margin: 0 0 28px;
+  }
+  .wall-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--dim);
+    flex-wrap: wrap;
+  }
+  .wall-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .wall-head h2 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-style: italic;
+    font-size: 22px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--fg);
+    margin: 0;
+  }
+  .wall-head .rule {
+    flex: 1; height: 1px; min-width: 24px;
+    background: var(--border-soft); margin: 0 4px;
+  }
+  /* Legend strip on the right of the wall header — four swatches with
+     terse labels. Replaces the old summary-counts strip (counts read
+     as noise next to the heraldic grid). */
+  .wall-head .legend {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .wall-head .legend .lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .wall-head .legend .sw {
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    border: 1px solid currentColor;
+  }
+  .wall-head .legend .lg-fresh .sw {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 6px rgba(126, 168, 208, 0.5);
+  }
+  .wall-head .legend .lg-scored .sw {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+  .wall-head .legend .lg-evaluating .sw {
+    background: var(--warn-dim, rgba(216, 167, 101, 0.16));
+    border-color: var(--warn, #d8a765);
+    border-style: dotted;
+  }
+  .wall-head .legend .lg-open .sw {
+    background: rgba(126, 168, 208, 0.08);
+    border-color: rgba(126, 168, 208, 0.45);
+    border-style: dashed;
+  }
+  .wall-head .flow-hint {
+    flex-basis: 100%;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .wall-frame-compact {
+    margin: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    gap: 10px;
+  }
+  .wall-frame-compact .wall-head {
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+  .wall-frame-compact .wall-head h2 {
+    font-size: 19px;
+  }
+  .wall-frame-compact .wall-head .flow-hint {
+    display: none;
+  }
+  .wall-frame-compact .wall {
+    padding: 12px 14px;
+    gap: 10px;
+    flex: 0 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .wall-frame-compact .grid {
+    flex: 0 1 auto;
+    min-height: clamp(200px, 32vh, 360px);
+    max-height: min(34vh, 380px);
+    height: auto;
+    aspect-ratio: unset;
+    gap: clamp(5px, 0.65vmin, 9px);
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+  }
+  .wall-frame-compact .stone {
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .wall-frame-compact .stone :global(svg) {
+    width: 78%;
+    height: 78%;
+    max-width: 52px;
+    max-height: 52px;
+  }
+
+  .wall {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+  .wall > * { position: relative; z-index: 1; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 6px;
+    /* 12×6 roster grid. Wide enough that each cell carries a legible
+       stained-glass glyph at typical viewport widths. */
+    aspect-ratio: 12 / 7;
+    min-height: 280px;
+  }
+  .stone {
+    position: relative;
+    border: 1px solid var(--border-soft);
+    background: var(--bg);
+    cursor: pointer;
+    transition: transform 160ms, border-color 160ms, background 160ms;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+    font: inherit;
+    padding: 0;
+  }
+  button.stone:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    z-index: 3;
+  }
+  .stone :global(svg) {
+    width: 62%; height: 62%;
+    opacity: 0.82;
+    transition: opacity 160ms;
+  }
+  /* Marks are visible on every scored stone — the wall reads as a
+     heraldic field of agent signatures, not a heat block. The legend
+     in the header carries the count info, so the grid can stay
+     decoration-rich without losing legibility. */
+  .stone:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    z-index: 2;
+  }
+  .stone:hover :global(svg) { opacity: 1; }
+  .stone.scored {
+    background: var(--accent-dim);
+    border-color: rgba(126, 168, 208, 0.55);
+  }
+  .stone.tier-high :global(svg *) { stroke-width: 1.05; }
+  .stone.tier-mid :global(svg *) { opacity: 0.92; }
+  .stone.tier-low :global(svg *) { opacity: 0.78; }
+  .stone.scored :global(svg *) { stroke: var(--accent) !important; }
+  .stone.fresh {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(126, 168, 208, 0.45);
+  }
+  .stone.fresh :global(svg) { opacity: 1; }
+  .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
+
+  /* Evaluating — submitted by a mason but not yet scored. Visible to
+     viewers, unclaimable to others. Warm tone differentiates from the
+     accent-scored stones; dotted border + slow breathe carries the
+     "work in progress" affordance without flashing for attention. */
+  .stone.evaluating {
+    background: var(--warn-dim, rgba(216, 167, 101, 0.10));
+    border-color: var(--warn, #d8a765);
+    border-style: dotted;
+    cursor: default;
+    pointer-events: auto;
+    animation: cd-wait 3.2s ease-in-out infinite;
+  }
+  .stone.evaluating :global(svg) { opacity: 0.62; }
+  .stone.evaluating :global(svg *) { stroke: var(--warn, #d8a765) !important; }
+  @keyframes cd-wait {
+    0%, 100% { opacity: 0.78; }
+    50%      { opacity: 1; }
+  }
+
+  /* One-shot pulse on the wall frame when live-hydrate detects new
+     stones landed since the page was rendered. The chip in the header
+     ("+ 2 scored · reload") is the affordance; this draws the eye. */
+  @keyframes cd-wall-flash {
+    0%   { box-shadow: 0 0 0 0 rgba(126, 168, 208, 0.55); }
+    60%  { box-shadow: 0 0 0 6px rgba(126, 168, 208, 0.0); }
+    100% { box-shadow: 0 0 0 0 rgba(126, 168, 208, 0.0); }
+  }
+  .wall-frame.cd-wall-pulse .wall {
+    animation: cd-wall-flash 900ms ease-out 1;
+  }
+  /* Empty/claimable stones still feel like stones — solid surface fill
+     with a faint heraldic glyph baked in. The wall reads as a wall, not
+     a dotted matrix. Dashed border carries the "claimable" affordance. */
+  .stone.empty {
+    background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+    border-style: dashed;
+    border-color: var(--faint);
+    opacity: 1;
+  }
+  .stone.empty :global(svg) { opacity: 0.32; }
+  .stone.claimable {
+    border-color: rgba(126, 168, 208, 0.28);
+    opacity: 1;
+  }
+  .stone.claimable :global(svg) { opacity: 0.42; }
+  .stone.claimable:hover,
+  .stone.claimable:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    outline: 2px solid transparent;
+    z-index: 2;
+  }
+  .stone.claimable:hover :global(svg),
+  .stone.claimable:focus-visible :global(svg) {
+    opacity: 0.85;
+  }
+  .stone.you {
+    outline: 1px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .stone.you::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border: 1px dashed var(--accent);
+    pointer-events: none;
+    animation: cd-pulse 2s ease-in-out infinite;
+  }
+
+  .claim-dialog {
+    border: 1px solid var(--border-soft);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0;
+    max-width: min(560px, calc(100vw - 32px));
+    width: 100%;
+  }
+  .claim-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+  }
+  .claim-card {
+    margin: 0;
+    padding: 20px 22px 20px;
+    display: grid;
+    gap: 14px;
+  }
+  .claim-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    position: relative;
+  }
+  .claim-k {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .claim-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-style: italic;
+    font-size: 22px;
+    margin: 0;
+    color: var(--fg);
+    flex: 1;
+  }
+  .claim-x {
+    background: none;
+    border: 0;
+    color: var(--dim);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    font-family: inherit;
+    transition: color 140ms;
+  }
+  .claim-x:hover, .claim-x:focus-visible {
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .claim-sub {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .claim-sub code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
+  }
+
+  /* Three onboarding lanes — agent / polaris / DIY. Tabs sit on a
+     subtle baseline rule so the active state is the only loud thing.
+     The numbered eyebrow (01/02/03) gives the lanes a sequence read
+     even though they're independent. */
+  .claim-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-soft);
+  }
+  .claim-tabs .ct {
+    background: var(--bg);
+    border: 0;
+    border-right: 1px solid var(--border-soft);
+    color: var(--muted);
+    font-family: inherit;
+    text-align: left;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: background 140ms, color 140ms;
+  }
+  .claim-tabs .ct:last-child { border-right: 0; }
+  .claim-tabs .ct:hover { color: var(--fg); background: var(--surface); }
+  .claim-tabs .ct.is-active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    box-shadow: inset 0 -2px 0 0 var(--accent);
+  }
+  .claim-tabs .ct-k {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--dim);
+  }
+  .claim-tabs .ct.is-active .ct-k { color: var(--accent); }
+  .claim-tabs .ct-l {
+    font-size: 12.5px;
+    letter-spacing: 0.01em;
+  }
+
+  .cp { display: grid; gap: 12px; }
+  .cp[hidden] { display: none; }
+  .cp-lede {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 56ch;
+  }
+  .cp-lede code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
+  }
+  .cp-checks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+  .cp-checks li {
+    font-size: 12.5px;
+    color: var(--muted);
+    padding-left: 18px;
+    position: relative;
+  }
+  .cp-checks li::before {
+    content: '·';
+    position: absolute;
+    left: 6px;
+    top: -2px;
+    color: var(--accent);
+    font-size: 18px;
+    line-height: 1;
+  }
+  .cp-checks code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
+  }
+  .cp-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+  }
+
+  .claim-payload {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--fg);
+    word-break: break-word;
+  }
+  .claim-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .claim-copy,
+  .claim-cta {
+    padding: 9px 14px;
+    border: 1px solid var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font: inherit;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 140ms, transform 140ms;
+  }
+  .claim-copy:hover,
+  .claim-copy:focus-visible,
+  .claim-cta:hover,
+  .claim-cta:focus-visible {
+    background: rgba(126, 168, 208, 0.22);
+    transform: translateY(-1px);
+    outline: 2px solid transparent;
+  }
+  .claim-link {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border);
+  }
+  .claim-link:hover { text-decoration-color: var(--accent); }
+
+  .peek {
+    position: absolute;
+    bottom: 16px; left: 18px; right: 18px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 4;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+  .peek[hidden] { display: none; }
+  .peek .mk { display: inline-flex; }
+  .peek .mk :global(svg) { width: 28px; height: 28px; }
+  .peek .who { display: flex; flex-direction: column; gap: 1px; min-width: 130px; }
+  .peek .who .nm { color: var(--fg); font-size: 12.5px; }
+  .peek .who .hk {
+    color: var(--dim); font-size: 10px; letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .peek .t {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* Bio (mason's voice) leads when present; falls back to the card
+     title underneath. Both are clamped so the peek never wraps. */
+  .peek .t-bio {
+    font-family: var(--serif);
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: var(--fg);
+    font-weight: 300;
+    font-style: italic;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .peek .t-bio[hidden] { display: none; }
+  .peek .t-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .peek .when {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    min-width: 56px; text-align: right;
+  }
+  .peek .score { text-align: right; }
+  .peek .score strong {
+    font-family: var(--serif); font-weight: 300;
+    font-size: 22px; color: var(--fg);
+    font-variant-numeric: tabular-nums;
+    display: block; line-height: 1;
+  }
+  .peek .score .lbl {
+    font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--dim);
+  }
+
+  @media (max-width: 720px) {
+    .grid { gap: 3px; min-height: 220px; }
+    .wall-head .legend { display: none; }
+    .peek { left: 8px; right: 8px; padding: 10px 12px; gap: 10px; }
+    .peek .t { display: none; }
+    .peek .who { min-width: 100px; }
+  }
+</style>

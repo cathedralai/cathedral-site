@@ -1,5 +1,7 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
+import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
+import { relativeTime } from '../lib/format'
 import '../styles/tokens.css'
 
 // PostHog. Project key + host are read from build-time env at deploy.
@@ -13,9 +15,9 @@ const POSTHOG_HOST = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.postho
 interface Props {
   title?: string
   description?: string
-  /** Pass false to omit the platform-whisper banner (e.g. on /plans itself,
-   *  where the link would point back to the same page). */
-  showBanner?: boolean
+  /** Pass false to omit the live status strip on a specific page (rare —
+   *  the strip is the site's heartbeat and should run almost everywhere). */
+  showStatus?: boolean
   /** When true, the page fills the viewport exactly — use for the log dashboard. */
   fullHeight?: boolean
   /** When true, the main column spans the full shell width (1180px) instead
@@ -23,46 +25,111 @@ interface Props {
    *  (jobs, agents) and home, where reading-column constraints leave too
    *  much dead space on wide viewports. */
   wide?: boolean
+  /** Home / job console: hide footer subscribe and secondary nav noise. */
+  hideNoise?: boolean
+  /** Active job surfaced in the status strip with an info dialog. */
+  focusJob?: {
+    id: string
+    title: string
+    lede: string
+    tribute: string
+    cadenceHours: number
+    masons: number
+  }
 }
 
 const {
-  title = 'cathedral · a verifiable AI workforce',
+  title = 'cathedral · the world\u2019s fastest-evolving, fully verifiable agent workforce',
   description =
-    'A Bittensor subnet running a verifiable AI workforce. First vertical: regulatory intelligence. Outputs are signed, scored publicly, and anchored on chain.',
-  showBanner = true,
+    'Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO.',
+  showStatus = true,
   fullHeight = false,
   wide = false,
+  hideNoise = false,
+  focusJob,
 } = Astro.props
 
-// Top nav: kept to four destinations so the IA reads as a clean spine.
-// Demoted items (plans, dashboard, research, roadmap, changelog) live in
-// the footer's secondary row below.
-// IA: jobs = standing work the subnet publishes (rubrics, source pools);
-// cards = miner submissions answering a job (one job has many cards);
-// agents = the workforce (one miner can run agents across many jobs).
-// URL note: /jobs is the canonical path; /cards remains live as a
-// redirect alias during the v1 vocab transition (the publisher's
-// `card_id` column is what these jobs are keyed on under the hood).
-const navItems = [
-  { href: '/jobs', label: 'jobs' },
-  { href: '/leaderboard', label: 'leaderboard' },
-  { href: '/agents', label: 'agents' },
-  { href: '/how-it-works', label: 'how it works' },
-  { href: 'https://github.com/cathedralai/cathedral', label: 'github' },
-] as const
+// Live status strip — the site's heartbeat. Server-renders initial values
+// off the publisher feed so the first paint already shows real numbers,
+// then `live-hydrate.client.ts` keeps it ticking on a 30s loop.
+//
+// Both fetches are wrapped in `liveOrMock` upstream, so a publisher
+// outage at build time gives us mock numbers instead of a broken deploy.
+let initialStatus: {
+  totalAgents: number
+  lastCardAge: string
+  latestEpoch: number | null
+  tone: 'live' | 'warming' | 'quiet' | 'offline'
+  toneLabel: string
+} = {
+  totalAgents: 0,
+  lastCardAge: '\u2014',
+  latestEpoch: null,
+  tone: 'quiet',
+  toneLabel: 'workforce \u00b7 listening',
+}
+if (showStatus) {
+  try {
+    const [feed, cards] = await Promise.all([
+      fetchHomeFeed(12),
+      fetchAvailableCards(),
+    ])
+    const totalAgents = cards.reduce((s, c) => s + (c.agent_count || 0), 0)
+    const latest = feed[0]
+    const epochs = feed
+      .map((e) => e.merkle_epoch)
+      .filter((e): e is number => e !== null && e !== undefined)
+    const latestEpoch = epochs.length ? Math.max(...epochs) : null
+    const ageMs = latest
+      ? Date.now() - new Date(latest.ran_at).getTime()
+      : Infinity
+    let tone: 'live' | 'warming' | 'quiet' | 'offline' = 'quiet'
+    let toneLabel = 'workforce \u00b7 listening'
+    if (latest) {
+      if (ageMs < 60 * 60 * 1000) {
+        tone = 'live'
+        toneLabel = 'workforce \u00b7 live'
+      } else if (ageMs < 24 * 60 * 60 * 1000) {
+        tone = 'warming'
+        toneLabel = 'workforce \u00b7 warming'
+      } else {
+        tone = 'quiet'
+        toneLabel = 'workforce \u00b7 quiet'
+      }
+    }
+    initialStatus = {
+      totalAgents,
+      lastCardAge: latest ? relativeTime(latest.ran_at) : '\u2014',
+      latestEpoch,
+      tone,
+      toneLabel,
+    }
+  } catch (_err) {
+    // The api lib already mock-fallbacks; this is belt + braces so a
+    // build never fails on the strip alone.
+  }
+}
 
-const shellClass = fullHeight
-  ? 'mx-auto max-w-[1180px] h-screen flex flex-col px-4 py-4 sm:px-5'
-  : 'mx-auto max-w-[1180px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
+// Top nav stays minimal on the console home; secondary links live in the footer.
+const navItems: readonly { href: string; label: string }[] = []
+
+const shellClass = fullHeight || hideNoise
+  ? 'mx-auto max-w-[1080px] h-dvh flex flex-col px-4 py-3 sm:px-5 overflow-hidden'
+  : 'mx-auto max-w-[1080px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
 /* Top nav keeps the full shell width (breathing, airy). The body of the
    page (everything under the nav) sits in a narrower column — roughly
    Word "Normal" margins (≈1in each side) — so content doesn't feel like
-   it's running off the page. */
-const mainMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
-const mainClass = fullHeight
+   it's running off the page.
+   Wide mode (rail-canvas pages: home, regulatory job pages) caps at the
+   same 1080px shell width so the layout fits comfortably on smaller
+   laptops and split-screen workflows without horizontal scroll. */
+const mainMax = wide ? 'max-w-[1080px]' : 'max-w-[960px]'
+const mainClass = fullHeight || hideNoise
+  ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto overflow-hidden`
+  : fullHeight
   ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto`
   : `flex-1 flex flex-col w-full ${mainMax} mx-auto`
-const footerMax = wide ? 'max-w-[1180px]' : 'max-w-[960px]'
+const footerMax = wide ? 'max-w-[1080px]' : 'max-w-[960px]'
 const footerClass = fullHeight
   ? `mt-3 pt-2 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0 w-full ${footerMax} mx-auto`
   : `mt-6 pt-3 text-[10px] text-dim flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8 w-full ${footerMax} mx-auto`
@@ -115,17 +182,27 @@ const footerClass = fullHeight
       })()
     </script>
   </head>
-  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight ? 'overflow-hidden' : ''}`}>
+  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight || hideNoise ? 'overflow-hidden' : ''}`}>
     <div class={shellClass}>
-      <header class="relative z-20 flex flex-wrap items-center gap-x-3 gap-y-2 bg-bg text-[10px] text-muted mb-3 shrink-0 sm:mb-4 sm:gap-x-6 sm:text-[11px]">
+      <header class={`relative z-20 flex flex-wrap items-center gap-x-3 gap-y-2 bg-bg text-[10px] text-muted shrink-0 sm:gap-x-6 sm:text-[11px] ${hideNoise ? 'mb-2' : 'mb-3 sm:mb-4'}`}>
         <a href="/" class="flex items-center gap-2 text-fg hover:text-accent transition-colors tracking-[0.1em] uppercase">
           <RoseWindow size={14} class="text-accent opacity-80" />
           <span>cathedral</span>
         </a>
-        <span class="text-dim">·</span>
-        {navItems.map((item) => (
-          <a href={item.href} class="hover:text-fg transition-colors">{item.label}</a>
-        ))}
+        {focusJob && (
+          <>
+            <span class="text-dim">·</span>
+            <span class="text-fg tracking-[0.06em] uppercase">{focusJob.title}</span>
+          </>
+        )}
+        {navItems.length > 0 && (
+          <>
+            <span class="text-dim">·</span>
+            {navItems.map((item) => (
+              <a href={item.href} class="hover:text-fg transition-colors">{item.label}</a>
+            ))}
+          </>
+        )}
         <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
         <button
           type="button"
@@ -138,20 +215,36 @@ const footerClass = fullHeight
         </button>
         <span class="text-dim">sn39 · finney</span>
       </header>
-      {showBanner && (
-        <div class="cd-banner" role="status" aria-label="Cathedral v1 disclosure">
-          <span class="cd-banner-dot" aria-hidden="true"></span>
-          <span>
-            Cathedral v1 - regulatory intelligence is the first vertical. The mechanism generalizes.
-            {' '}
-            <a href="/plans" class="cd-banner-link">see plans →</a>
-          </span>
+      {showStatus && (
+        <div
+          class={`cd-status ${mainMax} mx-auto w-full${hideNoise ? ' cd-status-console' : ''}`}
+          data-live="status-strip"
+          data-status-tone={initialStatus.tone}
+          role="status"
+          aria-label="Cathedral live status"
+        >
+          <span class="cd-status-dot" aria-hidden="true"></span>
+          <span class="cd-status-tone">{initialStatus.toneLabel}</span>
+          <span class="cd-status-sep" aria-hidden="true">·</span>
+          <span class="cd-status-stat"><strong>{initialStatus.totalAgents}</strong> masons</span>
+          <span class="cd-status-sep" aria-hidden="true">·</span>
+          <span class="cd-status-stat">last stone <strong>{initialStatus.lastCardAge}</strong></span>
+          {initialStatus.latestEpoch !== null && (
+            <>
+              <span class="cd-status-sep" aria-hidden="true">·</span>
+              <span class="cd-status-stat">epoch <strong>{initialStatus.latestEpoch}</strong></span>
+            </>
+          )}
+          <span class="cd-status-spacer" aria-hidden="true"></span>
+          {!focusJob && (
+            <a class="cd-status-link" href="/">Mine a job →</a>
+          )}
         </div>
       )}
       <main class={mainClass}>
         <slot />
       </main>
-      {!fullHeight && (
+      {!fullHeight && !hideNoise && (
         <aside class={`site-subscribe ${footerMax} mx-auto mt-8 sm:mt-10`} aria-label="Subscribe">
           <p class="site-subscribe-lbl">Get a daily signed brief from the workforce.</p>
           <form class="site-subscribe-form" data-lead-form data-source="footer">
@@ -169,23 +262,29 @@ const footerClass = fullHeight
           </form>
         </aside>
       )}
+      {!hideNoise && (
       <footer class={footerClass}>
         <span>cathedral.computer</span>
-        <span class="text-border">·</span>
-        <a href="https://github.com/cathedralai/cathedral" class="hover:text-muted transition-colors">source</a>
-        <a href="/verification" class="hover:text-muted transition-colors">verification</a>
-        <a href="/origins" class="hover:text-muted transition-colors">origins</a>
-        <a href="https://github.com/cathedralai/cathedral/blob/main/docs/policy.md" class="hover:text-muted transition-colors">policy</a>
-        <a href="https://polaris.computer" class="hover:text-muted transition-colors">rent compute ↗</a>
-        <span class="text-border">·</span>
-        <a href="/plans" class="hover:text-muted transition-colors">plans</a>
-        <a href="/dashboard" class="hover:text-muted transition-colors">dashboard</a>
-        <a href="/research" class="hover:text-muted transition-colors">research</a>
-        <a href="/roadmap" class="hover:text-muted transition-colors">roadmap</a>
-        <a href="/changelog" class="hover:text-muted transition-colors">changelog</a>
-        <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
-        <span class="w-full min-[560px]:w-auto">operated by <a href="https://polaris.computer" class="hover:text-muted transition-colors underline decoration-dim underline-offset-2 decoration-[0.5px]">polaris</a></span>
+        {!hideNoise && (
+          <>
+            <span class="text-border">·</span>
+            <a href="https://github.com/cathedralai/cathedral" class="hover:text-muted transition-colors">source</a>
+            <a href="/verification" class="hover:text-muted transition-colors">verification</a>
+            <a href="/origins" class="hover:text-muted transition-colors">origins</a>
+            <a href="https://github.com/cathedralai/cathedral/blob/main/docs/policy.md" class="hover:text-muted transition-colors">policy</a>
+            <a href="https://polaris.computer" class="hover:text-muted transition-colors">rent compute ↗</a>
+            <span class="text-border">·</span>
+            <a href="/plans" class="hover:text-muted transition-colors">plans</a>
+            <a href="/dashboard" class="hover:text-muted transition-colors">dashboard</a>
+            <a href="/research" class="hover:text-muted transition-colors">research</a>
+            <a href="/roadmap" class="hover:text-muted transition-colors">roadmap</a>
+            <a href="/changelog" class="hover:text-muted transition-colors">changelog</a>
+            <span class="hidden min-[560px]:block flex-1" aria-hidden="true"></span>
+            <span class="w-full min-[560px]:w-auto">operated by <a href="https://polaris.computer" class="hover:text-muted transition-colors underline decoration-dim underline-offset-2 decoration-[0.5px]">polaris</a></span>
+          </>
+        )}
       </footer>
+      )}
     </div>
     <!-- Lead-capture handler. Routes any form with [data-lead-form] into a
          posthog event + identify. Source-of-truth lives in PostHog until
@@ -258,6 +357,7 @@ const footerClass = fullHeight
       // the page; this script swaps `data-live` placeholders with fresh API
       // data on load + every 30s, so new submissions surface without a
       // rebuild.
+      import('../lib/dialog-dismiss.client.ts')
       import('../lib/live-hydrate.client.ts')
     </script>
     <style is:global>
@@ -338,12 +438,18 @@ const footerClass = fullHeight
         white-space: nowrap; border: 0;
       }
 
-      /* ---- platform-whisper banner ---------------------------------- */
-      .cd-banner {
-        display: inline-flex;
+      /* ---- live status strip (the heartbeat) -----------------------
+         Sits under the nav on every page. Mono lineprinter band that
+         shows the workforce ticking — agent count, last card age,
+         latest merkle epoch — plus a verb-first action link. The
+         pulsing dot's colour follows the freshness of the last card
+         (live / warming / quiet / offline). */
+      .cd-status {
+        display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
-        margin: 0 0 18px;
+        gap: 4px 10px;
+        margin: 0 0 14px;
         padding: 7px 12px;
         border: 1px solid var(--border-soft);
         background: var(--surface);
@@ -351,10 +457,9 @@ const footerClass = fullHeight
         font-family: var(--mono);
         font-size: 11px;
         letter-spacing: 0.02em;
-        align-self: flex-start;
         max-width: 100%;
       }
-      .cd-banner-dot {
+      .cd-status-dot {
         width: 6px;
         height: 6px;
         border-radius: 50%;
@@ -363,13 +468,75 @@ const footerClass = fullHeight
         animation: cd-pulse var(--dur-tick) ease-in-out infinite;
         flex-shrink: 0;
       }
-      .cd-banner-link {
-        color: var(--accent);
-        margin-left: 4px;
+      .cd-status[data-status-tone='warming'] .cd-status-dot {
+        background: var(--warn);
+        box-shadow: 0 0 6px rgba(216, 167, 101, 0.45);
       }
-      .cd-banner-link:hover {
+      .cd-status[data-status-tone='warming'] .cd-status-tone {
+        color: var(--warn);
+      }
+      .cd-status[data-status-tone='quiet'] .cd-status-dot {
+        background: var(--dim);
+        box-shadow: none;
+        animation: none;
+        opacity: 0.6;
+      }
+      .cd-status[data-status-tone='quiet'] .cd-status-tone {
+        color: var(--dim);
+      }
+      .cd-status[data-status-tone='offline'] .cd-status-dot {
+        background: var(--err);
+        box-shadow: 0 0 6px rgba(217, 122, 108, 0.45);
+        animation: none;
+      }
+      .cd-status[data-status-tone='offline'] .cd-status-tone {
+        color: var(--err);
+      }
+      .cd-status-tone {
+        color: var(--accent);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .cd-status-stat {
+        white-space: nowrap;
+      }
+      .cd-status-stat strong {
+        color: var(--fg);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-status-sep {
+        color: var(--border);
+      }
+      .cd-status-spacer {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .cd-status-link {
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      .cd-status-link:hover {
         text-decoration: underline;
         text-underline-offset: 3px;
+      }
+      .cd-status-console {
+        margin-bottom: 8px;
+        padding: 5px 10px;
+      }
+      @media (max-width: 640px) {
+        .cd-status {
+          font-size: 10.5px;
+          padding: 6px 10px;
+          margin-bottom: 12px;
+        }
+        .cd-status-spacer {
+          display: none;
+        }
+        .cd-status-link {
+          width: 100%;
+          margin-top: 2px;
+        }
       }
 
       /* ---- shared eyebrow / numbered-section primitives ------------- */

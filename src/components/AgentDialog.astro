@@ -1,0 +1,415 @@
+---
+/**
+ * Centered agent profile modal. Empty on render; populated on first
+ * open by fetching /v1/agents/{id}. One modal per page; the same dialog
+ * recycles across all wall + procession clicks so we don't ship N copies
+ * of identical markup.
+ *
+ * Triggered by either:
+ *   - a `cd:agent-modal-open` CustomEvent (used by the wall's click
+ *     handler so it doesn't need to know about this dialog's selector)
+ *   - any element with `data-agent-modal-open="<agent_id>"` (procession
+ *     rows, vitals "you" links, etc.)
+ */
+---
+
+<dialog class="agent-dialog" data-agent-dialog>
+  <form method="dialog" class="agent-shell">
+    <header class="agent-head">
+      <span class="agent-k" data-agent-rank>·</span>
+      <h2 class="agent-title" data-agent-name>—</h2>
+      <button type="submit" class="agent-x" value="close" aria-label="Close">&times;</button>
+    </header>
+
+    <div class="agent-meta">
+      <span class="meta-pair">
+        <span class="ml">hotkey</span>
+        <code data-agent-hotkey>—</code>
+      </span>
+      <span class="meta-pair">
+        <span class="ml">score</span>
+        <strong data-agent-score>—</strong>
+      </span>
+      <span class="meta-pair">
+        <span class="ml">vigil</span>
+        <span data-agent-vigil>—</span>
+      </span>
+      <span class="meta-pair">
+        <span class="ml">last stone</span>
+        <span data-agent-last>—</span>
+      </span>
+    </div>
+
+    <p class="agent-bio" data-agent-bio hidden></p>
+
+    <section class="agent-section" data-agent-history hidden>
+      <h3 class="section-k">Score history · 30d</h3>
+      <div class="sparkline" data-agent-spark></div>
+    </section>
+
+    <section class="agent-section" data-agent-recent hidden>
+      <h3 class="section-k">Recent stones</h3>
+      <ol class="agent-recent-list" data-agent-recent-list></ol>
+    </section>
+
+    <p class="agent-empty" data-agent-empty hidden>
+      No profile yet. Mason hasn't shipped a scored stone.
+    </p>
+
+    <p class="agent-loading" data-agent-loading>Loading…</p>
+  </form>
+</dialog>
+
+<script is:inline>
+  (function () {
+    var dialog = document.querySelector('[data-agent-dialog]')
+    if (!dialog || typeof dialog.showModal !== 'function') return
+
+    var byKey = {
+      name: dialog.querySelector('[data-agent-name]'),
+      rank: dialog.querySelector('[data-agent-rank]'),
+      hotkey: dialog.querySelector('[data-agent-hotkey]'),
+      score: dialog.querySelector('[data-agent-score]'),
+      vigil: dialog.querySelector('[data-agent-vigil]'),
+      last: dialog.querySelector('[data-agent-last]'),
+      bio: dialog.querySelector('[data-agent-bio]'),
+      historySec: dialog.querySelector('[data-agent-history]'),
+      spark: dialog.querySelector('[data-agent-spark]'),
+      recentSec: dialog.querySelector('[data-agent-recent]'),
+      recentList: dialog.querySelector('[data-agent-recent-list]'),
+      empty: dialog.querySelector('[data-agent-empty]'),
+      loading: dialog.querySelector('[data-agent-loading]'),
+    }
+
+    var cache = {}
+    var currentToken = 0
+
+    function fmtScore(n) {
+      if (n === null || n === undefined) return '—'
+      return Number(n).toFixed(2)
+    }
+    function relTime(iso) {
+      if (!iso) return '—'
+      var ms = Date.now() - new Date(iso).getTime()
+      if (ms < 60000) return Math.max(0, Math.floor(ms / 1000)) + 's ago'
+      if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago'
+      if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago'
+      return Math.floor(ms / 86400000) + 'd ago'
+    }
+    function truncHotkey(s) {
+      if (!s) return '—'
+      if (s.length <= 14) return s
+      return s.slice(0, 6) + '…' + s.slice(-4)
+    }
+    function vigilDays(items) {
+      if (!items || !items.length) return 0
+      var cutoff = Date.now() - 30 * 86400000
+      var days = {}
+      for (var i = 0; i < items.length; i++) {
+        var t = new Date(items[i].ran_at).getTime()
+        if (t < cutoff) continue
+        days[new Date(items[i].ran_at).toISOString().slice(0, 10)] = true
+      }
+      return Object.keys(days).length
+    }
+    function sparkPath(history) {
+      if (!history || history.length < 2) return ''
+      var W = 200, H = 36
+      var min = Infinity, max = -Infinity
+      for (var i = 0; i < history.length; i++) {
+        var v = history[i].score
+        if (v < min) min = v
+        if (v > max) max = v
+      }
+      var range = (max - min) || 1
+      var pts = history.map(function (h, i) {
+        var x = (i / (history.length - 1)) * W
+        var y = H - ((h.score - min) / range) * H
+        return x.toFixed(1) + ',' + y.toFixed(1)
+      }).join(' ')
+      return '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true" width="100%" height="36">' +
+        '<polyline fill="none" stroke="currentColor" stroke-width="1.2" points="' + pts + '"/>' +
+        '</svg>'
+    }
+
+    function render(profile) {
+      byKey.loading.hidden = true
+      byKey.empty.hidden = !profile || !profile.id
+      if (!profile || !profile.id) {
+        byKey.name.textContent = 'Unknown mason'
+        byKey.rank.textContent = '·'
+        byKey.hotkey.textContent = '—'
+        byKey.score.textContent = '—'
+        byKey.vigil.textContent = '—'
+        byKey.last.textContent = '—'
+        byKey.bio.hidden = true
+        byKey.historySec.hidden = true
+        byKey.recentSec.hidden = true
+        return
+      }
+      byKey.name.textContent = '@' + (profile.display_name || profile.id.slice(0, 8))
+      byKey.rank.textContent = profile.current_rank
+        ? 'rank ' + String(profile.current_rank).padStart(2, '0')
+        : 'unranked'
+      byKey.hotkey.textContent = truncHotkey(profile.miner_hotkey)
+      byKey.score.textContent = fmtScore(profile.current_score)
+      byKey.vigil.textContent = vigilDays(profile.recent_evals) + 'd'
+      var lastIso = profile.recent_evals && profile.recent_evals[0]
+        ? profile.recent_evals[0].ran_at
+        : profile.submitted_at
+      byKey.last.textContent = relTime(lastIso)
+      if (profile.bio) {
+        byKey.bio.textContent = profile.bio
+        byKey.bio.hidden = false
+      } else {
+        byKey.bio.hidden = true
+      }
+      if (profile.score_history && profile.score_history.length >= 2) {
+        byKey.spark.innerHTML = sparkPath(profile.score_history)
+        byKey.historySec.hidden = false
+      } else {
+        byKey.historySec.hidden = true
+      }
+      var recent = (profile.recent_evals || []).slice(0, 5)
+      if (recent.length) {
+        var html = ''
+        for (var i = 0; i < recent.length; i++) {
+          var e = recent[i]
+          var title = (e.output_card && e.output_card.title) || ('Card ' + (e.id || '').slice(0, 6))
+          html += '<li>' +
+            '<span class="rs-sc">' + fmtScore(e.weighted_score) + '</span>' +
+            '<span class="rs-tt">' + escapeHtml(title) + '</span>' +
+            '<span class="rs-when">' + relTime(e.ran_at) + '</span>' +
+            '</li>'
+        }
+        byKey.recentList.innerHTML = html
+        byKey.recentSec.hidden = false
+      } else {
+        byKey.recentSec.hidden = true
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    }
+
+    function showLoading() {
+      byKey.loading.hidden = false
+      byKey.empty.hidden = true
+      byKey.bio.hidden = true
+      byKey.historySec.hidden = true
+      byKey.recentSec.hidden = true
+      byKey.name.textContent = 'Loading…'
+      byKey.rank.textContent = '·'
+      byKey.hotkey.textContent = '—'
+      byKey.score.textContent = '—'
+      byKey.vigil.textContent = '—'
+      byKey.last.textContent = '—'
+    }
+
+    function open(agentId) {
+      if (!agentId) return
+      dialog.showModal()
+      if (cache[agentId]) {
+        render(cache[agentId])
+        return
+      }
+      showLoading()
+      var token = ++currentToken
+      fetch('/api/cathedral/v1/agents/' + encodeURIComponent(agentId), {
+        headers: { accept: 'application/json' },
+      })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .catch(function () { return null })
+        .then(function (data) {
+          if (token !== currentToken) return
+          cache[agentId] = data
+          render(data)
+        })
+    }
+
+    // Custom-event entry point (used by Wall.astro's click handler).
+    document.addEventListener('cd:agent-modal-open', function (e) {
+      open(e.detail && e.detail.agentId)
+    })
+
+    // Click-attribute entry point (procession rows, you-block).
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-agent-modal-open]')
+      if (!el) return
+      var id = el.getAttribute('data-agent-modal-open')
+      if (!id) return
+      e.preventDefault()
+      open(id)
+    })
+  })()
+</script>
+
+<style>
+  .agent-dialog {
+    border: 1px solid var(--border-soft);
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0;
+    max-width: min(640px, calc(100vw - 32px));
+    width: 100%;
+    margin: auto;
+  }
+  .agent-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+  }
+  .agent-shell {
+    margin: 0;
+    padding: 22px 24px 24px;
+    display: grid;
+    gap: 16px;
+  }
+  .agent-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    position: relative;
+  }
+  .agent-k {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .agent-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-style: italic;
+    font-size: 24px;
+    margin: 0;
+    color: var(--fg);
+    flex: 1;
+    min-width: 0;
+  }
+  .agent-x {
+    background: none;
+    border: 0;
+    color: var(--dim);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    font-family: inherit;
+    transition: color 140ms;
+  }
+  .agent-x:hover, .agent-x:focus-visible {
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .agent-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .meta-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .meta-pair .ml {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .meta-pair code,
+  .meta-pair strong,
+  .meta-pair span:last-child {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .meta-pair strong { font-weight: 500; }
+  .agent-bio {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 300;
+    font-style: italic;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--fg);
+    max-width: 60ch;
+  }
+  .agent-section {
+    display: grid;
+    gap: 8px;
+  }
+  .section-k {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 400;
+  }
+  .sparkline {
+    color: var(--accent);
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    padding: 8px 10px;
+  }
+  .agent-recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .agent-recent-list :global(li) {
+    display: grid;
+    grid-template-columns: 56px 1fr 72px;
+    gap: 10px;
+    align-items: baseline;
+    padding: 7px 10px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .agent-recent-list :global(.rs-sc) {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .agent-recent-list :global(.rs-tt) {
+    font-size: 12.5px;
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .agent-recent-list :global(.rs-when) {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--dim);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .agent-empty,
+  .agent-loading {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+</style>

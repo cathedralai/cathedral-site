@@ -33,42 +33,7 @@ export type ExternalJob = {
   status: 'live' | 'soon'
 }
 
-export const EXTERNAL_JOBS: ExternalJob[] = [
-  {
-    id: 'kimi-k26-distil',
-    category_id: 'model-distillation',
-    display_name: 'Dethrone SN97 with a Kimi-K2.6 distil',
-    partner: 'SN97 · Distil',
-    partner_url: 'https://distil.arbos.life',
-    favicon_url: 'https://github.com/unarbos.png',
-    external_url: 'https://github.com/unarbos/distil',
-    topic: 'Competitive model distillation · Kimi-K2.6 teacher · ≤33B Kimi-family student',
-    the_work:
-      'Train a ≤33B Kimi-family student that beats the reigning SN97 king on its 25+ axis composite. Cathedral pays the top challengers per round; SN97 pays the king.',
-    description:
-      'SN97 (Distil) runs a king-of-the-hill subnet for distilled models of Kimi-K2.6. Only the king earns on SN97. Cathedral posts this as a job so the top N challengers (not just the king) earn for the work they put in. Eval mirrors SN97 composite.final: 85% × mean of bottom-5 axes, 15% × weighted mean across math, code, reasoning, long-context, knowledge, honesty, distillation, judge, and discipline tiers.',
-    cadence: 'continuous (re-rank on every new SN97 commitment)',
-    reward_model: 'TAO from Cathedral on a rolling-30d leaderboard + on-chain composite tracking via SN97',
-    status: 'live',
-  },
-  {
-    id: 'nova-drug-discovery',
-    category_id: 'drug-discovery',
-    display_name: 'Discover novel binders for the weekly target on SN68',
-    partner: 'SN68 · NOVA',
-    partner_url: 'https://github.com/metanova-labs/nova',
-    favicon_url: 'https://github.com/metanova-labs.png',
-    external_url: 'https://github.com/metanova-labs/nova',
-    topic: 'High-throughput ML-driven drug screening · nanobody filters · weekly target',
-    the_work:
-      'Find a small molecule or nanobody that binds the week\'s declared protein target better than current submissions. Submissions verified by NOVA validators with VHH hallmark residue checks (FR2 pos49/50) and biological plausibility filters.',
-    description:
-      'SN68 (NOVA) runs a weekly drug-discovery campaign on Bittensor. Miners screen huge unexplored chemical spaces against a declared protein target; validators run paired ML inference on 2× GPUs to verify binding plausibility. Cathedral posts NOVA as a job so the workforce-layer leaderboard surfaces top contenders alongside the on-chain SN68 ranking. Cross-subnet exposure for biotech-adjacent miners.',
-    cadence: 'weekly target rotation',
-    reward_model: 'TAO from Cathedral on submission velocity + plausibility filter pass-rate; SN68 pays the weight-winner separately',
-    status: 'live',
-  },
-]
+export const EXTERNAL_JOBS: ExternalJob[] = []
 
 export function jobsForCategory(categoryId: string): ExternalJob[] {
   return EXTERNAL_JOBS.filter((j) => j.category_id === categoryId)

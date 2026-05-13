@@ -25,6 +25,7 @@ import type {
   MerkleAnchor,
   SubmissionResponse,
 } from './types'
+import { V1_CARD_IDS } from './cards'
 import * as mock from './cathedral-api-mock'
 
 const API_BASE: string =
@@ -314,14 +315,7 @@ export async function fetchAvailableCards(): Promise<CardOverview[]> {
   // Convenience helper. Backend doesn't expose a single list endpoint, so we
   // resolve from the locked v1 card_id set (CONTRACTS §9 lock #12).
   if (USE_MOCK) return mock.fetchAvailableCards()
-  const ids = [
-    'eu-ai-act',
-    'us-ai-eo',
-    'uk-ai-whitepaper',
-    'singapore-pdpc',
-    'japan-meti-mic',
-  ]
-  const settled = await Promise.allSettled(ids.map((id) => fetchCardOverview(id)))
+  const settled = await Promise.allSettled(V1_CARD_IDS.map((id) => fetchCardOverview(id)))
   return settled
     .filter(
       (s): s is PromiseFulfilledResult<CardOverview> => s.status === 'fulfilled',

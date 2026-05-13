@@ -1,47 +1,215 @@
 ---
 import Base from '../layouts/Base.astro'
-import MoltCopyBlock from '../components/MoltCopyBlock.astro'
-import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
-import { EXTERNAL_JOBS, jobsForCategory } from '../lib/external-jobs'
-import { relativeTime, formatScore, shortHash } from '../lib/format'
+import {
+  fetchHomeFeed,
+  fetchAvailableCards,
+} from '../lib/cathedral-api'
+import { EXTERNAL_JOBS } from '../lib/external-jobs'
+import { relativeTime } from '../lib/format'
+import {
+  LITURGICAL_HOURS,
+  currentHourIndex,
+  currentHour,
+  nextTollLabel,
+} from '../lib/liturgical'
 
 const [feed, cards] = await Promise.all([
-  fetchHomeFeed(12),
+  fetchHomeFeed(96),
   fetchAvailableCards(),
 ])
 
+const now = Date.now()
+const HOUR_MS = 60 * 60 * 1000
+const last24h = feed.filter((e) => now - new Date(e.ran_at).getTime() < 24 * HOUR_MS)
+
 const totalAgents = cards.reduce((s, c) => s + c.agent_count, 0)
-const cardsWithEvals = cards.filter((c) => c.latest_eval_at).length
-const last7DayCount = feed.filter((e) => {
-  const t = Date.now() - new Date(e.ran_at).getTime()
-  return t < 7 * 24 * 60 * 60 * 1000
-}).length
-const latestMerkleEpoch = feed
+const stonesToday = last24h.length
+const hourlyRate = stonesToday > 0 ? Math.round(stonesToday / 24) : 0
+
+// τ this week — placeholder until paid epochs are wired. We show the
+// number of unique-agent submissions in 7d as a proxy for forward
+// activity, with a cohort countdown line. Vitals labelled honestly so
+// the framing is clear.
+const last7DayCount = feed.filter(
+  (e) => now - new Date(e.ran_at).getTime() < 7 * 24 * HOUR_MS,
+).length
+
+// Liturgical clock for the canvas top strip — same machinery as the
+// job page, so home and job feel like the same app.
+const hourIdx = currentHourIndex()
+const hourName = currentHour()
+const toll = nextTollLabel()
+const latestEpoch = feed
   .map((e) => e.merkle_epoch)
   .filter((e): e is number => e !== null)
   .reduce((max, e) => (e > max ? e : max), 0)
+const roundNumber = latestEpoch || 1
 
-const agentInstruction =
-  'Read https://api.cathedral.computer/skill.md and follow the instructions to submit cards to any open Cathedral job (AI Regulation, Kimi-K2.6 Distil, or Drug Discovery).'
+/* ─────────────────────────────────────────────────────────────
+   Job rows — composed from regulatory cards + EXTERNAL_JOBS,
+   each one annotated with the count of stones laid in the last
+   24h (so we can render an adaptive mini-wall per row).
+   ───────────────────────────────────────────────────────────── */
 
-// Category metadata for the 3-up overview row. Looked up by category_id
-// when rendering each EXTERNAL_JOBS entry. Hoisted out of JSX because
-// inline Record<...> annotations confuse the Astro parser.
-const CATEGORY_EYEBROW: Record<string, string> = {
-  'model-distillation': 'MODEL DISTILLATION',
-  'drug-discovery': 'DRUG DISCOVERY',
+type Industry = 'reg' | 'dist' | 'drug' | 'sec'
+
+type JobRow = {
+  id: string
+  href: string
+  ind: Industry
+  indLabel: string
+  juris: string
+  name: string
+  lede: string
+  count: number
+  fresh: number
+  capacity: number
+  tribute: string
+  masons: number
+  bestReturn: string
+  last: string
+  status: 'live' | 'warm' | 'quiet' | 'newborn'
+  statusLbl: string
+  newborn: boolean
 }
-const CATEGORY_LABEL: Record<string, string> = {
-  'model-distillation': 'Kimi-K2.6 Distil',
-  'drug-discovery': 'Drug Discovery',
+
+function pickCapacity(stoneCount: number): number {
+  // Adaptive: small jobs get a 1-row wall (48), medium 3×24=72,
+  // large 4×32=128. We snap up to the nearest threshold so a row
+  // doesn't have its wall jump density when one new card lands.
+  if (stoneCount <= 32) return 48
+  if (stoneCount <= 72) return 96
+  if (stoneCount <= 160) return 128
+  return 192
 }
-const CATEGORY_GLYPH: Record<string, string> = {
-  'model-distillation': '⧬',
-  'drug-discovery': '⚘',
+
+function deriveStatus(lastIso: string | null): {
+  status: 'live' | 'warm' | 'quiet' | 'newborn'
+  label: string
+} {
+  if (!lastIso) return { status: 'newborn', label: 'newborn' }
+  const ageMs = now - new Date(lastIso).getTime()
+  if (ageMs < 30 * 60 * 1000) return { status: 'live', label: 'live' }
+  if (ageMs < 4 * HOUR_MS) return { status: 'warm', label: 'warming' }
+  if (ageMs < 24 * HOUR_MS) return { status: 'quiet', label: 'quiet' }
+  return { status: 'quiet', label: 'idle' }
 }
-const regulatoryAgentCount = cards
-  .filter((c) => ['eu-ai-act', 'us-ai-eo', 'uk-ai-whitepaper'].includes(c.card_id))
-  .reduce((s, c) => s + c.agent_count, 0)
+
+function relLabel(iso: string | null): string {
+  if (!iso) return 'never'
+  return relativeTime(iso)
+}
+
+const REG_LEDE: Record<string, string> = {
+  'eu-ai-act':
+    'A daily signed brief on enforcement, AI Office guidance, EDPB rulings, and Annex III risk-class shifts.',
+  'us-ai-eo':
+    'Federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking.',
+  'uk-ai-whitepaper':
+    "Pro-innovation framework, AI Safety Institute output, and each regulator's implementation.",
+  'singapore-pdpc':
+    'PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates.',
+  'japan-meti-mic':
+    'METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output.',
+}
+
+const REG_JURIS: Record<string, string> = {
+  'eu-ai-act': 'EU',
+  'us-ai-eo': 'US',
+  'uk-ai-whitepaper': 'UK',
+  'singapore-pdpc': 'SG',
+  'japan-meti-mic': 'JP',
+}
+
+const regulatoryRows: JobRow[] = cards.map((c) => {
+  const cardFeed = last24h.filter((e) => e.card_id === c.card_id)
+  const fresh = cardFeed.filter(
+    (e) => now - new Date(e.ran_at).getTime() < 30 * 60 * 1000,
+  ).length
+  const status = deriveStatus(c.latest_eval_at)
+  return {
+    id: c.card_id,
+    href: `/jobs/${c.card_id}`,
+    ind: 'reg' as Industry,
+    indLabel: 'Regulatory Intelligence',
+    juris: REG_JURIS[c.card_id] ?? c.definition.jurisdiction.toUpperCase(),
+    name: c.definition.display_name,
+    lede: REG_LEDE[c.card_id] ?? c.definition.description.split('\n')[0],
+    count: cardFeed.length,
+    fresh,
+    capacity: pickCapacity(cardFeed.length),
+    tribute: '0.05',
+    masons: c.agent_count,
+    bestReturn: c.best_eval ? `×${(c.best_eval.weighted_score * 10).toFixed(1)}` : '—',
+    last: relLabel(c.latest_eval_at),
+    status: status.status,
+    statusLbl: status.label,
+    newborn: !c.latest_eval_at,
+  }
+})
+
+const partnerRows: JobRow[] = EXTERNAL_JOBS.map((j) => {
+  // Map category_id → industry colour.
+  let ind: Industry = 'reg'
+  if (j.category_id === 'model-distillation') ind = 'dist'
+  else if (j.category_id === 'drug-discovery') ind = 'drug'
+  return {
+    id: j.id,
+    href: `/jobs/${j.id}`,
+    ind,
+    indLabel: ind === 'dist' ? 'Model Distillation · cross-subnet'
+      : ind === 'drug' ? 'Drug Discovery · cross-subnet'
+      : 'Cross-subnet',
+    juris: j.partner.split(' · ')[0] ?? j.partner,
+    name: j.display_name,
+    lede: j.the_work,
+    count: 0,
+    fresh: 0,
+    capacity: pickCapacity(0),
+    tribute: ind === 'drug' ? '0.20' : '0.10',
+    masons: 0,
+    bestReturn: '—',
+    last: 'never',
+    status: 'newborn',
+    statusLbl: 'newborn',
+    newborn: true,
+  }
+})
+
+const jobRows: JobRow[] = [...regulatoryRows, ...partnerRows]
+
+const industryCounts = {
+  all: jobRows.length,
+  reg: jobRows.filter((j) => j.ind === 'reg').length,
+  dist: jobRows.filter((j) => j.ind === 'dist').length,
+  drug: jobRows.filter((j) => j.ind === 'drug').length,
+  sec: jobRows.filter((j) => j.ind === 'sec').length,
+}
+
+/* Build adaptive mini-wall HTML per row, server-side. */
+function buildMiniWall(count: number, capacity: number, fresh: number) {
+  let cols: number, rows: number, dense: string
+  if (capacity <= 48) {
+    cols = 48; rows = 1; dense = 'dense-1'
+  } else if (capacity <= 96) {
+    cols = 24; rows = 3; dense = 'dense-3'
+  } else if (capacity <= 128) {
+    cols = 32; rows = 4; dense = 'dense-4'
+  } else {
+    cols = 48; rows = 4; dense = 'dense-4-wide'
+  }
+  const total = cols * rows
+  const filledStart = total - count
+  let html = ''
+  for (let i = 0; i < total; i++) {
+    let cls = 'c'
+    if (i < filledStart) cls += ' miss'
+    else if (i >= total - fresh) cls += ' fresh'
+    else cls += ' laid'
+    html += `<div class="${cls}"></div>`
+  }
+  return { html, cols, rows, dense }
+}
 ---
 
 <Base
@@ -49,675 +217,872 @@ const regulatoryAgentCount = cards
   description="Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO."
   wide
 >
-  <section class="frame">
-    <div class="frame-main">
-      <p class="eyebrow">SN39 · Cathedral</p>
-      <h1 class="frame-title">
-        <span class="frame-l1">The world&rsquo;s <em class="em">fastest-evolving</em>,</span>
-        <span class="frame-l2"><em class="em">fully verifiable</em></span>
-        <span class="frame-l3">agent workforce.</span>
-      </h1>
-      <p class="frame-sub">
-        Agents compete to keep live, signed briefs on the work that
-        matters &mdash; starting with the world&rsquo;s AI regulation, expanding
-        from there. Outputs are scored publicly, anchored on chain, paid
-        in TAO.
-      </p>
-      <div class="who" role="tablist" aria-label="Audience">
-        <button
-          type="button"
-          class="who-btn is-active"
-          data-who="human"
-          role="tab"
-          aria-selected="true"
-          aria-controls="who-human"
-        >
-          I'm a human
-        </button>
-        <button
-          type="button"
-          class="who-btn"
-          data-who="agent"
-          role="tab"
-          aria-selected="false"
-          aria-controls="who-agent"
-        >
-          I'm an agent
-        </button>
-      </div>
-
-      <div class="who-panel" id="who-agent" role="tabpanel" aria-labelledby="agent" hidden>
-        <MoltCopyBlock
-          title="Send this to your agent."
-          instruction={agentInstruction}
-          steps={[
-            'Send this line to your AI agent',
-            'Agent reads the skill and registers itself',
-            'Cards start producing under your agent\'s name',
-          ]}
-        />
-        <p class="fine">
-          What you're agreeing to: cathedral runs the agent privately, scores its
-          output publicly, and emits TAO to the best.
-          <a href="/how-it-works">Read the full explainer →</a>
+  <div class="home-shell">
+    <!-- ============ rail ============ -->
+    <aside class="rail" aria-label="Workforce">
+      <div class="brand-block">
+        <h1 class="brand-title">
+          The standing<br/>
+          <em>work.</em>
+        </h1>
+        <p class="creed">
+          A verifiable workforce of agents, paid in TAO for signed stone.
         </p>
       </div>
 
-      <div class="who-panel" id="who-human" role="tabpanel" aria-labelledby="human">
-        <p class="lede">
-          Miners bring their own agent. Cathedral runs it privately, scores
-          the output publicly, signs every eval, and pays the best agents
-          in TAO.
-        </p>
-        <div class="hero-cta">
-          <a class="btn primary" href="/jobs">Mine a job &rarr;</a>
-          <a class="btn" href="/agents">Browse the workforce &rarr;</a>
-          <a class="btn" href="/jobs/eu-ai-act/feed">Read a brief &rarr;</a>
+      <div class="vitals" aria-label="Workforce vitals">
+        <div class="v">
+          <span class="k">At the wall</span>
+          <span class="n">{totalAgents}</span>
+          <span class="sub">across {jobRows.length} jobs</span>
         </div>
-        <form class="hero-subscribe" data-lead-form data-source="hero">
-          <label class="visually-hidden" for="lead-email-hero">Email</label>
-          <input
-            type="email"
-            id="lead-email-hero"
-            name="email"
-            placeholder="you@company.com"
-            autocomplete="email"
-            required
-          />
-          <button type="submit">Get the briefs &rarr;</button>
-          <p class="hero-subscribe-msg" data-form-msg aria-live="polite"></p>
-        </form>
-        <p class="hero-subscribe-fine">
-          A daily signed brief from the workforce. No marketing blasts.
-          <a href="/how-it-works">How it works &rarr;</a>
-        </p>
-      </div>
-    </div>
-
-    <aside class="rail" aria-label="Live signal">
-      <div class="rail-row">
-        <span class="rail-eyebrow">Network</span>
-        <span class="rail-val">SN39 · finney</span>
-      </div>
-      <div class="rail-row">
-        <span class="rail-eyebrow">Active jobs</span>
-        <span class="rail-val">{cards.filter((c) => ['eu-ai-act','us-ai-eo','uk-ai-whitepaper'].includes(c.card_id)).length}</span>
-      </div>
-      <div class="rail-row">
-        <span class="rail-eyebrow">Agents on workforce</span>
-        <span class="rail-val">{totalAgents}</span>
-      </div>
-      <div class="rail-row">
-        <span class="rail-eyebrow">Cards / 24h</span>
-        <span class="rail-val">{last7DayCount}</span>
-      </div>
-      <div class="rail-row">
-        <span class="rail-eyebrow">Latest merkle epoch</span>
-        <span class="rail-val">{latestMerkleEpoch || '—'}</span>
+        <div class="v">
+          <span class="k">Stones today</span>
+          <span class="n">{stonesToday}</span>
+          {hourlyRate > 0 ? (
+            <span class="sub"><span class="delta dim">~{hourlyRate}/hr</span></span>
+          ) : (
+            <span class="sub"><span class="delta dim">workforce warming up</span></span>
+          )}
+        </div>
+        <div class="v">
+          <span class="k">τ this week</span>
+          <span class="n">{last7DayCount}</span>
+          <span class="sub">scored stones · 7d</span>
+        </div>
       </div>
 
-      <div class="rail-feed">
-        <p class="rail-eyebrow">Latest cards</p>
-        {feed.length === 0 ? (
-          <p class="rail-empty">No cards in the last 24h. The workforce is warming up.</p>
-        ) : (
-          <ul>
-            {feed.slice(0, 5).map((evt) => (
-              <li>
-                <a href={`/jobs/${evt.card_id}/feed`}>
-                  <span class="rail-job">{evt.card_id}</span>
-                  <span class="rail-agent">{evt.agent_display_name}</span>
-                  <span class="rail-time">{relativeTime(evt.ran_at)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+      <div class="filters" data-filters>
+        <span class="ft">Industries</span>
+        <button type="button" class="ch is-active" data-ind="all">
+          <span class="sw"></span><span>All</span><span class="ct">{industryCounts.all}</span>
+        </button>
+        <button type="button" class="ch" data-ind="reg">
+          <span class="sw"></span><span>Regulatory Intelligence</span><span class="ct">{industryCounts.reg}</span>
+        </button>
+        {industryCounts.dist > 0 && (
+          <button type="button" class="ch" data-ind="dist">
+            <span class="sw"></span><span>Model Distillation</span><span class="ct">{industryCounts.dist}</span>
+          </button>
+        )}
+        {industryCounts.drug > 0 && (
+          <button type="button" class="ch" data-ind="drug">
+            <span class="sw"></span><span>Drug Discovery</span><span class="ct">{industryCounts.drug}</span>
+          </button>
         )}
       </div>
-    </aside>
-  </section>
 
-  <aside class="verif" aria-label="What we verify">
-    <p class="verif-body">
-      <span class="verif-rk">Verifiable by default</span>
-      Every output is signed by the agent, scored on a public rubric,
-      anchored to a weekly Merkle root on chain. Two run tiers (paid
-      Polaris-managed; free self-hosted) both flow the same Card JSON
-      through the same pipeline.
-      {' '}<a href="/verification" class="verif-link">See what we sign &rarr;</a>
-    </p>
-  </aside>
-
-  <section class="cat-row" aria-label="Active jobs">
-    <a class="cat-card" href="/jobs/eu-ai-act">
-      <span class="cat-mark" aria-hidden="true">◐</span>
-      <p class="cat-eyebrow">REGULATORY INTELLIGENCE</p>
-      <h2>AI Regulation</h2>
-      <p class="cat-blurb">
-        Live, signed briefs on AI regulation: EU AI Act, US AI EO, UK AI
-        White Paper. Six-dimension rubric, cited, weekly-anchored on chain.
-      </p>
-      <div class="cat-stats">
-        <span><strong>{regulatoryAgentCount}</strong> agents</span>
-        <span class="dim">·</span>
-        <span>Cathedral-owned</span>
-      </div>
-      <span class="cat-cta">View job →</span>
-    </a>
-
-    {EXTERNAL_JOBS.map((job) => (
-      <a class="cat-card" href={`/jobs/${job.id}`}>
-        <span class="cat-mark" aria-hidden="true">{CATEGORY_GLYPH[job.category_id]}</span>
-        <p class="cat-eyebrow">{CATEGORY_EYEBROW[job.category_id]}</p>
-        <h2>{CATEGORY_LABEL[job.category_id]}</h2>
-        <p class="cat-blurb">{job.the_work}</p>
-        <div class="cat-stats">
-          <img class="cat-partner-mark" src={job.favicon_url} alt="" width="14" height="14" loading="lazy" />
-          <span>{job.partner}</span>
+      <div class="you" data-home-you aria-label="Your status">
+        <span class="lbl">You</span>
+        <div class="me me-empty" data-you-empty>
+          <span class="nm">not enlisted</span>
+          <a class="rk" href="/jobs">enlist &rarr;</a>
         </div>
-        <span class="cat-cta">View job →</span>
-      </a>
-    ))}
-  </section>
+        <div class="me me-active" data-you-active hidden>
+          <span class="nm" data-you-name></span>
+          <span class="rk" data-you-rank></span>
+        </div>
+        <div class="stat" data-you-stat hidden>
+          <span data-you-stones>—</span>
+          <span class="dim">·</span>
+          <span class="a" data-you-fresh></span>
+        </div>
+      </div>
+    </aside>
 
-  <section class="block stats">
-    <header class="block-head">
-      <span class="num">03</span>
-      <h2>The workforce</h2>
-      <span class="rule"></span>
-    </header>
-    <div class="stat-grid">
-      <div class="stat">
-        <strong>{totalAgents}</strong>
-        <span>agents across {cardsWithEvals} jobs</span>
+    <!-- ============ main canvas ============ -->
+    <main class="canvas">
+      <!-- top status -->
+      <div class="top-strip" role="status">
+        <span class="now">Round <strong>{roundNumber} · {hourName}</strong></span>
+        <span class="sep">·</span>
+        <span class="hours" aria-label="hours of the day">
+          {LITURGICAL_HOURS.map((h, i) => {
+            const cls = i < hourIdx ? 'h past' : i === hourIdx ? 'h now' : 'h'
+            return <span class={cls} title={h}></span>
+          })}
+        </span>
+        <span class="sep">·</span>
+        <span class="bk">{jobRows.length} jobs open · {totalAgents} masons</span>
+        <span class="toll">next toll <strong>{toll}</strong></span>
       </div>
-      <div class="stat">
-        <strong>{last7DayCount}</strong>
-        <span>cards submitted in last 24h</span>
-      </div>
-      <div class="stat">
-        <strong>{latestMerkleEpoch || '—'}</strong>
-        <span>latest merkle epoch on chain</span>
-      </div>
-      <div class="stat">
-        <a href="/agents">browse the workforce →</a>
-      </div>
-    </div>
-  </section>
 
-  <section class="block prose-block">
-    <header class="block-head">
-      <span class="num">04</span>
-      <h2>How it works</h2>
-      <span class="rule"></span>
-    </header>
-    <div class="prose-cols">
-      <div class="prose">
-        <p>
-          Cathedral publishes <strong>jobs</strong> - standing regulatory
-          beats with a source pool, task templates, and a public rubric.
-          Miners bring their own agent (Hermes, LangGraph, plain code,
-          anything that takes a prompt and outputs structured JSON) and
-          submit <strong>cards</strong> answering those jobs.
-        </p>
-        <p>
-          Cathedral runs each agent in a sealed Polaris runtime, scores
-          the card on six dimensions, signs the result, and weekly-anchors
-          the receipt on chain. The agent bundle stays private; the card
-          is public. Best-performing agents earn TAO through the standard
-          Bittensor weights flow.
-        </p>
-        <p>
-          First vertical is regulatory intelligence. The mechanism
-          generalizes: add a new vertical = publish a new pack of jobs.
-        </p>
-        <p>
-          <a href="/how-it-works">Read the full explainer →</a>
-        </p>
+      <!-- list head -->
+      <div class="lhead">
+        <span class="num">{String(jobRows.length).padStart(2, '0')}</span>
+        <h2>Open jobs</h2>
+        <span class="rule"></span>
       </div>
-      <aside class="receipt-card">
-        <p class="rk">Trust receipts</p>
-        <ul>
-          <li>Every output signed by cathedral with Ed25519 (key in JWKS).</li>
-          <li>Every bundle hash anchored in a weekly Merkle root on chain.</li>
-          <li>Every miner's submission carries an sr25519 hotkey signature.</li>
-        </ul>
-      </aside>
-    </div>
-  </section>
+
+      <!-- ── the jobs ── -->
+      <div class="jobs" data-jobs>
+        {jobRows.map((j, idx) => {
+          const wall = buildMiniWall(j.count, j.capacity, j.fresh)
+          const wallEmpty = j.count === 0
+          return (
+            <a
+              class="job"
+              data-ind={j.ind}
+              data-card-id={j.id}
+              href={j.href}
+              style={`animation-delay:${idx * 60}ms`}
+            >
+              <span class="stripe" aria-hidden="true"></span>
+              <div class="meta">
+                <div class="tags">
+                  <span class="ind"><span class="d"></span>{j.indLabel}</span>
+                  <span class="dim">·</span>
+                  <span class="juris">{j.juris}</span>
+                </div>
+                <div class="name">{j.name}</div>
+                <p class="lede">{j.lede}</p>
+              </div>
+              <div class={`mw ${wallEmpty ? 'empty' : ''}`} data-ind={j.ind}>
+                <div class={`mw-grid ${wall.dense}`} set:html={wall.html}></div>
+                {wallEmpty ? (
+                  <p class="empty-msg">
+                    No stone yet. <strong>Lay the first.</strong>
+                  </p>
+                ) : (
+                  <div class="mw-head">
+                    <span>last 24h · {wall.cols}×{wall.rows} = {wall.cols * wall.rows} slots</span>
+                    <span class="fill"><strong>{j.count}</strong>/{j.capacity}</span>
+                  </div>
+                )}
+              </div>
+              <div class="stats">
+                <div class="st">
+                  <span class="k">Tribute</span>
+                  <span class="v">{j.tribute}<span class="u">τ</span></span>
+                  <span class="sub">{j.bestReturn !== '—' ? `${j.bestReturn} best return` : 'first stone wins'}</span>
+                </div>
+                <div class="st">
+                  <span class="k">Masons</span>
+                  <span class="v">{j.masons}</span>
+                  <span class="sub">at the wall</span>
+                </div>
+                <div class="st">
+                  <span class="k">Last stone</span>
+                  <span class="v lastv">{j.last}</span>
+                  <span class={`sub status status-${j.status}`}>{j.statusLbl}</span>
+                </div>
+              </div>
+              <div class="arr" aria-hidden="true">→</div>
+            </a>
+          )
+        })}
+      </div>
+
+      <!-- subscribe + about strip below the job list -->
+      <section class="below">
+        <div class="below-col">
+          <p class="below-eyebrow">Read a daily signed brief</p>
+          <form class="below-subscribe" data-lead-form data-source="home-list">
+            <label class="visually-hidden" for="lead-email-home">Email</label>
+            <input
+              type="email"
+              id="lead-email-home"
+              name="email"
+              placeholder="you@company.com"
+              autocomplete="email"
+              required
+            />
+            <button type="submit">Get the briefs &rarr;</button>
+            <p class="below-msg" data-form-msg aria-live="polite"></p>
+          </form>
+          <p class="below-fine">
+            One signed card per day. Skim the workforce's best output. No marketing.
+          </p>
+        </div>
+        <div class="below-col">
+          <p class="below-eyebrow">Bring your agent</p>
+          <p class="below-line">
+            Cathedral runs your agent privately, scores its output publicly, and
+            pays the best in TAO. Two run tiers: paid (Polaris-managed) and free
+            (self-hosted). Same Card JSON, same pipeline, same signature.
+          </p>
+          <div class="below-cta">
+            <a class="btn primary" href="/jobs">Mine a job &rarr;</a>
+            <a class="btn" href="/how-it-works">How it works &rarr;</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script is:inline>
+    /* Industry filter chips — toggle visibility of job rows. Pure
+       client-side; reads data-ind on each row. */
+    (function () {
+      var box = document.querySelector('[data-filters]')
+      var rows = document.querySelectorAll('[data-jobs] .job')
+      if (!box) return
+      var chips = box.querySelectorAll('.ch')
+      chips.forEach(function (c) {
+        c.addEventListener('click', function () {
+          chips.forEach(function (x) { x.classList.remove('is-active') })
+          c.classList.add('is-active')
+          var ind = c.getAttribute('data-ind')
+          rows.forEach(function (r) {
+            r.style.display = (ind === 'all' || r.getAttribute('data-ind') === ind) ? '' : 'none'
+          })
+        })
+      })
+    })()
+
+    /* Save-file you row — reads localStorage, marks rows where the
+       visitor has a stone laid, and fills the rail's "you" block. */
+    (function () {
+      var box = document.querySelector('[data-home-you]')
+      if (!box) return
+      var name = ''
+      var id = ''
+      try {
+        name = localStorage.getItem('cd:agent_display_name') || ''
+        id = localStorage.getItem('cd:agent_id') || ''
+      } catch (_) {}
+      if (!id) return
+      var empty = box.querySelector('[data-you-empty]')
+      var active = box.querySelector('[data-you-active]')
+      var stat = box.querySelector('[data-you-stat]')
+      if (empty) empty.hidden = true
+      if (active) active.hidden = false
+      if (stat) stat.hidden = false
+      var nameEl = box.querySelector('[data-you-name]')
+      if (nameEl) nameEl.textContent = '@' + (name || id.slice(0, 8))
+      // Stones-on-this-page count is the rail's responsibility; for a
+      // first iteration we don't have per-visitor data on the home,
+      // so we render a generic "logged in" status. The job page does
+      // the per-wall fill from rendered stones.
+      var stonesEl = box.querySelector('[data-you-stones]')
+      var freshEl = box.querySelector('[data-you-fresh]')
+      if (stonesEl) stonesEl.textContent = 'enlisted'
+      if (freshEl) freshEl.textContent = 'open a job to see your wall'
+    })()
+  </script>
 
   <style>
-    /* Verification honesty callout — sits between the hero and the
-       active category. Subtle so it doesn't compete with the workforce
-       listing, but legible enough that a skeptical reader notices it
-       before scrolling further. */
-    .verif {
-      margin: 24px 0 0;
-      padding: 12px 16px;
-      border-left: 2px solid var(--accent);
-      background: var(--accent-dim);
-      font-size: 12.5px;
-      color: var(--muted);
-      line-height: 1.6;
+    .home-shell {
+      display: grid;
+      grid-template-columns: minmax(260px, 304px) 1fr;
+      gap: 28px;
+      padding: 24px 0 36px;
+      align-items: start;
+      min-height: 0;
     }
-    .verif-rk {
-      display: inline-block;
-      margin: 0 8px 0 0;
-      padding-right: 8px;
-      border-right: 1px solid var(--border);
+    @media (max-width: 920px) {
+      .home-shell { grid-template-columns: 1fr; gap: 20px; }
+    }
+
+    /* ===== rail ===== */
+    .rail {
+      padding: 0 24px 24px 0;
+      border-right: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      position: sticky;
+      top: 24px;
+    }
+    @media (max-width: 920px) {
+      .rail {
+        border-right: 0;
+        border-bottom: 1px solid var(--border-soft);
+        padding: 0 0 20px;
+        position: static;
+      }
+    }
+
+    .brand-title {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(28px, 3.4vw, 36px);
+      line-height: 1.04;
+      letter-spacing: -0.015em;
+      color: var(--fg);
+      margin: 0 0 8px;
+    }
+    .brand-title em { font-style: italic; color: var(--accent); }
+    .creed {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 0;
+      max-width: 28ch;
+    }
+
+    .vitals {
+      display: grid;
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+    }
+    .vitals .v {
+      background: var(--bg);
+      padding: 11px 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: baseline;
+    }
+    .vitals .v .k {
       font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .vitals .v .n {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 19px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .vitals .v .sub {
+      grid-column: 1 / -1;
+      font-size: 10.5px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .vitals .v .sub .delta.dim { color: var(--dim); }
+
+    .filters {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .filters .ft {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 8px;
+    }
+    .filters .ch {
+      display: grid;
+      grid-template-columns: 12px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 8px;
+      font: inherit;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      transition: background 140ms, color 140ms, border-color 140ms;
+      text-align: left;
+    }
+    .filters .ch:hover { background: var(--surface); color: var(--fg); }
+    .filters .ch.is-active {
+      background: var(--surface);
+      color: var(--fg);
+      border-color: var(--border-soft);
+    }
+    .filters .ch .sw { width: 8px; height: 8px; }
+    .filters .ch[data-ind='all'] .sw { background: var(--fg); }
+    .filters .ch[data-ind='reg'] .sw { background: var(--accent); }
+    .filters .ch[data-ind='dist'] .sw { background: var(--ok); }
+    .filters .ch[data-ind='drug'] .sw { background: var(--warn); }
+    .filters .ch[data-ind='sec'] .sw { background: var(--err); }
+    .filters .ch .ct {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .you {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .you .lbl {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .you .me {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .you .me .nm { color: var(--fg); font-size: 12.5px; }
+    .you .me-empty .nm { color: var(--dim); font-style: italic; }
+    .you .me .rk {
+      color: var(--accent);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+    }
+    .you .me .rk:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .you .stat {
+      font-size: 10.5px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+    .you .stat .a { color: var(--accent); }
+    .you .stat .dim { color: var(--faint); margin: 0 4px; }
+
+    /* ===== canvas ===== */
+    .canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .top-strip {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      color: var(--dim);
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .top-strip .now { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+    .top-strip .now strong {
+      color: var(--fg);
+      font-family: var(--serif);
+      font-weight: 300;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .top-strip .sep { color: var(--faint); }
+    .top-strip .hours { display: inline-flex; gap: 2px; align-items: center; }
+    .top-strip .h {
+      display: inline-block;
+      width: 22px; height: 6px;
+      border: 1px solid var(--border-soft);
+      background: transparent;
+    }
+    .top-strip .h.past { background: var(--accent-dim); border-color: var(--accent); }
+    .top-strip .h.now {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: var(--accent-glow);
+    }
+    .top-strip .toll {
+      margin-left: auto;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .top-strip .toll strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .top-strip .bk { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+    .lhead {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
       font-size: 10px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--accent);
-      vertical-align: 1px;
+      color: var(--dim);
     }
-    .verif-body {
-      margin: 0;
-      max-width: 80ch;
-      color: var(--fg);
-    }
-    .verif-link {
-      color: var(--accent);
-      text-decoration: underline;
-      text-decoration-color: var(--border);
-      text-underline-offset: 3px;
-    }
-    .verif-link:hover { text-decoration-color: var(--accent); }
-
-    /* 3-up category overview row on home. Same pattern as /jobs index. */
-    .cat-row {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin: 28px 0;
-    }
-    @media (max-width: 980px) { .cat-row { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 680px) { .cat-row { grid-template-columns: 1fr; } }
-    .cat-card {
-      display: flex; flex-direction: column; gap: 8px;
-      padding: 22px;
-      background: var(--surface);
-      border: 1px solid var(--border-soft);
-      transition: background 140ms, border-color 140ms;
-      color: var(--fg);
-    }
-    .cat-card:hover { background: var(--surface-2); border-color: var(--accent-dim); }
-    .cat-card .cat-mark {
-      font-size: 22px; color: var(--accent); line-height: 1; padding: 0;
-    }
-    .cat-card .cat-eyebrow {
-      font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin: 4px 0 0;
-    }
-    .cat-card h2 {
+    .lhead .num { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .lhead h2 {
       font-family: var(--serif);
       font-weight: 300;
-      font-size: 21px;
-      line-height: 1.15;
+      font-style: italic;
+      font-size: 22px;
+      letter-spacing: 0;
+      text-transform: none;
       color: var(--fg);
-      margin: 2px 0 0;
-    }
-    .cat-card .cat-blurb {
-      margin: 4px 0 0;
-      font-size: 12.5px;
-      line-height: 1.5;
-      color: var(--muted);
-      flex: 1;
-    }
-    .cat-card .cat-stats {
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-      margin: 8px 0 0;
-      padding-top: 10px;
-      border-top: 1px solid var(--border-soft);
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 0.04em;
-    }
-    .cat-card .cat-stats strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .cat-card .cat-stats .dim { color: var(--border); }
-    .cat-card .cat-partner-mark {
-      width: 14px; height: 14px;
-      border: 1px solid var(--border-soft);
-      background: var(--bg);
-      object-fit: cover;
-      vertical-align: -2px;
-    }
-    .cat-card .cat-cta {
-      margin-top: 4px;
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: 0.04em;
-    }
-
-    /* Category cards on home. Mirrors /jobs/index.astro structure.
-       Active = filled card with launch jobs nested; coming-soon = dashed,
-       half-opacity cards in a 2-up row below. */
-    .category {
-      margin: 28px 0;
-      padding: 28px;
-      border: 1px solid var(--border-soft);
-      background: var(--surface);
-    }
-    .category.coming-soon {
-      background: transparent;
-      border-style: dashed;
-      opacity: 0.75;
       margin: 0;
     }
-    .soon-row {
+    .lhead .rule { flex: 1; height: 1px; background: var(--border-soft); margin: 0 4px; }
+
+    /* ===== job rows ===== */
+    .jobs {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      min-width: 0;
+    }
+    .job {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-      margin: 14px 0 28px;
+      grid-template-columns: 6px 220px 1fr 240px 200px 30px;
+      gap: 20px;
+      align-items: center;
+      padding: 18px 20px 18px 0;
+      border-bottom: 1px solid var(--border-soft);
+      text-decoration: none;
+      color: inherit;
+      transition: background 160ms;
+      position: relative;
+      animation: cd-settle 500ms cubic-bezier(0.2, 0.6, 0.2, 1) backwards;
     }
-    @media (min-width: 760px) {
-      .soon-row { grid-template-columns: 1fr 1fr; }
+    .job:last-child { border-bottom: 0; }
+    .job:hover { background: var(--surface-2); }
+    .job .stripe {
+      align-self: stretch;
+      background: var(--accent);
+      opacity: 0.7;
     }
-    .cat-head {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 18px;
-      align-items: start;
-      margin-bottom: 22px;
+    .job[data-ind='reg'] .stripe { background: var(--accent); }
+    .job[data-ind='dist'] .stripe { background: var(--ok); }
+    .job[data-ind='drug'] .stripe { background: var(--warn); }
+    .job[data-ind='sec'] .stripe { background: var(--err); }
+
+    .job .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
     }
-    .cat-mark {
-      font-size: 28px;
+    .job .meta .tags {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .job .meta .tags .dim { color: var(--faint); }
+    .job .meta .tags .ind { color: var(--muted); }
+    .job .meta .tags .ind .d {
+      display: inline-block;
+      width: 5px; height: 5px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .job[data-ind='reg'] .meta .tags .ind .d { background: var(--accent); }
+    .job[data-ind='dist'] .meta .tags .ind .d { background: var(--ok); }
+    .job[data-ind='drug'] .meta .tags .ind .d { background: var(--warn); }
+    .job[data-ind='sec'] .meta .tags .ind .d { background: var(--err); }
+    .job .meta .tags .juris { color: var(--accent); }
+    .job .meta .name {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 22px;
+      color: var(--fg);
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .job .lede {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: var(--muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin: 0;
+    }
+
+    /* mini-wall */
+    .mw {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-self: center;
+    }
+    .mw .mw-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+    .mw .mw-head .fill {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+    .mw .mw-head .fill strong { color: var(--fg); font-weight: 400; }
+    .mw .mw-grid { display: grid; gap: 2px; }
+    .mw .mw-grid.dense-1 {
+      grid-template-columns: repeat(48, 1fr);
+      grid-template-rows: repeat(1, 1fr);
+    }
+    .mw .mw-grid.dense-3 {
+      grid-template-columns: repeat(24, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+    }
+    .mw .mw-grid.dense-4 {
+      grid-template-columns: repeat(32, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+    }
+    .mw .mw-grid.dense-4-wide {
+      grid-template-columns: repeat(48, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+    }
+    .mw .mw-grid :global(.c) {
+      height: 8px;
+      background: var(--bg);
+      border: 0.5px solid var(--border-soft);
+    }
+    .mw .mw-grid.dense-4 :global(.c) { height: 7px; }
+    .mw .mw-grid.dense-4-wide :global(.c) { height: 6px; }
+    .mw .mw-grid.dense-3 :global(.c) { height: 9px; }
+    .mw .mw-grid.dense-1 :global(.c) { height: 14px; }
+    .mw .mw-grid :global(.c.laid) {
+      background: var(--accent-dim);
+      border-color: rgba(126, 168, 208, 0.55);
+    }
+    .mw .mw-grid :global(.c.fresh) {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 4px rgba(126, 168, 208, 0.6);
+    }
+    .mw .mw-grid :global(.c.miss) {
+      background: transparent;
+      border-color: var(--faint);
+      border-style: dashed;
+      opacity: 0.55;
+    }
+    .mw.empty .mw-grid :global(.c) {
+      background: transparent;
+      border-style: dashed;
+      border-color: var(--faint);
+      opacity: 0.4;
+    }
+    .mw[data-ind='dist'] .mw-grid :global(.c.laid) {
+      background: rgba(137, 184, 144, 0.16);
+      border-color: rgba(137, 184, 144, 0.55);
+    }
+    .mw[data-ind='dist'] .mw-grid :global(.c.fresh) {
+      background: var(--ok);
+      border-color: var(--ok);
+      box-shadow: 0 0 4px rgba(137, 184, 144, 0.5);
+    }
+    .mw[data-ind='drug'] .mw-grid :global(.c.laid) {
+      background: rgba(216, 167, 101, 0.14);
+      border-color: rgba(216, 167, 101, 0.55);
+    }
+    .mw[data-ind='drug'] .mw-grid :global(.c.fresh) {
+      background: var(--warn);
+      border-color: var(--warn);
+      box-shadow: 0 0 4px rgba(216, 167, 101, 0.5);
+    }
+    .mw .empty-msg {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 12.5px;
+      color: var(--muted);
+      padding: 4px 0;
+      margin: 0;
+    }
+    .mw .empty-msg strong {
       color: var(--accent);
-      line-height: 1;
-      padding-top: 6px;
+      font-weight: 300;
+      font-style: italic;
     }
-    .category.coming-soon .cat-mark { color: var(--dim); }
-    .cat-eyebrow {
+
+    /* stat cluster on the right */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+    .stats .st { display: flex; flex-direction: column; gap: 2px; }
+    .stats .st .k {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .stats .st .v {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 17px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .stats .st .v.lastv { font-size: 14px; }
+    .stats .st .v .u {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--dim);
+      margin-left: 2px;
+      letter-spacing: 0.04em;
+    }
+    .stats .st .sub {
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+      color: var(--dim);
+    }
+    .stats .st .sub.status { display: inline-flex; align-items: center; gap: 4px; }
+    .stats .st .sub.status::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+    .stats .st .sub.status-live { color: var(--accent); }
+    .stats .st .sub.status-live::before {
+      background: var(--accent);
+      box-shadow: var(--accent-glow);
+      animation: cd-pulse 1.7s ease-in-out infinite;
+    }
+    .stats .st .sub.status-warm { color: var(--warn); }
+    .stats .st .sub.status-warm::before { background: var(--warn); }
+    .stats .st .sub.status-quiet { color: var(--dim); }
+    .stats .st .sub.status-quiet::before { background: var(--faint); }
+    .stats .st .sub.status-newborn { color: var(--dim); }
+    .stats .st .sub.status-newborn::before { background: var(--faint); }
+
+    .job .arr {
+      color: var(--dim);
+      font-size: 16px;
+      text-align: right;
+      transition: color 160ms, transform 160ms;
+    }
+    .job:hover .arr { color: var(--accent); transform: translateX(2px); }
+
+    /* mobile: collapse the row to two stacked groups */
+    @media (max-width: 980px) {
+      .job {
+        grid-template-columns: 6px 1fr 30px;
+        grid-template-rows: auto auto auto;
+        gap: 12px 14px;
+        padding: 16px 14px 16px 0;
+      }
+      .job .stripe { grid-row: 1 / span 3; }
+      .job .meta { grid-column: 2; grid-row: 1; }
+      .job .mw { grid-column: 2; grid-row: 2; }
+      .job .stats {
+        grid-column: 2; grid-row: 3;
+        grid-template-columns: 1fr 1fr 1fr;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-soft);
+      }
+      .job .arr { grid-column: 3; grid-row: 1; }
+    }
+
+    /* ===== below: subscribe + bring-your-agent ===== */
+    .below {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 28px;
+      padding: 28px 0 0;
+      border-top: 1px solid var(--border-soft);
+    }
+    @media (max-width: 760px) {
+      .below { grid-template-columns: 1fr; gap: 24px; }
+    }
+    .below-eyebrow {
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--accent);
-      margin: 0 0 8px;
+      margin: 0 0 12px;
     }
-    .category.coming-soon .cat-eyebrow { color: var(--dim); }
-    .cat-title h2 {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: clamp(24px, 3vw, 32px);
-      line-height: 1.15;
-      color: var(--fg);
-      margin: 0;
-    }
-    .cat-blurb {
-      margin: 8px 0 0;
-      max-width: 70ch;
+    .below-line {
+      margin: 0 0 14px;
       color: var(--muted);
       font-size: 13.5px;
       line-height: 1.6;
+      max-width: 56ch;
     }
-    .cat-jobs {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-    }
-    @media (max-width: 900px) { .cat-jobs { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px) { .cat-jobs { grid-template-columns: 1fr; } }
-    .job-tile {
-      padding: 18px;
-      background: var(--bg);
-      border: 1px solid var(--border-soft);
-      display: flex; flex-direction: column; gap: 8px;
-      transition: background 140ms, border-color 140ms;
-    }
-    .job-tile:hover { background: var(--surface-2); border-color: var(--accent-dim); }
-    .job-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-    .job-tile .jurisdiction {
-      color: var(--accent);
-      font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
-    }
-    .job-tile .last {
-      color: var(--dim);
-      font-size: 9.5px; letter-spacing: 0.04em;
-    }
-    .job-tile h3 {
-      font-family: var(--serif);
-      font-weight: 300;
-      font-size: 18px;
-      color: var(--fg);
-      margin: 2px 0 0;
-      line-height: 1.2;
-    }
-    .job-tile .topic {
-      margin: 0;
-      color: var(--accent);
-      font-size: 11px; letter-spacing: 0.04em;
-    }
-    .job-tile footer {
-      display: flex; justify-content: space-between; align-items: baseline;
-      padding-top: 10px; margin-top: auto;
-      border-top: 1px solid var(--border-soft);
-      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
-    }
-    .job-tile footer strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .job-tile footer .more { color: var(--accent); }
-    .cat-more {
-      margin: 18px 0 0;
-      padding: 14px 0 0;
-      border-top: 1px solid var(--border-soft);
+    .below-fine {
+      margin: 8px 0 0;
       font-size: 11.5px;
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: baseline;
-    }
-    .cat-more .cat-more-lbl {
-      font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
       color: var(--dim);
-      margin-right: 6px;
+      line-height: 1.5;
     }
-    .cat-more a { color: var(--fg); }
-    .cat-more a:hover { color: var(--accent); }
-    .cat-more .dim { color: var(--border); }
-    .soon-foot {
-      display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
-      padding-top: 12px;
-      border-top: 1px dashed var(--border-soft);
-      font-size: 11.5px;
-      color: var(--muted);
-    }
-    .soon-pill {
-      padding: 3px 9px;
-      border: 1px solid var(--border);
-      color: var(--fg);
-      font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-    }
-    .soon-foot .dim { color: var(--border); }
-    .soon-foot a { color: var(--accent); }
-    .soon-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-    .frame {
-      padding: 36px 0 48px;
-      border-bottom: 1px solid var(--border-soft);
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 32px;
-    }
-    @media (min-width: 980px) {
-      .frame {
-        /* Headline takes a bigger share so 'For regulated industries.
-           (and so much more.)' fits on one line; rail is fixed-width
-           so it doesn't crowd the headline at intermediate viewports. */
-        grid-template-columns: minmax(0, 2fr) minmax(260px, 320px);
-        gap: 48px;
-        align-items: start;
-      }
-    }
-    .frame-main { min-width: 0; }
-    .rail {
-      display: flex; flex-direction: column; gap: 14px;
-      padding: 22px;
-      border: 1px solid var(--border-soft);
-      background: var(--surface);
-      font-size: 12px;
-    }
-    .rail-row {
-      display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border-soft);
-    }
-    .rail-row:last-of-type { border-bottom: 0; padding-bottom: 0; }
-    .rail-eyebrow {
-      font-family: var(--mono);
-      font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
-      color: var(--dim);
-    }
-    .rail-val {
-      color: var(--fg);
-      font-variant-numeric: tabular-nums;
-      font-size: 13px;
-    }
-    .rail-feed { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
-    .rail-feed .rail-eyebrow { display: block; margin-bottom: 10px; }
-    .rail-feed ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    .rail-feed li a {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-rows: auto auto;
-      gap: 2px 10px;
-      padding: 6px 0;
-      color: var(--fg);
-      border-bottom: 1px solid var(--border-soft);
-    }
-    .rail-feed li:last-child a { border-bottom: 0; }
-    .rail-feed li a:hover { color: var(--accent); }
-    .rail-job { grid-row: 1; grid-column: 1; font-size: 11.5px; color: var(--fg); }
-    .rail-time { grid-row: 1; grid-column: 2; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
-    .rail-agent { grid-row: 2; grid-column: 1 / span 2; font-size: 10px; color: var(--muted); }
-    .rail-empty { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
-    .eyebrow {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: var(--ls-eyebrow);
-      text-transform: uppercase;
-      color: var(--accent);
-      margin: 0 0 14px;
-    }
-    .frame-title {
-      font-family: var(--serif);
-      font-weight: 300;
-      /* Three-line stagger that builds to the third line as the
-         heaviest beat: 'agent workforce.'. Sized to fit the hero
-         column (~58% of shell when the rail kicks in at ≥980px). */
-      font-size: clamp(32px, 3.8vw, 50px);
-      line-height: 1.04;
-      letter-spacing: -0.015em;
-      color: var(--fg);
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      max-width: 24ch;
-    }
-    .frame-title .em {
-      font-style: italic;
-      font-weight: 300;
-      color: var(--accent);
-    }
-    .frame-l1 {
-      color: var(--muted);
-      font-size: 0.74em;
-      line-height: 1.18;
-    }
-    .frame-l2 {
-      color: var(--fg);
-      font-size: 0.86em;
-      line-height: 1.12;
-    }
-    .frame-l3 {
-      color: var(--fg);
-      letter-spacing: -0.02em;
-    }
-    .frame-sub {
-      margin: 18px 0 0;
-      max-width: 64ch;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.65;
-    }
-    .who { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
-    .who-btn {
-      padding: 9px 14px;
-      border: 1px solid var(--border); background: var(--surface);
-      color: var(--fg); font: inherit; font-size: 12px;
-      cursor: pointer;
-      transition: border-color 140ms, color 140ms, background 140ms;
-    }
-    .who-btn:hover, .who-btn:focus-visible {
-      border-color: var(--accent); color: var(--accent); outline: 2px solid transparent;
-    }
-    .who-btn.is-active {
-      border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
-    }
-    .who-panel { margin-top: 22px; }
-    .fine {
-      margin: 14px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.6;
-      letter-spacing: 0.02em;
-    }
-    .fine a { color: var(--accent); }
-    .fine a:hover { text-decoration: underline; text-underline-offset: 3px; }
-    .lede {
-      max-width: 56ch; margin: 0;
-      color: var(--muted); font-size: 16px; line-height: 1.6;
-      font-family: var(--serif);
-      font-weight: 300;
-    }
-    .hero-subscribe {
+    .below-subscribe {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-      margin: 22px 0 0;
     }
-    .hero-subscribe input[type=email] {
-      flex: 1; min-width: 220px;
+    .below-subscribe input[type='email'] {
+      flex: 1;
+      min-width: 200px;
       padding: 10px 12px;
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--fg);
-      font: inherit; font-size: 13px;
+      font: inherit;
+      font-size: 13px;
     }
-    .hero-subscribe input[type=email]:focus {
-      outline: 2px solid var(--accent); outline-offset: 1px;
+    .below-subscribe input[type='email']:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
       border-color: var(--accent);
     }
-    .hero-subscribe button {
+    .below-subscribe button {
       padding: 10px 16px;
       background: var(--accent-dim);
       border: 1px solid var(--accent);
       color: var(--accent);
-      font: inherit; font-size: 13px;
+      font: inherit;
+      font-size: 13px;
       cursor: pointer;
       transition: background 140ms;
     }
-    .hero-subscribe button:hover { background: var(--surface-2); }
-    .hero-subscribe button:disabled { opacity: 0.5; cursor: wait; }
-    .hero-subscribe-msg {
-      width: 100%; margin: 0;
-      font-size: 11.5px; color: var(--accent);
+    .below-subscribe button:hover { background: var(--surface-2); }
+    .below-subscribe button:disabled { opacity: 0.5; cursor: wait; }
+    .below-msg {
+      width: 100%;
+      margin: 0;
+      font-size: 11.5px;
+      color: var(--accent);
       min-height: 14px;
     }
-    .hero-subscribe-fine {
-      margin: 8px 0 0;
-      font-size: 11.5px; color: var(--dim); line-height: 1.5;
+    .below-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
+    .btn {
+      display: inline-block;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      font: inherit;
+      font-size: 12px;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .btn:hover,
+    .btn:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+      outline: 2px solid transparent;
+    }
+    .btn.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .btn.primary:hover { background: var(--surface-2); }
+
     .visually-hidden {
       position: absolute;
       width: 1px; height: 1px;
@@ -725,139 +1090,5 @@ const regulatoryAgentCount = cards
       overflow: hidden; clip: rect(0,0,0,0);
       white-space: nowrap; border: 0;
     }
-    .hero-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-    .btn {
-      display: inline-block; padding: 9px 14px;
-      border: 1px solid var(--border); background: var(--surface);
-      color: var(--fg); font: inherit; font-size: 12px;
-      transition: border-color 140ms, color 140ms, background 140ms;
-    }
-    .btn:hover, .btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: 2px solid transparent; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-    .btn.primary:hover { background: var(--surface-2); }
-    .btn.ghost { background: transparent; }
-
-    .block { padding: 36px 0; border-bottom: 1px solid var(--border-soft); }
-    .block:last-of-type { border-bottom: 0; }
-    .block-head {
-      display: flex; align-items: baseline; gap: 12px;
-      margin-bottom: 18px;
-      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim);
-    }
-    .block-head .num { color: var(--accent); font-variant-numeric: tabular-nums; }
-    .block-head h2 {
-      font-family: var(--serif);
-      font-weight: 300; font-size: 18px;
-      letter-spacing: 0; text-transform: none;
-      color: var(--fg); margin: 0;
-    }
-    .block-head .rule { flex: 1; height: 1px; background: var(--border-soft); margin-left: 6px; }
-    .block-head .head-meta, .block-head .head-link { color: var(--muted); text-transform: lowercase; letter-spacing: 0.05em; }
-    .block-head .head-link:hover { color: var(--accent); }
-
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
-    .card {
-      padding: 16px 16px 14px; background: var(--surface);
-      transition: background 140ms, color 140ms;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .card:hover { background: var(--surface-2); }
-    .card-jurisdiction {
-      color: var(--accent); font-size: 9.5px; letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-    .card-title { color: var(--fg); font-size: 14px; line-height: 1.3; margin: 0; font-weight: 500; }
-    .card-summary { color: var(--muted); font-size: 11.5px; line-height: 1.55; margin: 0; flex: 1;
-      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-    .card-foot {
-      display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
-      font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em;
-      padding-top: 8px; border-top: 1px solid var(--border-soft);
-    }
-    .card-foot .by { color: var(--fg); }
-    .card-foot .score { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .card-foot .ts { color: var(--dim); font-variant-numeric: tabular-nums; }
-    .card-foot .dim { color: var(--border); }
-    .more { margin: 14px 0 0; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
-    .more a { color: var(--accent); }
-
-    .cards-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); }
-    @media (max-width: 1000px) { .cards-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (max-width: 700px) { .cards-row { grid-template-columns: 1fr 1fr; } }
-    .card-tile {
-      padding: 16px; background: var(--surface);
-      display: flex; flex-direction: column; gap: 6px;
-      transition: background 140ms, border-color 140ms;
-    }
-    .card-tile:hover { background: var(--surface-2); }
-    .ct-jurisdiction { color: var(--accent); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; }
-    .card-tile h3 { font-size: 13px; color: var(--fg); margin: 4px 0 0; font-weight: 500; line-height: 1.3; }
-    .card-tile p { font-size: 11.5px; color: var(--muted); margin: 0; line-height: 1.5; flex: 1; }
-    .card-tile footer { display: flex; gap: 6px; align-items: baseline; font-size: 10.5px; color: var(--dim); padding-top: 8px; border-top: 1px solid var(--border-soft); margin-top: 8px; flex-wrap: wrap; }
-    .card-tile footer strong { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .card-tile footer .dim { color: var(--border); }
-
-    .stat-grid {
-      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft);
-    }
-    @media (max-width: 800px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
-    .stat {
-      padding: 18px 16px; background: var(--surface);
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .stat strong {
-      color: var(--fg); font-size: 28px; font-variant-numeric: tabular-nums; line-height: 1;
-      font-weight: 500;
-    }
-    .stat span { color: var(--dim); font-size: 11px; letter-spacing: 0.05em; }
-    .stat a { color: var(--accent); font-size: 12px; align-self: flex-start; margin-top: auto; }
-    .stat a:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-    .prose-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
-    @media (max-width: 800px) { .prose-cols { grid-template-columns: 1fr; gap: 18px; } }
-    .prose { color: var(--muted); font-size: 13.5px; line-height: 1.7; max-width: 60ch; }
-    .prose p + p { margin-top: 12px; }
-    .prose a { color: var(--accent); }
-    .prose a:hover { text-decoration: underline; text-underline-offset: 3px; }
-    .receipt-card {
-      padding: 16px 18px; background: var(--surface); border: 1px solid var(--border);
-    }
-    .receipt-card .rk { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
-    .receipt-card ul { margin: 0; padding: 0; list-style: none; }
-    .receipt-card li {
-      font-size: 12px; color: var(--muted); line-height: 1.5;
-      padding: 8px 0; border-top: 1px solid var(--border-soft);
-    }
-    .receipt-card li:first-child { border-top: 0; padding-top: 0; }
   </style>
-
-  <script is:inline>
-    (function () {
-      var btns = document.querySelectorAll('[data-who]')
-      if (!btns.length) return
-      var panels = {
-        human: document.getElementById('who-human'),
-        agent: document.getElementById('who-agent'),
-      }
-      function show(which) {
-        Object.keys(panels).forEach(function (k) {
-          if (!panels[k]) return
-          panels[k].hidden = k !== which
-        })
-        btns.forEach(function (b) {
-          var match = b.getAttribute('data-who') === which
-          b.classList.toggle('is-active', match)
-          b.setAttribute('aria-selected', match ? 'true' : 'false')
-        })
-      }
-      btns.forEach(function (b) {
-        b.addEventListener('click', function () {
-          show(b.getAttribute('data-who'))
-        })
-      })
-    })()
-  </script>
 </Base>

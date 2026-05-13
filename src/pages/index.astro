@@ -14,7 +14,12 @@ import {
 import { V1_CARD_IDS } from '../lib/cards'
 import { relativeTime, truncateMiddle, formatScore } from '../lib/format'
 import { masonMark } from '../lib/mason-marks'
-import { nextTollLabel } from '../lib/liturgical'
+import {
+  LITURGICAL_HOURS,
+  currentHour,
+  currentHourIndex,
+  nextTollLabel,
+} from '../lib/liturgical'
 
 const [feed, cards] = await Promise.all([
   fetchHomeFeed(96),
@@ -37,8 +42,17 @@ const last7DayCount = feed.filter(
   (e) => now - new Date(e.ran_at).getTime() < 7 * 24 * HOUR_MS,
 ).length
 
-// Liturgical clock — next toll only on the procession header.
+// Liturgical clock — bell tower for the top-strip + the procession header.
 const toll = nextTollLabel()
+const hourIdx = currentHourIndex()
+const hourName = currentHour()
+// Round number is derived from the merkle epoch of the freshest stone in
+// the home feed. Falls back to 1 when no stones have shipped yet.
+const latestEpoch = feed
+  .map((e) => e.merkle_epoch)
+  .filter((e): e is number => typeof e === 'number')
+  .reduce((max, e) => (e > max ? e : max), 0)
+const roundNumber = latestEpoch || 1
 
 /* ─────────────────────────────────────────────────────────────
    Job rows — regulatory cards in the home procession.
@@ -433,6 +447,21 @@ const industryCounts = {
             data-job-panel={panel.cardId}
             hidden={panel.cardId !== defaultJobId}
           >
+            <div class="top-strip" role="status">
+              <span class="now">
+                Round <strong>{roundNumber} &middot; {hourName}</strong>
+              </span>
+              <span class="hours" aria-label="liturgical hours of the day">
+                {LITURGICAL_HOURS.map((h, i) => {
+                  const cls = i < hourIdx ? 'h past' : i === hourIdx ? 'h now' : 'h'
+                  return <span class={cls} title={h}></span>
+                })}
+              </span>
+              <span class="bk">
+                {panel.recent.length} stone{panel.recent.length === 1 ? '' : 's'} &middot; 24h window
+              </span>
+              <span class="toll">next toll <strong>{toll}</strong></span>
+            </div>
             <Wall evals={panel.recent} cardId={panel.cardId} compact />
 
             <div class="canvas-row">
@@ -1163,11 +1192,76 @@ const industryCounts = {
     }
     .job-panel {
       display: grid;
-      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-rows: auto minmax(0, 1fr) auto;
       gap: 6px;
       flex: 1;
       min-height: 0;
       overflow: hidden;
+    }
+
+    /* Bell-tower top-strip: round name + liturgical hour ticks +
+       stones-in-window + toll countdown. Cathedral's heartbeat above
+       the wall. */
+    .top-strip {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      color: var(--dim);
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .top-strip .now {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+    }
+    .top-strip .now strong {
+      color: var(--fg);
+      font-family: var(--serif);
+      font-weight: 300;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .top-strip .hours {
+      display: inline-flex;
+      gap: 2px;
+      align-items: center;
+    }
+    .top-strip .h {
+      display: inline-block;
+      width: 22px;
+      height: 6px;
+      border: 1px solid var(--border-soft);
+      background: transparent;
+    }
+    .top-strip .h.past {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+    .top-strip .h.now {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(126, 168, 208, 0.45);
+    }
+    .top-strip .bk {
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .top-strip .toll {
+      margin-left: auto;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .top-strip .toll strong {
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
     }
     .job-panel :global(.wall-frame-compact) {
       min-height: 0;

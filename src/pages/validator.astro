@@ -1,12 +1,13 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 
 const handoffUrl = 'https://github.com/cathedralai/cathedral/blob/main/docs/validator.md'
 const configUrl = 'https://github.com/cathedralai/cathedral/blob/main/config/cathedral-validator.toml.example'
 const repoUrl = 'https://github.com/cathedralai/cathedral'
 ---
 
-<Base title="validator · cathedral">
+<Base title={pageTitle('validator')}>
   <style>
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;

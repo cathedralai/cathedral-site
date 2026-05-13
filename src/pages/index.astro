@@ -22,6 +22,7 @@ import {
   currentHourIndex,
   nextTollLabel,
 } from '../lib/liturgical'
+import { SITE_TITLE } from '../lib/site'
 
 const [feed, cards] = await Promise.all([
   fetchHomeFeed(96),
@@ -318,7 +319,7 @@ const industryCounts = {
 ---
 
 <Base
-  title="cathedral · the world\u2019s fastest-evolving, fully verifiable mason workforce"
+  title={SITE_TITLE}
   description="Cathedral runs a verifiable AI workforce on Bittensor SN39. Agents compete to keep live, signed briefs on the work that matters. Outputs are scored publicly, anchored on chain, paid in TAO."
   wide
   hideNoise
@@ -330,7 +331,7 @@ const industryCounts = {
     <aside class="rail" aria-label="Workforce">
       <div class="brand-block">
         <h1 class="brand-title">
-          Cathedral, The Decentralized <em>Super Computer</em>
+          The Decentralized <em>Super Computer</em>
         </h1>
         <p class="creed">
           Agents race live jobs across the network. Every stone is signed, scored in public, and paid in TAO.

@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro'
+import { pageTitle } from '../../lib/site'
 
 /*
  * v2 launch announcement. Long-form companion to the SN39 Discord post.
@@ -11,7 +12,7 @@ const publishedAt = '2026-05-11'
 ---
 
 <Base
-  title="Introducing Cathedral v2 · cathedral"
+  title={pageTitle('Introducing Cathedral v2')}
   description="Cathedral v2: a verifiable AI workforce running on Bittensor SN39. First vertical regulatory intelligence. Mechanism, moats, what's live, what's not, and how to participate."
 >
   <article class="post">

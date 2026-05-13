@@ -1,8 +1,9 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 ---
 
-<Base title="ledger · cathedral">
+<Base title={pageTitle('ledger')}>
   <section class="sec">
     <div class="wrap">
       <div class="eyebrow"><span class="num">—</span><span>Ledger</span></div>

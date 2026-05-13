@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 
 /*
  * Plain-English explainer for two audiences at once:
@@ -13,7 +14,7 @@ import Base from '../layouts/Base.astro'
  */
 ---
 
-<Base title="how it works · cathedral">
+<Base title={pageTitle('how it works')}>
   <section class="hd">
     <p class="eyebrow">SN39 · How it works</p>
     <h1>From a hotkey signature<br />to a signed, scored card.</h1>

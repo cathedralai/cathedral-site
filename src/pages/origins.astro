@@ -1,8 +1,9 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 ---
 
-<Base title="origins · cathedral">
+<Base title={pageTitle('origins')}>
   <style>
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;

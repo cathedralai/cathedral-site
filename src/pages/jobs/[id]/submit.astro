@@ -4,6 +4,7 @@ import AuthBootstrap from '../../../components/AuthBootstrap.astro'
 import LoginModal from '../../../components/LoginModal.astro'
 import { fetchCardOverview } from '../../../lib/cathedral-api'
 import { V1_CARD_IDS } from '../../../lib/cards'
+import { pageTitle } from '../../../lib/site'
 
 export function getStaticPaths() {
   return V1_CARD_IDS.map((id) => ({ params: { id } }))
@@ -18,7 +19,7 @@ const apiBase = import.meta.env.PUBLIC_CATHEDRAL_API_URL || 'http://localhost:90
 const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined) === 'true'
 ---
 
-<Base title={`submit · ${def.display_name} · cathedral`}>
+<Base title={pageTitle('submit', def.display_name)}>
   <AuthBootstrap />
   <aside class="advisory">
     <p>

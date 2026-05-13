@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro'
+import { pageTitle } from '../lib/site'
 
 type Issue = {
   number: number
@@ -47,7 +48,7 @@ const total = issues.length
 const openCount = issues.filter((i) => i.state === 'open').length
 ---
 
-<Base title="roadmap · cathedral">
+<Base title={pageTitle('roadmap')}>
   <style>
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;

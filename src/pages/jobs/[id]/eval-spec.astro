@@ -2,6 +2,7 @@
 import Base from '../../../layouts/Base.astro'
 import { fetchCardEvalSpec } from '../../../lib/cathedral-api'
 import { V1_CARD_IDS } from '../../../lib/cards'
+import { pageTitle } from '../../../lib/site'
 import { marked } from 'marked'
 
 export function getStaticPaths() {
@@ -29,7 +30,7 @@ const descriptionHtml = await marked.parse(spec.description_md ?? '')
 const evalSpecHtml = await marked.parse(spec.eval_spec_md ?? '')
 ---
 
-<Base title={`eval spec · ${spec.display_name} · cathedral`}>
+<Base title={pageTitle('eval spec', spec.display_name)}>
   <section class="hd">
     <p class="eyebrow">
       <a href={`/jobs/${cardId}`}>← {spec.display_name}</a>

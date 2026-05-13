@@ -1,9 +1,10 @@
 ---
 import Base from '../layouts/Base.astro'
 import RoseWindow from '../components/RoseWindow.astro'
+import { pageTitle } from '../lib/site'
 ---
 
-<Base title="mason · cathedral">
+<Base title={pageTitle('mason')}>
   <style>
     .eyebrow {
       font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;

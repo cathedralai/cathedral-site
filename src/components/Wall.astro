@@ -10,6 +10,7 @@
  * detection, claim modal, and agent-profile modal triggers.
  */
 import { stoneMark } from '../lib/stone-marks'
+import { masonMark } from '../lib/mason-marks'
 
 export type RosterScored = {
   kind: 'scored'
@@ -144,7 +145,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
             data-title={`Rank ${s.rank} · score ${s.score.toFixed(2)}`}
             data-agent-modal-open={s.agentId}
             aria-label={`${s.displayName}, rank ${s.rank}, score ${s.score.toFixed(2)} — open profile`}
-            set:html={stoneMark(s.hotkey || s.agentId, { size: 28 })}
+            set:html={masonMark(s.hotkey || s.agentId, { size: 28 })}
           />
         )
       })}

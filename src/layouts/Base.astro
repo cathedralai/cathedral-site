@@ -114,7 +114,7 @@ if (showStatus) {
 const navItems: readonly { href: string; label: string }[] = []
 
 const shellClass = fullHeight || hideNoise
-  ? 'mx-auto max-w-[1080px] h-dvh flex flex-col px-4 py-3 sm:px-5 overflow-hidden'
+  ? `mx-auto max-w-[1080px] flex flex-col px-4 py-3 sm:px-5 ${hideNoise ? 'console-shell-fit h-dvh overflow-hidden' : 'h-dvh overflow-hidden'}`
   : 'mx-auto max-w-[1080px] min-h-screen flex flex-col px-4 py-4 sm:px-5 sm:py-5'
 /* Top nav keeps the full shell width (breathing, airy). The body of the
    page (everything under the nav) sits in a narrower column — roughly
@@ -125,7 +125,7 @@ const shellClass = fullHeight || hideNoise
    laptops and split-screen workflows without horizontal scroll. */
 const mainMax = wide ? 'max-w-[1080px]' : 'max-w-[960px]'
 const mainClass = fullHeight || hideNoise
-  ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto overflow-hidden`
+  ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto overflow-hidden${hideNoise ? ' console-main-fit' : ''}`
   : fullHeight
   ? `flex-1 min-h-0 flex flex-col w-full ${mainMax} mx-auto`
   : `flex-1 flex flex-col w-full ${mainMax} mx-auto`
@@ -182,7 +182,7 @@ const footerClass = fullHeight
       })()
     </script>
   </head>
-  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight || hideNoise ? 'overflow-hidden' : ''}`}>
+  <body class={`bg-bg text-fg font-mono text-[13px] leading-[1.6] selection:bg-accent/30 antialiased ${fullHeight ? 'overflow-hidden' : ''}${hideNoise ? ' page-console' : ''}`}>
     <div class={shellClass}>
       <header class={`relative z-20 flex flex-wrap items-center gap-x-3 gap-y-2 bg-bg text-[10px] text-muted shrink-0 sm:gap-x-6 sm:text-[11px] ${hideNoise ? 'mb-2' : 'mb-3 sm:mb-4'}`}>
         <a href="/" class="flex items-center gap-2 text-fg hover:text-accent transition-colors tracking-[0.1em] uppercase">
@@ -367,6 +367,21 @@ const footerClass = fullHeight
          elements that need to scroll (code blocks) use their own
          overflow-x: auto. */
       html, body { overflow-x: hidden; }
+      @media (max-width: 920px) {
+        body.page-console {
+          overflow-y: auto;
+        }
+        body.page-console .console-shell-fit {
+          height: auto;
+          min-height: 100dvh;
+          overflow: visible;
+        }
+        body.page-console .console-main-fit {
+          flex: none;
+          min-height: auto;
+          overflow: visible;
+        }
+      }
       * { box-sizing: border-box; }
       a { text-decoration: none; }
       body { font-feature-settings: 'calt' 1, 'ss01' 1, 'ss02' 1, 'zero' 1, 'tnum' 1; }

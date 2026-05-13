@@ -44,8 +44,9 @@ const last7DayCount = feed.filter(
   (e) => now - new Date(e.ran_at).getTime() < 7 * 24 * HOUR_MS,
 ).length
 
-// Liturgical clock — bell tower for the top-strip + the procession header.
-const toll = nextTollLabel()
+// Score lock countdown. Internally it still follows the liturgical clock,
+// but the UI names the user-facing event plainly.
+const scoreLockLabel = nextTollLabel()
 const hourIdx = currentHourIndex()
 const hourName = currentHour()
 // Round number is derived from the merkle epoch of the freshest stone in
@@ -327,6 +328,12 @@ const industryCounts = {
         </p>
       </div>
 
+      <details class="rail-fold" data-console-fold>
+        <summary class="rail-fold-summary">
+          <span class="rail-fold-k">Workforce</span>
+          <span class="rail-fold-meta">{totalAgents} masons · {stonesToday} stones today</span>
+        </summary>
+        <div class="rail-fold-body">
       <div class="vitals" aria-label="Workforce vitals">
         <div class="v">
           <span class="k">Masons at wall</span>
@@ -351,6 +358,20 @@ const industryCounts = {
 
       <div class="filters" data-filters>
         <span class="ft">Industries</span>
+        <label class="filter-select-wrap">
+          <span class="visually-hidden">Filter industries</span>
+          <select class="filter-select" data-filter-select>
+            <option value="all" selected>All ({industryCounts.all})</option>
+            <option value="reg">Regulatory Intelligence ({industryCounts.reg})</option>
+            {industryCounts.dist > 0 ? (
+              <option value="dist">Model Distillation ({industryCounts.dist})</option>
+            ) : null}
+            {industryCounts.drug > 0 ? (
+              <option value="drug">Drug Discovery ({industryCounts.drug})</option>
+            ) : null}
+          </select>
+        </label>
+        <div class="filter-chips">
         <button type="button" class="ch is-active" data-ind="all">
           <span class="sw"></span><span>All</span><span class="ct">{industryCounts.all}</span>
         </button>
@@ -375,6 +396,7 @@ const industryCounts = {
             <span class="sw"></span><span>Drug Discovery</span><span class="ct">soon</span>
           </span>
         )}
+        </div>
       </div>
 
       <div class="you" data-home-you aria-label="Your status">
@@ -394,20 +416,44 @@ const industryCounts = {
           <span class="a" data-you-fresh></span>
         </div>
       </div>
+        </div>
+      </details>
     </aside>
 
     <!-- ============ main canvas ============ -->
     <main class="canvas">
       <section class="job-pick-shell" aria-label="Standing work">
+        <div class="job-pick-compact">
+          <label class="job-pick-select-wrap">
+            <span class="visually-hidden">Choose a job</span>
+            <select class="job-pick-select" data-job-pick-select>
+              {sortedJobs.map((j) => (
+                <option value={j.id} selected={j.id === defaultJobId}>
+                  {j.juris} · {j.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            class="pick-info pick-info-compact"
+            data-job-spec-open={defaultJobId}
+            data-job-spec-current
+            aria-label="Read job brief"
+          >
+            brief
+          </button>
+        </div>
+        <div class="job-pick-full">
         <header class="job-pick-head">
           <h2>The procession</h2>
           <span class="rule"></span>
           <span class="head-meta">
             {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
             <span class="dim">·</span>
-            next toll <strong>{toll}</strong>
+            score lock <strong>{scoreLockLabel}</strong>
             <span class="dim">·</span>
-            scores pin at toll
+            wall updates after lock
           </span>
         </header>
 
@@ -491,6 +537,7 @@ const industryCounts = {
               ))}
           </div>
         </div>
+        </div>
 
         {regulatoryPanels.map((panel) => (
           <JobSpecDialog spec={panel.spec} />
@@ -519,7 +566,7 @@ const industryCounts = {
               <span class="bk">
                 {panel.recent.length} stone{panel.recent.length === 1 ? '' : 's'} &middot; 24h window
               </span>
-              <span class="toll">next toll <strong>{toll}</strong></span>
+              <span class="toll">score lock <strong>{scoreLockLabel}</strong></span>
             </div>
             <Wall roster={panel.roster} cardId={panel.cardId} compact />
 
@@ -655,6 +702,10 @@ const industryCounts = {
         panels.forEach(function (p) {
           p.hidden = p.getAttribute('data-job-panel') !== id
         })
+        var pickSelect = document.querySelector('[data-job-pick-select]')
+        if (pickSelect && pickSelect.value !== id) pickSelect.value = id
+        var briefBtn = document.querySelector('[data-job-spec-current]')
+        if (briefBtn) briefBtn.setAttribute('data-job-spec-open', id)
       }
 
       function scrubJobParam() {
@@ -693,6 +744,13 @@ const industryCounts = {
         })
       })
 
+      var pickSelect = document.querySelector('[data-job-pick-select]')
+      if (pickSelect) {
+        pickSelect.addEventListener('change', function () {
+          show(pickSelect.value)
+        })
+      }
+
       if (prev) prev.addEventListener('click', function () { step(-1) })
       if (next) next.addEventListener('click', function () { step(1) })
     })();
@@ -717,20 +775,47 @@ const industryCounts = {
       var cards = document.querySelectorAll('[data-job-card]')
       if (!box || !cards.length) return
       var chips = box.querySelectorAll('.ch')
+      var filterSelect = box.querySelector('[data-filter-select]')
+
+      function applyFilter(ind) {
+        chips.forEach(function (x) {
+          var match = x.getAttribute('data-ind') === ind
+          x.classList.toggle('is-active', match)
+        })
+        if (filterSelect && filterSelect.value !== ind) filterSelect.value = ind
+        cards.forEach(function (card) {
+          if (card.hasAttribute('data-job-propose-open')) {
+            card.style.display = ''
+            return
+          }
+          card.style.display = (ind === 'all' || card.getAttribute('data-ind') === ind) ? '' : 'none'
+        })
+      }
+
       chips.forEach(function (c) {
         c.addEventListener('click', function () {
-          chips.forEach(function (x) { x.classList.remove('is-active') })
-          c.classList.add('is-active')
-          var ind = c.getAttribute('data-ind')
-          cards.forEach(function (card) {
-            if (card.hasAttribute('data-job-propose-open')) {
-              card.style.display = ''
-              return
-            }
-            card.style.display = (ind === 'all' || card.getAttribute('data-ind') === ind) ? '' : 'none'
-          })
+          applyFilter(c.getAttribute('data-ind') || 'all')
         })
       })
+      if (filterSelect) {
+        filterSelect.addEventListener('change', function () {
+          applyFilter(filterSelect.value || 'all')
+        })
+      }
+    })();
+
+    (function () {
+      var folds = document.querySelectorAll('[data-console-fold]')
+      if (!folds.length) return
+      var mq = window.matchMedia('(min-width: 921px)')
+      function syncFolds() {
+        folds.forEach(function (fold) {
+          fold.open = mq.matches
+        })
+      }
+      if (typeof mq.addEventListener === 'function') mq.addEventListener('change', syncFolds)
+      else if (typeof mq.addListener === 'function') mq.addListener(syncFolds)
+      syncFolds()
     })();
 
     (function () {
@@ -861,6 +946,7 @@ const industryCounts = {
         min-height: auto;
       }
       .app-console { overflow: visible; flex: none; min-height: auto; }
+      .canvas { overflow: visible; flex: none; min-height: auto; }
       .job-stage { overflow: visible; flex: none; min-height: auto; }
       .job-panel {
         overflow: visible;
@@ -877,6 +963,97 @@ const industryCounts = {
         min-height: 200px;
         aspect-ratio: auto;
       }
+      .rail {
+        gap: 8px;
+        overflow: visible;
+        padding-bottom: 12px;
+      }
+      .rail-fold {
+        border: 1px solid var(--border-soft);
+        background: var(--bg);
+      }
+      .rail-fold-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        min-height: 44px;
+        cursor: pointer;
+        list-style: none;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .rail-fold-summary::-webkit-details-marker { display: none; }
+      .rail-fold-meta {
+        color: var(--muted);
+        letter-spacing: 0.04em;
+        text-transform: none;
+        font-size: 11px;
+        text-align: right;
+      }
+      .rail-fold-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 0 12px 12px;
+      }
+      .filter-select-wrap { display: block; }
+      .filter-chips { display: none; }
+      .filter-select,
+      .job-pick-select {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--fg);
+        font: inherit;
+        font-size: 13px;
+      }
+      .filter-select:focus-visible,
+      .job-pick-select:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+      .job-pick-compact {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .job-pick-full { display: none; }
+      .pick-info-compact {
+        position: static;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 1px solid var(--border-soft);
+        border-left: 0;
+        background: var(--surface);
+      }
+    }
+    @media (min-width: 921px) {
+      .rail-fold {
+        border: 0;
+        background: transparent;
+      }
+      .rail-fold > summary { display: none; }
+      .rail-fold-body {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 0;
+      }
+      .filter-select-wrap { display: none; }
+      .job-pick-compact { display: none; }
+      .job-pick-full { display: block; }
     }
 
     /* ===== rail ===== */
@@ -1373,7 +1550,7 @@ const industryCounts = {
     }
 
     /* Bell-tower top-strip: round name + liturgical hour ticks +
-       stones-in-window + toll countdown. Cathedral's heartbeat above
+       stones-in-window + score lock countdown. Cathedral's heartbeat above
        the wall. */
     .top-strip {
       display: flex;

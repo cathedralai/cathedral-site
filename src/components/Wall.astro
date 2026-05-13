@@ -76,6 +76,7 @@ for (const c of cells) {
   else if (c.fresh) counts.fresh++
   else counts.scored++
 }
+const laidCount = counts.fresh + counts.scored
 
 const skillUrl = 'https://api.cathedral.computer/skill.md'
 const enlistLine = `Read ${skillUrl} and mine ${cardId}`
@@ -98,12 +99,15 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>
     <span class="rule"></span>
+    <span class="wall-pressure" aria-label={`${laidCount} of ${TOTAL} stones laid`}>
+      <strong>{laidCount}</strong> / {TOTAL} stones laid
+    </span>
     <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.open} no stone`}>
       <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
       <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
       <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
     </span>
-    <span class="flow-hint">one stone per mason · top {TOTAL} by score · click an open seat to claim</span>
+    <span class="flow-hint">a scored mason lays one stone · open seats are still claimable</span>
   </header>
 
   <div class="wall">
@@ -432,6 +436,20 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     border-color: rgba(126, 168, 208, 0.45);
     border-style: dashed;
   }
+  .wall-head .wall-pressure {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .wall-head .wall-pressure strong {
+    color: var(--fg);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
   .wall-head .flow-hint {
     flex-basis: 100%;
     font-family: var(--mono);
@@ -501,28 +519,51 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .wall > * { position: relative; z-index: 1; }
 
+  /* Reversible UX pass: make the roster grid read as a stone wall. The
+     data model stays unchanged: scored masons are laid stones, empty
+     slots are unlaid claimable seats. */
   .grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
     grid-template-rows: repeat(6, 1fr);
-    gap: 6px;
+    gap: 3px;
     /* 12×6 roster grid. Wide enough that each cell carries a legible
        stained-glass glyph at typical viewport widths. */
     aspect-ratio: 12 / 7;
     min-height: 280px;
+    padding: 4px;
+    border: 1px solid rgba(126, 168, 208, 0.16);
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.025)),
+      var(--border-soft);
   }
   .stone {
     position: relative;
-    border: 1px solid var(--border-soft);
-    background: var(--bg);
+    border: 1px solid rgba(126, 168, 208, 0.2);
+    background: var(--surface);
     cursor: pointer;
-    transition: transform 160ms, border-color 160ms, background 160ms;
+    transition: transform 160ms, border-color 160ms, background 160ms, box-shadow 160ms;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
     color: inherit;
     text-decoration: none;
     font: inherit;
     padding: 0;
+    border-radius: 2px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.55);
+    isolation: isolate;
+  }
+  .stone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%),
+      linear-gradient(315deg, rgba(0, 0, 0, 0.28), transparent 50%);
+    pointer-events: none;
   }
   button.stone:focus-visible {
     outline: 2px solid var(--accent);
@@ -533,6 +574,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     width: 62%; height: 62%;
     opacity: 0.82;
     transition: opacity 160ms;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45));
   }
   /* Marks are visible on every scored stone — the wall reads as a
      heraldic field of agent signatures, not a heat block. The legend
@@ -541,21 +583,32 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .stone:hover {
     transform: translateY(-2px);
     border-color: var(--accent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.62),
+      0 6px 14px rgba(0, 0, 0, 0.24);
     z-index: 2;
   }
   .stone:hover :global(svg) { opacity: 1; }
   .stone.scored {
-    background: var(--accent-dim);
-    border-color: rgba(126, 168, 208, 0.55);
+    background:
+      linear-gradient(180deg, rgba(126, 168, 208, 0.28), rgba(126, 168, 208, 0.12)),
+      var(--surface-2);
+    border-color: rgba(126, 168, 208, 0.62);
   }
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
   .stone.scored :global(svg *) { stroke: var(--accent) !important; }
   .stone.fresh {
-    background: var(--accent);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 48%),
+      var(--accent);
     border-color: var(--accent);
-    box-shadow: 0 0 12px rgba(126, 168, 208, 0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+      0 0 12px rgba(126, 168, 208, 0.35);
   }
   .stone.fresh :global(svg) { opacity: 1; }
   .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
@@ -594,22 +647,29 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
      with a faint heraldic glyph baked in. The wall reads as a wall, not
      a dotted matrix. Dashed border carries the "claimable" affordance. */
   .stone.empty {
-    background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
-    border-style: dashed;
-    border-color: var(--faint);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.2)),
+      var(--bg);
+    border-style: solid;
+    border-color: rgba(126, 168, 208, 0.12);
     opacity: 1;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.55),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.035);
   }
-  .stone.empty :global(svg) { opacity: 0.32; }
+  .stone.empty :global(svg) { opacity: 0.2; }
   .stone.claimable {
-    border-color: rgba(126, 168, 208, 0.28);
+    border-color: rgba(126, 168, 208, 0.18);
     opacity: 1;
   }
-  .stone.claimable :global(svg) { opacity: 0.42; }
+  .stone.claimable :global(svg) { opacity: 0.24; }
   .stone.claimable:hover,
   .stone.claimable:focus-visible {
     transform: translateY(-2px);
     border-color: var(--accent);
-    background: var(--accent-dim);
+    background:
+      linear-gradient(180deg, rgba(126, 168, 208, 0.18), rgba(126, 168, 208, 0.06)),
+      var(--surface);
     outline: 2px solid transparent;
     z-index: 2;
   }

@@ -148,11 +148,11 @@ const bestReturn = top3.length > 0 && top3[0]!.current_score > 0
   ? `×${(4 + top3[0]!.current_score * 6).toFixed(1)}`
   : '—'
 
-// Liturgical clock for the canvas top strip. The eight canonical hours
-// pace the round; the toll is the next block's start.
+// Scoring lock for the canvas top strip. The eight canonical hours still
+// pace the round internally, but the UI names the user-facing event plainly.
 const hourIdx = currentHourIndex()
 const hourName = currentHour()
-const toll = nextTollLabel()
+const scoreLockLabel = nextTollLabel()
 // Round number is a play on the merkle epoch — fictional rounds at
 // launch, will become real once we wire round semantics.
 const latestEpoch = recent
@@ -413,7 +413,7 @@ const procession = top3.map((row, i) => ({
           <span class="lay-l">Lay a tribute &rarr;</span>
           <span class="lay-amt">{tribute} τ</span>
         </span>
-        <span class="lay-sub">enter this round &middot; next toll {toll}</span>
+        <span class="lay-sub">enter before score lock &middot; {scoreLockLabel}</span>
       </a>
 
       <div class="you" data-job-you data-card-id={cardId} aria-label="Your status on this wall">
@@ -436,7 +436,7 @@ const procession = top3.map((row, i) => ({
     </aside>
 
     <main class="canvas">
-      <!-- top status: round + liturgical hours + next toll -->
+      <!-- top status: round + scoring lock -->
       <div class="top-strip" role="status">
         <span class="now">
           Round
@@ -451,7 +451,7 @@ const procession = top3.map((row, i) => ({
         </span>
         <span class="sep">&middot;</span>
         <span class="bk">{recent.length} stone{recent.length === 1 ? '' : 's'} &middot; 24h window</span>
-        <span class="toll">next toll <strong>{toll}</strong></span>
+        <span class="toll">score lock <strong>{scoreLockLabel}</strong></span>
       </div>
 
       <!-- 01 wall — the page's centerpiece. Marks visible on every

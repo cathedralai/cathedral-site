@@ -12,11 +12,14 @@
  * after first paint.
  */
 import { stoneMark } from '../lib/stone-marks'
-import type { EvalOutput } from '../lib/types'
+import type { DiscoveryItem, EvalOutput } from '../lib/types'
 
 interface Props {
   /** Recent eval outputs, newest first. Up to 96 will be placed in slots. */
   evals: EvalOutput[]
+  /** Submitted-but-not-yet-scored bundles. Render as 'evaluating' stones —
+   *  unclaimable, visibly distinct from open and scored. */
+  pending?: DiscoveryItem[]
   /** Job id, for context and the empty-state CTA. */
   cardId: string
   /** Optional section eyebrow number. Omit on dense console layouts. */
@@ -25,7 +28,7 @@ interface Props {
   compact?: boolean
 }
 
-const { evals, cardId, num, compact = false } = Astro.props
+const { evals, pending = [], cardId, num, compact = false } = Astro.props
 
 const NUM_HOURS = 24
 const PER_HOUR = 4
@@ -37,10 +40,8 @@ const now = Date.now()
 
 type Slot =
   | { kind: 'empty' }
-  | {
-      kind: 'fresh' | 'scored'
-      e: EvalOutput
-    }
+  | { kind: 'fresh' | 'scored'; e: EvalOutput }
+  | { kind: 'evaluating'; d: DiscoveryItem }
 
 const slots: Slot[] = Array.from({ length: TOTAL }, () => ({ kind: 'empty' }))
 
@@ -59,18 +60,49 @@ for (const e of evals) {
   }
 }
 
-// Within each hour column, stack higher scores toward the top row so the
-// wall reads as a metagraph, not just a timeline.
+// Pending (discovery) submissions land in slots that are still empty.
+// They sit in the wall as "evaluating" stones — visible to viewers,
+// owned by a specific mason, unclaimable to others. Same temporal
+// placement logic as scored stones so the wall reads chronologically.
+for (const d of pending) {
+  const t = new Date(d.submitted_at).getTime()
+  const ageMs = now - t
+  if (ageMs > NUM_HOURS * HOUR_MS) continue
+  if (ageMs < 0) continue
+  const slotsAgo = Math.floor(ageMs / SLOT_MS)
+  const idx = TOTAL - 1 - slotsAgo
+  if (idx < 0 || idx >= TOTAL) continue
+  if (slots[idx].kind === 'empty') {
+    slots[idx] = { kind: 'evaluating', d }
+  }
+}
+
+// Within each hour column, stack scored stones first (by weighted_score),
+// then evaluating stones, then empty. Wall reads as a metagraph: top row
+// = best scored, bottom row = waiting room.
+type ScoredSlot = Extract<Slot, { kind: 'fresh' | 'scored' }>
+type EvalSlot = Extract<Slot, { kind: 'evaluating' }>
 for (let col = 0; col < NUM_HOURS; col++) {
   const band: Slot[] = []
   for (let row = 0; row < PER_HOUR; row++) {
     band.push(slots[col * PER_HOUR + row])
   }
-  const filled = band.filter((s): s is Extract<Slot, { kind: 'fresh' | 'scored' }> => s.kind !== 'empty')
-  filled.sort((a, b) => b.e.weighted_score - a.e.weighted_score)
+  const scored = band.filter(
+    (s): s is ScoredSlot => s.kind === 'fresh' || s.kind === 'scored',
+  )
+  scored.sort((a, b) => b.e.weighted_score - a.e.weighted_score)
+  const evaluating = band.filter((s): s is EvalSlot => s.kind === 'evaluating')
+  evaluating.sort(
+    (a, b) =>
+      new Date(b.d.submitted_at).getTime() - new Date(a.d.submitted_at).getTime(),
+  )
   const stacked: Slot[] = [
-    ...filled,
-    ...Array.from({ length: PER_HOUR - filled.length }, () => ({ kind: 'empty' as const })),
+    ...scored,
+    ...evaluating,
+    ...Array.from(
+      { length: PER_HOUR - scored.length - evaluating.length },
+      () => ({ kind: 'empty' as const }),
+    ),
   ]
   for (let row = 0; row < PER_HOUR; row++) {
     slots[col * PER_HOUR + row] = stacked[row]
@@ -80,7 +112,7 @@ for (let col = 0; col < NUM_HOURS; col++) {
 // Tally states once for the summary strip above the grid. Reading the
 // wall as a heat-pattern is faster than counting cells, so we hand the
 // reader the counts up front and let the grid carry the texture.
-const counts = { fresh: 0, scored: 0, miss: 0 }
+const counts = { fresh: 0, scored: 0, evaluating: 0, miss: 0 }
 for (const s of slots) {
   if (s.kind === 'empty') counts.miss++
   else counts[s.kind]++
@@ -116,12 +148,13 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     {num && <span class="num">{num}</span>}
     <h2>Build The Wall</h2>
     <span class="rule"></span>
-    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.miss} no stone`}>
+    <span class="legend" aria-label={`${counts.fresh} fresh, ${counts.scored} scored, ${counts.evaluating} evaluating, ${counts.miss} no stone`}>
       <span class="lg lg-fresh"><span class="sw" aria-hidden="true"></span>fresh</span>
       <span class="lg lg-scored"><span class="sw" aria-hidden="true"></span>scored</span>
+      <span class="lg lg-evaluating"><span class="sw" aria-hidden="true"></span>evaluating</span>
       <span class="lg lg-open"><span class="sw" aria-hidden="true"></span>no stone</span>
     </span>
-    <span class="flow-hint">click an open stone to claim it · scored stones belong to other masons</span>
+    <span class="flow-hint">click an open stone to claim · scored + evaluating stones belong to other masons</span>
   </header>
 
   <div class="wall">
@@ -146,12 +179,30 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
             />
           )
         }
+        if (s.kind === 'evaluating') {
+          const d = s.d
+          return (
+            <span
+              class="stone evaluating"
+              data-i={i}
+              data-state="evaluating"
+              data-agent-id={d.agent_id}
+              data-agent-name={d.display_name}
+              data-agent-bio={d.bio ?? ''}
+              data-submitted-at={d.submitted_at}
+              data-title={`Evaluating — ${d.display_name}'s bundle`}
+              aria-label={`${d.display_name}'s stone is being evaluated`}
+              set:html={stoneMark(d.bundle_hash || d.agent_id, { size: 28 })}
+            />
+          )
+        }
         const e = s.e
         const tier = e.weighted_score >= 0.75 ? 'tier-high' : e.weighted_score >= 0.5 ? 'tier-mid' : 'tier-low'
         return (
           <a
             class={`stone ${s.kind} ${tier}`}
             data-i={i}
+            data-state={s.kind}
             data-agent-id={e.agent_id}
             data-agent-name={e.agent_display_name}
             data-score={e.weighted_score.toFixed(2)}
@@ -189,11 +240,14 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
         <span class="nm" data-peek-name></span>
         <span class="hk" data-peek-agent></span>
       </span>
-      <span class="t" data-peek-title></span>
+      <span class="t">
+        <span class="t-bio" data-peek-bio hidden></span>
+        <span class="t-title" data-peek-title></span>
+      </span>
       <span class="when" data-peek-when></span>
-      <span class="score">
+      <span class="score" data-peek-score-wrap>
         <strong data-peek-score></strong>
-        <span class="lbl">score</span>
+        <span class="lbl" data-peek-score-lbl>score</span>
       </span>
     </div>
   </div>
@@ -237,11 +291,30 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     }
 
     function show(el) {
-      peek.querySelector('[data-peek-name]').textContent = '@' + (el.getAttribute('data-agent-name') || '')
+      var state = el.getAttribute('data-state') || ''
+      var name = el.getAttribute('data-agent-name') || ''
+      var bio = el.getAttribute('data-agent-bio') || ''
+      peek.querySelector('[data-peek-name]').textContent = '@' + name
       peek.querySelector('[data-peek-agent]').textContent = trunc(el.getAttribute('data-agent-id') || '')
       peek.querySelector('[data-peek-title]').textContent = el.getAttribute('data-title') || ''
-      peek.querySelector('[data-peek-score]').textContent = el.getAttribute('data-score') || '—'
-      peek.querySelector('[data-peek-when]').textContent = relTime(el.getAttribute('data-ran-at') || '')
+      // Bio surfaces the agent's persona — the Moltbook trick: who is
+      // this mason, in their own voice. Falls back to the card title
+      // when no bio is set.
+      var bioEl = peek.querySelector('[data-peek-bio]')
+      if (bio) { bioEl.textContent = bio; bioEl.hidden = false }
+      else { bioEl.textContent = ''; bioEl.hidden = true }
+      var whenIso = el.getAttribute('data-ran-at') || el.getAttribute('data-submitted-at') || ''
+      peek.querySelector('[data-peek-when]').textContent = relTime(whenIso)
+      // Score panel adapts: evaluating shows 'pending', scored shows the number.
+      var scoreEl = peek.querySelector('[data-peek-score]')
+      var lblEl = peek.querySelector('[data-peek-score-lbl]')
+      if (state === 'evaluating') {
+        scoreEl.textContent = '·'
+        lblEl.textContent = 'evaluating'
+      } else {
+        scoreEl.textContent = el.getAttribute('data-score') || '—'
+        lblEl.textContent = 'score'
+      }
       peek.querySelector('[data-peek-mark]').innerHTML = el.innerHTML
       peek.hidden = false
     }
@@ -353,9 +426,14 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     background: var(--accent-dim);
     border-color: var(--accent);
   }
+  .wall-head .legend .lg-evaluating .sw {
+    background: var(--warn-dim, rgba(216, 167, 101, 0.16));
+    border-color: var(--warn, #d8a765);
+    border-style: dotted;
+  }
   .wall-head .legend .lg-open .sw {
-    background: rgba(126, 168, 208, 0.12);
-    border-color: rgba(126, 168, 208, 0.55);
+    background: rgba(126, 168, 208, 0.08);
+    border-color: rgba(126, 168, 208, 0.45);
     border-style: dashed;
   }
   .wall-head .flow-hint {
@@ -495,6 +573,25 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .stone.fresh :global(svg) { opacity: 1; }
   .stone.fresh :global(svg *) { stroke: var(--bg) !important; }
+
+  /* Evaluating — submitted by a mason but not yet scored. Visible to
+     viewers, unclaimable to others. Warm tone differentiates from the
+     accent-scored stones; dotted border + slow breathe carries the
+     "work in progress" affordance without flashing for attention. */
+  .stone.evaluating {
+    background: var(--warn-dim, rgba(216, 167, 101, 0.10));
+    border-color: var(--warn, #d8a765);
+    border-style: dotted;
+    cursor: default;
+    pointer-events: auto;
+    animation: cd-wait 3.2s ease-in-out infinite;
+  }
+  .stone.evaluating :global(svg) { opacity: 0.62; }
+  .stone.evaluating :global(svg *) { stroke: var(--warn, #d8a765) !important; }
+  @keyframes cd-wait {
+    0%, 100% { opacity: 0.78; }
+    50%      { opacity: 1; }
+  }
   /* Empty/claimable stones still feel like stones — solid surface fill
      with a faint heraldic glyph baked in. The wall reads as a wall, not
      a dotted matrix. Dashed border carries the "claimable" affordance. */
@@ -662,9 +759,17 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .peek .t {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* Bio (mason's voice) leads when present; falls back to the card
+     title underneath. Both are clamped so the peek never wraps. */
+  .peek .t-bio {
     font-family: var(--serif);
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 12.5px;
+    line-height: 1.35;
     color: var(--fg);
     font-weight: 300;
     font-style: italic;
@@ -672,6 +777,16 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+  }
+  .peek .t-bio[hidden] { display: none; }
+  .peek .t-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .peek .when {
     font-family: var(--mono);

@@ -10,6 +10,7 @@ import {
   fetchLeaderboard,
   fetchCardFeed,
   fetchCardEvalSpec,
+  fetchCardDiscovery,
 } from '../lib/cathedral-api'
 import { V1_CARD_IDS } from '../lib/cards'
 import { relativeTime, truncateMiddle, formatScore } from '../lib/format'
@@ -182,14 +183,16 @@ function vigilDaysFor(agentId: string, items: { agent_id: string; ran_at: string
 
 const regulatoryPanels = await Promise.all(
   V1_CARD_IDS.map(async (cardId) => {
-    const [leaderboard, feed, spec, overview] = await Promise.all([
+    const [leaderboard, feed, spec, overview, discovery] = await Promise.all([
       fetchLeaderboard(cardId, 3),
       fetchCardFeed(cardId, { limit: 96 }),
       fetchCardEvalSpec(cardId),
       fetchCardOverview(cardId),
+      fetchCardDiscovery(cardId, { limit: 48 }),
     ])
     const recent = feed.items
     const top3 = leaderboard.items
+    const pending = discovery.items
     const rubric = spec.scoring_rubric
     const weightRows = rubric
       ? [
@@ -217,6 +220,7 @@ const regulatoryPanels = await Promise.all(
       cardId,
       spec,
       recent,
+      pending,
       procession,
       weightRows,
       cadenceHours: spec.refresh_cadence_hours,
@@ -481,7 +485,7 @@ const industryCounts = {
               </span>
               <span class="toll">next toll <strong>{toll}</strong></span>
             </div>
-            <Wall evals={panel.recent} cardId={panel.cardId} compact />
+            <Wall evals={panel.recent} pending={panel.pending} cardId={panel.cardId} compact />
 
             <div class="canvas-row">
               <section class="proc-frame" aria-label="Top three this round">

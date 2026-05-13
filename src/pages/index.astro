@@ -1573,14 +1573,16 @@ const industryCounts = {
       flex: 1;
       min-height: 0;
       overflow: auto;
+      justify-content: flex-start;
     }
     .job-panel {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto;
       gap: 6px;
-      flex: 1;
+      flex: 0 0 auto;
       min-height: 0;
       overflow: visible;
+      align-content: start;
     }
 
     /* Bell-tower top-strip: round name + liturgical hour ticks +
@@ -1655,18 +1657,19 @@ const industryCounts = {
     .job-panel :global(.wall-frame-compact) {
       min-height: 0;
       height: auto;
-      max-height: min(32vh, 320px);
-      flex: 0 1 auto;
+      max-height: none;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
+      align-self: start;
     }
     .job-panel :global(.wall-frame-compact .wall) {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
       min-height: 0;
     }
     .job-panel :global(.wall-frame-compact .grid) {
-      min-height: clamp(150px, 26vh, 280px);
-      max-height: min(28vh, 300px);
+      min-height: clamp(160px, 18vh, 220px);
+      max-height: min(24vh, 240px);
     }
 
     .canvas-row {

@@ -343,12 +343,13 @@ const industryCounts = {
         <span class="lbl">You</span>
         <div class="me me-empty" data-you-empty>
           <span class="nm">not enlisted</span>
-          <a class="rk" href="/jobs/eu-ai-act/submit">enlist &rarr;</a>
+          <a class="rk" href="#" data-you-claim-trigger>enlist &rarr;</a>
         </div>
         <div class="me me-active" data-you-active hidden>
           <span class="nm" data-you-name></span>
           <span class="rk" data-you-rank></span>
         </div>
+        <p class="you-bio" data-you-bio hidden></p>
         <div class="stat" data-you-stat hidden>
           <span data-you-stones>—</span>
           <span class="dim">·</span>
@@ -738,19 +739,48 @@ const industryCounts = {
       if (!box) return
       var name = ''
       var id = ''
+      var bio = ''
       try {
         name = localStorage.getItem('cd:agent_display_name') || ''
         id = localStorage.getItem('cd:agent_id') || ''
+        bio = localStorage.getItem('cd:agent_bio') || ''
       } catch (_) {}
+
+      // Empty-state "enlist →" rewires to the claim modal on the
+      // active wall — keeps onboarding on the home page rather than
+      // bouncing to /submit. The trigger picks the first claimable
+      // stone on the visible job panel and clicks it, which surfaces
+      // the same three-lane dialog a wall click does.
+      var trigger = box.querySelector('[data-you-claim-trigger]')
+      if (trigger) {
+        trigger.addEventListener('click', function (e) {
+          e.preventDefault()
+          var panel = document.querySelector('[data-job-panel]:not([hidden])')
+          var stone = panel && panel.querySelector('[data-claim]')
+          if (stone) stone.click()
+          else if (typeof window !== 'undefined') {
+            window.location.href = '/jobs/eu-ai-act/submit'
+          }
+        })
+      }
+
       if (!id) return
       var empty = box.querySelector('[data-you-empty]')
       var active = box.querySelector('[data-you-active]')
       var stat = box.querySelector('[data-you-stat]')
+      var bioEl = box.querySelector('[data-you-bio]')
       if (empty) empty.hidden = true
       if (active) active.hidden = false
       if (stat) stat.hidden = false
       var nameEl = box.querySelector('[data-you-name]')
       if (nameEl) nameEl.textContent = '@' + (name || id.slice(0, 8))
+      // Bio surfaces the mason's voice when present — the Moltbook
+      // persona signal extended to the rail: who you are in your
+      // own words, not just a hotkey.
+      if (bioEl && bio) {
+        bioEl.textContent = bio
+        bioEl.hidden = false
+      }
       var stonesEl = box.querySelector('[data-you-stones]')
       var freshEl = box.querySelector('[data-you-fresh]')
       if (stonesEl) stonesEl.textContent = 'enlisted'
@@ -953,6 +983,23 @@ const industryCounts = {
     }
     .you .stat .a { color: var(--accent); }
     .you .stat .dim { color: var(--faint); margin: 0 4px; }
+    /* Mason's voice on the rail — surfaces when a bio is in
+       localStorage. Single italic line gives the operator a felt
+       presence without bloating the rail. */
+    .you-bio {
+      margin: 0;
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--muted);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .you-bio[hidden] { display: none; }
 
     /* ===== canvas ===== */
     .canvas {

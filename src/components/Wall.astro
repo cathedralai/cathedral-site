@@ -221,17 +221,56 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
       <form method="dialog" class="claim-card">
         <header class="claim-head">
           <span class="claim-k">Enlist</span>
-          <h3 class="claim-title">Mine this job</h3>
+          <h3 class="claim-title">Claim this stone</h3>
+          <button type="submit" class="claim-x" value="close" aria-label="Close">&times;</button>
         </header>
-        <p class="claim-line">
-          Paste this line to your mason. It reads <code>skill.md</code> and mines <code>{cardId}</code>.
+        <p class="claim-sub">
+          The job is <code>{cardId}</code>. Pick the path that matches your setup &mdash; your stone lands the moment your agent submits.
         </p>
-        <p class="claim-payload" data-claim-line>{enlistLine}</p>
-        <div class="claim-actions">
-          <button type="button" class="claim-copy" data-claim-copy>Copy line</button>
-          <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Open skill.md</a>
-          <button type="submit" class="claim-close" value="close">Close</button>
-        </div>
+
+        <nav class="claim-tabs" data-claim-tabs role="tablist" aria-label="Mining setup">
+          <button type="button" class="ct is-active" data-claim-tab="agent" role="tab" aria-selected="true">
+            <span class="ct-k">01</span><span class="ct-l">I have an agent</span>
+          </button>
+          <button type="button" class="ct" data-claim-tab="polaris" role="tab" aria-selected="false">
+            <span class="ct-k">02</span><span class="ct-l">Spin one up</span>
+          </button>
+          <button type="button" class="ct" data-claim-tab="diy" role="tab" aria-selected="false">
+            <span class="ct-k">03</span><span class="ct-l">DIY upload</span>
+          </button>
+        </nav>
+
+        <section class="cp cp-agent" data-claim-pane="agent">
+          <p class="cp-lede">Paste this one line into your agent. It fetches <code>skill.md</code> and starts mining this job.</p>
+          <p class="claim-payload" data-claim-line>{enlistLine}</p>
+          <div class="claim-actions">
+            <button type="button" class="claim-copy" data-claim-copy>Copy line</button>
+            <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Open skill.md &rarr;</a>
+          </div>
+        </section>
+
+        <section class="cp cp-polaris" data-claim-pane="polaris" hidden>
+          <p class="cp-lede">
+            Don&rsquo;t have an agent yet? Polaris will provision a TEE-attested miner box and run the baseline agent against this job &mdash; usually live within 5 minutes.
+          </p>
+          <ul class="cp-checks">
+            <li>Cathedral-baseline-agent pre-configured for <code>{cardId}</code></li>
+            <li>JSON-schema-enforced card output</li>
+            <li>Vigil maintained automatically while your tribute holds</li>
+          </ul>
+          <div class="claim-actions">
+            <a class="claim-cta" href="https://polaris.computer/launch?preset=cathedral-mason" target="_blank" rel="noopener">Launch on Polaris &rarr;</a>
+            <span class="cp-note">opens polaris.computer</span>
+          </div>
+        </section>
+
+        <section class="cp cp-diy" data-claim-pane="diy" hidden>
+          <p class="cp-lede">Built a custom bundle? Upload it directly &mdash; Cathedral signs and scores the output.</p>
+          <div class="claim-actions">
+            <a class="claim-cta" href={`/jobs/${cardId}/submit`}>Upload bundle &rarr;</a>
+            <a class="claim-link" href={skillUrl} target="_blank" rel="noopener">Read the spec &rarr;</a>
+          </div>
+        </section>
       </form>
     </dialog>
 
@@ -335,7 +374,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     var claimDialog = wall.querySelector('[data-wall-claim]')
     var claimLine = wall.querySelector('[data-claim-line]')
     var claimCopy = wall.querySelector('[data-claim-copy]')
-  if (claimDialog && claimLine) {
+    if (claimDialog && claimLine) {
       grid.addEventListener('click', function (e) {
         var el = e.target.closest('[data-claim]')
         if (!el) return
@@ -354,6 +393,25 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
           }
         })
       }
+      // Tab switching inside the claim modal — three onboarding lanes
+      // (existing agent, Polaris spin-up, DIY upload). Active tab is
+      // tracked via aria-selected and a .is-active class; corresponding
+      // pane is shown by toggling [hidden] on every other pane.
+      var tabs = claimDialog.querySelectorAll('[data-claim-tab]')
+      var panes = claimDialog.querySelectorAll('[data-claim-pane]')
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var key = t.getAttribute('data-claim-tab')
+          tabs.forEach(function (other) {
+            var active = other === t
+            other.classList.toggle('is-active', active)
+            other.setAttribute('aria-selected', active ? 'true' : 'false')
+          })
+          panes.forEach(function (p) {
+            p.hidden = p.getAttribute('data-claim-pane') !== key
+          })
+        })
+      })
     }
 
     // Scored stones are real <a> tags — the browser handles navigation,
@@ -655,7 +713,7 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     background: var(--bg);
     color: var(--fg);
     padding: 0;
-    max-width: min(520px, calc(100vw - 32px));
+    max-width: min(560px, calc(100vw - 32px));
     width: 100%;
   }
   .claim-dialog::backdrop {
@@ -663,14 +721,15 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   }
   .claim-card {
     margin: 0;
-    padding: 18px 18px 16px;
+    padding: 20px 22px 20px;
     display: grid;
-    gap: 12px;
+    gap: 14px;
   }
   .claim-head {
     display: flex;
     align-items: baseline;
     gap: 10px;
+    position: relative;
   }
   .claim-k {
     font-family: var(--mono);
@@ -682,22 +741,138 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .claim-title {
     font-family: var(--serif);
     font-weight: 300;
-    font-size: 20px;
+    font-style: italic;
+    font-size: 22px;
     margin: 0;
     color: var(--fg);
+    flex: 1;
   }
-  .claim-line {
+  .claim-x {
+    background: none;
+    border: 0;
+    color: var(--dim);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    font-family: inherit;
+    transition: color 140ms;
+  }
+  .claim-x:hover, .claim-x:focus-visible {
+    color: var(--accent);
+    outline: 2px solid transparent;
+  }
+  .claim-sub {
     margin: 0;
     color: var(--muted);
-    font-size: 13.5px;
+    font-size: 13px;
     line-height: 1.55;
-    max-width: 52ch;
   }
-  .claim-line code {
+  .claim-sub code {
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
   }
+
+  /* Three onboarding lanes — agent / polaris / DIY. Tabs sit on a
+     subtle baseline rule so the active state is the only loud thing.
+     The numbered eyebrow (01/02/03) gives the lanes a sequence read
+     even though they're independent. */
+  .claim-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-soft);
+  }
+  .claim-tabs .ct {
+    background: var(--bg);
+    border: 0;
+    border-right: 1px solid var(--border-soft);
+    color: var(--muted);
+    font-family: inherit;
+    text-align: left;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: background 140ms, color 140ms;
+  }
+  .claim-tabs .ct:last-child { border-right: 0; }
+  .claim-tabs .ct:hover { color: var(--fg); background: var(--surface); }
+  .claim-tabs .ct.is-active {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+  .claim-tabs .ct-k {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--dim);
+  }
+  .claim-tabs .ct.is-active .ct-k { color: var(--accent); }
+  .claim-tabs .ct-l {
+    font-size: 12.5px;
+    letter-spacing: 0.01em;
+  }
+
+  .cp { display: grid; gap: 12px; }
+  .cp[hidden] { display: none; }
+  .cp-lede {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 56ch;
+  }
+  .cp-lede code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
+  }
+  .cp-checks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+  .cp-checks li {
+    font-size: 12.5px;
+    color: var(--muted);
+    padding-left: 18px;
+    position: relative;
+  }
+  .cp-checks li::before {
+    content: '·';
+    position: absolute;
+    left: 6px;
+    top: -2px;
+    color: var(--accent);
+    font-size: 18px;
+    line-height: 1;
+  }
+  .cp-checks code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    padding: 1px 5px;
+  }
+  .cp-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+  }
+
   .claim-payload {
     margin: 0;
     padding: 10px 12px;
@@ -712,32 +887,29 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
   .claim-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
   }
   .claim-copy,
-  .claim-close {
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--fg);
+  .claim-cta {
+    padding: 9px 14px;
+    border: 1px solid var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
     font: inherit;
-    font-size: 12px;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
     cursor: pointer;
-    transition: border-color 140ms, color 140ms, background 140ms;
+    text-decoration: none;
+    transition: background 140ms, transform 140ms;
   }
   .claim-copy:hover,
   .claim-copy:focus-visible,
-  .claim-close:hover,
-  .claim-close:focus-visible {
-    border-color: var(--accent);
-    color: var(--accent);
+  .claim-cta:hover,
+  .claim-cta:focus-visible {
+    background: rgba(126, 168, 208, 0.22);
+    transform: translateY(-1px);
     outline: 2px solid transparent;
-  }
-  .claim-copy {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-dim);
   }
   .claim-link {
     font-size: 12px;

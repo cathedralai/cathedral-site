@@ -592,16 +592,19 @@ const openGlyphs: string[] = Array.from({ length: TOTAL }, (_, i) =>
     z-index: 2;
   }
   .stone:hover :global(svg) { opacity: 1; }
+  /* Scored stones share the muted base — no blue tint, no bright border.
+     The wall reads as a uniform field of dark masonry; the only blue
+     left is the current tracing the top-three borders. Glyphs stay
+     visible at the base stone opacity so the heraldic field still reads. */
   .stone.scored {
     background:
-      linear-gradient(180deg, rgba(126, 168, 208, 0.10), rgba(126, 168, 208, 0.035)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.18)),
       var(--surface);
-    border-color: rgba(126, 168, 208, 0.34);
+    border-color: rgba(126, 168, 208, 0.18);
   }
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
-  .stone.scored :global(svg *) { stroke: var(--accent) !important; }
   /* Top-three stones carry a single arc of current along their border.
      The stone itself stays muted (inherits .scored / .fresh fill); only
      a thin traced ring animates. Ranks 1/2/3 stagger so the current

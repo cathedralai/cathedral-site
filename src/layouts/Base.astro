@@ -200,6 +200,16 @@ const footerClass = fullHeight
           <span data-theme-icon-light class="hidden">◑ light</span>
         </button>
         <span class="text-dim">sn39 · finney</span>
+        <a
+          href="/jobs"
+          class="cd-you text-dim hover:text-fg transition-colors"
+          data-cd-you
+          aria-label="Your agent status"
+        >
+          <span class="cd-you-sep" aria-hidden="true">·</span>
+          <span class="cd-you-lbl">you</span>
+          <span class="cd-you-state" data-cd-you-state>not enlisted</span>
+        </a>
       </header>
       {showStatus && (
         <div
@@ -302,6 +312,57 @@ const footerClass = fullHeight
               if (btn) { btn.disabled = false; btn.textContent = 'Subscribe →' }
             }
           })
+        })
+      })()
+    </script>
+    <!-- Save-file "you" indicator in the nav. Reads localStorage:
+         - cd:agent_id (the agent the visitor has claimed)
+         - cd:agent_name (display name, optional)
+         If claimed, the chip becomes 'you · @name' and links to that
+         agent's profile. Otherwise it stays 'you · not enlisted' and
+         links to /jobs as the next step. Multi-tab safe via storage
+         events. -->
+    <script is:inline>
+      (function () {
+        var root = document.querySelector('[data-cd-you]')
+        if (!root) return
+        var stateEl = root.querySelector('[data-cd-you-state]')
+        function read() {
+          try {
+            return {
+              id: localStorage.getItem('cd:agent_id') || '',
+              name: localStorage.getItem('cd:agent_name') || '',
+            }
+          } catch (_) {
+            return { id: '', name: '' }
+          }
+        }
+        function trunc(s) {
+          if (!s) return ''
+          if (s.length <= 16) return s
+          return s.slice(0, 6) + '…' + s.slice(-4)
+        }
+        function sync() {
+          var v = read()
+          if (v.id) {
+            stateEl.textContent = v.name ? '@' + v.name : trunc(v.id)
+            root.classList.add('is-claimed')
+            root.setAttribute('href', '/agents/' + encodeURIComponent(v.id))
+          } else {
+            stateEl.textContent = 'not enlisted'
+            root.classList.remove('is-claimed')
+            root.setAttribute('href', '/jobs')
+          }
+        }
+        sync()
+        window.addEventListener('storage', function (e) {
+          if (
+            e.key === 'cd:agent_id' ||
+            e.key === 'cd:agent_name' ||
+            e.key === null
+          ) {
+            sync()
+          }
         })
       })()
     </script>
@@ -413,6 +474,37 @@ const footerClass = fullHeight
         padding: 0; margin: -1px;
         overflow: hidden; clip: rect(0,0,0,0);
         white-space: nowrap; border: 0;
+      }
+
+      /* ---- save-file 'you' chip in the nav -------------------------
+         Quiet mono badge that tells a visitor whether they've claimed
+         an agent ('you · @name') or are still browsing ('you · not
+         enlisted'). Hover lifts to fg. Hidden on the smallest viewports
+         where the nav is already cramped — the chip is informational,
+         not navigational, so dropping it on phones is acceptable. */
+      .cd-you {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-family: var(--mono);
+      }
+      .cd-you-sep { color: var(--border); }
+      .cd-you-lbl { color: var(--dim); }
+      .cd-you-state {
+        color: var(--dim);
+        font-style: italic;
+      }
+      .cd-you.is-claimed .cd-you-lbl,
+      .cd-you.is-claimed .cd-you-state {
+        color: var(--accent);
+        font-style: normal;
+      }
+      .cd-you:hover .cd-you-lbl,
+      .cd-you:hover .cd-you-state {
+        color: var(--fg);
+      }
+      @media (max-width: 480px) {
+        .cd-you { display: none; }
       }
 
       /* ---- live status strip (the heartbeat) -----------------------

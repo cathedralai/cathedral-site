@@ -168,6 +168,7 @@ const sortedJobs = [...jobRows].sort((a, b) => {
 })
 
 const defaultJobId = sortedJobs[0]?.id ?? V1_CARD_IDS[0]
+const activeJobRow = sortedJobs.find((j) => j.id === defaultJobId) ?? sortedJobs[0]
 
 // Vigil days = how many distinct UTC days the agent has shipped a stone
 // against this card. Derived from the card's own feed (window: 30d so
@@ -433,12 +434,32 @@ const industryCounts = {
     <!-- ============ main canvas ============ -->
     <main class="canvas">
       <section class="job-pick-shell" aria-label="Standing work">
+        <header class="job-pick-meta">
+          <span class="job-pick-meta-k">
+            {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
+          </span>
+          <span class="dim" aria-hidden="true">·</span>
+          <span class="job-pick-meta-lock">
+            score lock <strong>{scoreLockLabel}</strong>
+          </span>
+          {sortedJobs.length > 1 ? (
+            <>
+              <span class="dim" aria-hidden="true">·</span>
+              <span class="job-pick-meta-switch">pick another below</span>
+            </>
+          ) : null}
+        </header>
         <div class="job-pick-compact">
           <label class="job-pick-select-wrap">
-            <span class="visually-hidden">Choose a job</span>
+            <span class="job-pick-select-k">Standing job</span>
             <select class="job-pick-select" data-job-pick-select>
               {sortedJobs.map((j) => (
-                <option value={j.id} selected={j.id === defaultJobId} data-job-lede={j.lede}>
+                <option
+                  value={j.id}
+                  selected={j.id === defaultJobId}
+                  data-ind={j.ind}
+                  data-job-lede={j.lede}
+                >
                   {j.juris} · {j.name}: {j.lede}
                 </option>
               ))}
@@ -454,101 +475,7 @@ const industryCounts = {
             brief
           </button>
         </div>
-        <p class="job-pick-compact-lede" data-job-pick-lede>{sortedJobs[0]?.lede}</p>
-        <div class="job-pick-full">
-        <header class="job-pick-head">
-          <h2>The procession</h2>
-          <span class="rule"></span>
-          <span class="head-meta">
-            {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
-            <span class="dim">·</span>
-            score lock <strong>{scoreLockLabel}</strong>
-            <span class="dim">·</span>
-            wall updates after lock
-          </span>
-        </header>
-
-        <div class="job-strip" data-job-strip>
-          <div class="job-strip-track" data-job-strip-track role="tablist" aria-label="Choose a job">
-              {sortedJobs.map((j) => {
-                const active = j.id === defaultJobId
-                return (
-                  <div
-                    class:list={['job-pick-wrap', 'is-live', active && 'is-active']}
-                    data-job-card
-                    data-ind={j.ind}
-                  >
-                    <button
-                      type="button"
-                      class={`job-pick${active ? ' is-active' : ''}`}
-                      data-job-pick={j.id}
-                      data-job-lede={j.lede}
-                      role="tab"
-                      aria-selected={active ? 'true' : 'false'}
-                    >
-                      <span class="pick-eyebrow">
-                        <span class="pick-juris">{j.juris}</span>
-                        <span class="pick-name">{j.name}</span>
-                      </span>
-                      <span class="pick-lede">{j.lede}</span>
-                      <span class="pick-meta">
-                        <span class="pm-stones">{j.count} stone{j.count === 1 ? '' : 's'}</span>
-                        <span class="pm-sep">·</span>
-                        <span class="pm-masons">{j.masons} mason{j.masons === 1 ? '' : 's'}</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      class="pick-info"
-                      data-job-spec-open={j.id}
-                      aria-label={`Read ${j.name} brief`}
-                    >
-                      brief
-                    </button>
-                  </div>
-                )
-              })}
-              {[].map((j: any) => (
-                <div
-                  class="job-pick-wrap is-upcoming"
-                  data-job-card
-                  data-job-upcoming
-                  data-ind={j.ind}
-                  data-job-lede={j.lede}
-                >
-                  <div class="job-pick is-locked" aria-disabled="true" aria-label={`${j.name} · coming soon`}>
-                    <span class="pick-eyebrow">
-                      <span class="pick-juris">{j.juris}</span>
-                      <span class="pick-name">{j.name}</span>
-                    </span>
-                    <span class="pick-lede">{j.lede}</span>
-                    <span class="pick-soon">queued</span>
-                    <span class="pick-buzz" role="group" aria-label={`Rate ${j.name}`}>
-                        <button
-                          type="button"
-                          class="pick-thumb"
-                          data-job-vote-up={j.id}
-                          aria-label={`Thumbs up ${j.name}`}
-                          aria-pressed="false"
-                        >
-                        up
-                        </button>
-                        <button
-                          type="button"
-                          class="pick-thumb is-down"
-                          data-job-vote-down={j.id}
-                          aria-label={`Thumbs down ${j.name}`}
-                          aria-pressed="false"
-                        >
-                        down
-                        </button>
-                      </span>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-        </div>
+        <p class="job-pick-compact-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
 
         {regulatoryPanels.map((panel) => (
           <JobSpecDialog spec={panel.spec} />
@@ -683,50 +610,21 @@ const industryCounts = {
 
   <script is:inline>
     (function () {
-      var picks = document.querySelectorAll('[data-job-pick]')
+      var pickSelect = document.querySelector('[data-job-pick-select]')
       var panels = document.querySelectorAll('[data-job-panel]')
-      var track = document.querySelector('[data-job-strip-track]')
-      var prev = document.querySelector('[data-job-strip-prev]')
-      var next = document.querySelector('[data-job-strip-next]')
-      if (!picks.length || !panels.length) return
-
-      function visibleCards() {
-        return Array.prototype.filter.call(
-          document.querySelectorAll('[data-job-card]'),
-          function (card) {
-            return card.style.display !== 'none'
-          },
-        )
-      }
-
-      function centerCard(card) {
-        if (!card || !track) return
-        var left = card.offsetLeft - (track.clientWidth - card.clientWidth) / 2
-        track.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
-      }
+      if (!pickSelect || !panels.length) return
 
       function show(id) {
-        picks.forEach(function (b) {
-          var active = b.getAttribute('data-job-pick') === id
-          b.classList.toggle('is-active', active)
-          b.setAttribute('aria-selected', active ? 'true' : 'false')
-          var wrap = b.closest('.job-pick-wrap')
-          if (wrap) wrap.classList.toggle('is-active', active)
-          if (active) centerCard(wrap || b)
-        })
         panels.forEach(function (p) {
           p.hidden = p.getAttribute('data-job-panel') !== id
         })
-        var pickSelect = document.querySelector('[data-job-pick-select]')
-        if (pickSelect && pickSelect.value !== id) pickSelect.value = id
+        if (pickSelect.value !== id) pickSelect.value = id
+        var selectedOption = pickSelect.options[pickSelect.selectedIndex]
         var pickLede = document.querySelector('[data-job-pick-lede]')
         if (pickLede) {
-          var activePick = document.querySelector('[data-job-pick="' + id + '"]')
-          var selectedOption = pickSelect && pickSelect.options ? pickSelect.options[pickSelect.selectedIndex] : null
-          pickLede.textContent =
-            (activePick && activePick.getAttribute('data-job-lede')) ||
-            (selectedOption && selectedOption.getAttribute('data-job-lede')) ||
-            ''
+          pickLede.textContent = selectedOption
+            ? selectedOption.getAttribute('data-job-lede') || ''
+            : ''
         }
         var briefBtn = document.querySelector('[data-job-spec-current]')
         if (briefBtn) briefBtn.setAttribute('data-job-spec-open', id)
@@ -742,41 +640,11 @@ const industryCounts = {
         } catch (_) {}
       }
 
-      function step(dir) {
-        var cards = visibleCards()
-        if (!cards.length) return
-        var active = document.querySelector('[data-job-pick].is-active')
-        var idx = 0
-        if (active) {
-          var wrap = active.closest('[data-job-card]')
-          var at = cards.indexOf(wrap)
-          if (at >= 0) idx = at
-        }
-        idx = Math.max(0, Math.min(cards.length - 1, idx + dir))
-        var card = cards[idx]
-        var pick = card ? card.querySelector('[data-job-pick]') : null
-        if (pick) show(pick.getAttribute('data-job-pick'))
-        else centerCard(card)
-      }
-
       scrubJobParam()
-      show(picks[0].getAttribute('data-job-pick'))
-
-      picks.forEach(function (b) {
-        b.addEventListener('click', function () {
-          show(b.getAttribute('data-job-pick'))
-        })
+      show(pickSelect.value || pickSelect.options[0].value)
+      pickSelect.addEventListener('change', function () {
+        show(pickSelect.value)
       })
-
-      var pickSelect = document.querySelector('[data-job-pick-select]')
-      if (pickSelect) {
-        pickSelect.addEventListener('change', function () {
-          show(pickSelect.value)
-        })
-      }
-
-      if (prev) prev.addEventListener('click', function () { step(-1) })
-      if (next) next.addEventListener('click', function () { step(1) })
     })();
 
     (function () {
@@ -796,10 +664,14 @@ const industryCounts = {
 
     (function () {
       var box = document.querySelector('[data-filters]')
-      var cards = document.querySelectorAll('[data-job-card]')
-      if (!box || !cards.length) return
+      if (!box) return
       var chips = box.querySelectorAll('.ch')
       var filterSelect = box.querySelector('[data-filter-select]')
+      var jobPickSelect = document.querySelector('[data-job-pick-select]')
+      var jobOptions = jobPickSelect
+        ? Array.prototype.slice.call(jobPickSelect.options)
+        : []
+      var cards = document.querySelectorAll('[data-job-card]')
 
       function applyFilter(ind) {
         chips.forEach(function (x) {
@@ -814,6 +686,22 @@ const industryCounts = {
           }
           card.style.display = (ind === 'all' || card.getAttribute('data-ind') === ind) ? '' : 'none'
         })
+        jobOptions.forEach(function (opt) {
+          var match = ind === 'all' || opt.getAttribute('data-ind') === ind
+          opt.hidden = !match
+          opt.disabled = !match
+        })
+        if (!jobPickSelect) return
+        var visible = jobOptions.filter(function (opt) {
+          return !opt.hidden && !opt.disabled
+        })
+        if (!visible.length) return
+        var current = jobPickSelect.value
+        var stillVisible = visible.some(function (opt) {
+          return opt.value === current
+        })
+        if (!stillVisible) jobPickSelect.value = visible[0].value
+        jobPickSelect.dispatchEvent(new Event('change', { bubbles: true }))
       }
 
       chips.forEach(function (c) {
@@ -1029,45 +917,11 @@ const industryCounts = {
       .filter-chips { display: none; }
       .filter-select,
       .job-pick-select {
-        width: 100%;
         min-height: 44px;
         padding: 10px 12px;
-        border: 1px solid var(--border);
-        background: var(--bg);
-        color: var(--fg);
-        font: inherit;
-        font-size: 13px;
-      }
-      .filter-select:focus-visible,
-      .job-pick-select:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 1px;
-        border-color: var(--accent);
-      }
-      .job-pick-compact {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px;
-        align-items: stretch;
-      }
-      .job-pick-full { display: none; }
-      .job-pick-compact-lede {
-        margin: 0;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
-        max-width: 62ch;
       }
       .pick-info-compact {
-        position: static;
-        align-self: stretch;
-        display: flex;
-        align-items: center;
         min-height: 44px;
-        padding: 0 12px;
-        border: 1px solid var(--border-soft);
-        border-left: 0;
-        background: var(--surface);
       }
     }
     @media (min-width: 921px) {
@@ -1083,9 +937,6 @@ const industryCounts = {
         padding: 0;
       }
       .filter-select-wrap { display: none; }
-      .job-pick-compact { display: none; }
-      .job-pick-compact-lede { display: none; }
-      .job-pick-full { display: block; }
     }
 
     /* ===== rail ===== */
@@ -1289,9 +1140,80 @@ const industryCounts = {
     .job-pick-shell {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       min-width: 0;
       flex: 0 0 auto;
+    }
+    .job-pick-meta {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .job-pick-meta .dim { color: var(--faint); }
+    .job-pick-meta strong {
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+    .job-pick-meta-switch {
+      color: var(--muted);
+    }
+    .job-pick-compact {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .job-pick-select-wrap {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .job-pick-select-k {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .job-pick-select {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      font: inherit;
+      font-size: 13px;
+    }
+    .job-pick-select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+      border-color: var(--accent);
+    }
+    .job-pick-compact-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 62ch;
+    }
+    .pick-info-compact {
+      position: static;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--border-soft);
+      border-left: 0;
+      background: var(--surface);
     }
     .job-pick-head {
       display: flex;

@@ -240,7 +240,7 @@ const apiBase =
 
     function render(profile) {
       byKey.loading.hidden = true
-      byKey.empty.hidden = !profile || !profile.id
+      byKey.empty.hidden = !!(profile && profile.id)
       if (!profile || !profile.id) {
         byKey.name.textContent = 'Unknown mason'
         byKey.rank.textContent = '·'

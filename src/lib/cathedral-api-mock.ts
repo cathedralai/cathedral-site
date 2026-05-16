@@ -118,87 +118,6 @@ const CARDS: LockedCard[] = [
       },
     ],
   },
-  {
-    id: 'us-ai-eo',
-    display_name: 'US AI Executive Order',
-    jurisdiction: 'us',
-    topic: 'Federal AI policy',
-    description_md:
-      'Tracks federal AI executive actions, NIST risk management updates, and agency implementation signals downstream of the safe-and-trustworthy-AI executive orders.',
-    task_templates: [
-      'Summarize federal AI policy developments in the last 24 hours.',
-      'Identify NIST AI RMF profile or guidance updates this week.',
-    ],
-    source_pool: [
-      {
-        url: 'https://www.federalregister.gov/agencies/executive-office-of-the-president',
-        class: 'official_journal',
-        name: 'Federal Register',
-      },
-      {
-        url: 'https://www.nist.gov/itl/ai-risk-management-framework',
-        class: 'regulator',
-        name: 'NIST AI RMF',
-      },
-    ],
-  },
-  {
-    id: 'uk-ai-whitepaper',
-    display_name: 'UK AI Regulation',
-    jurisdiction: 'uk',
-    topic: 'AI regulation approach',
-    description_md:
-      'Tracks the UK pro-innovation AI regulation approach, DSIT guidance, and AI Safety Institute publications.',
-    task_templates: [
-      'Summarize UK AI regulation developments in the last 24 hours.',
-      'List AI Safety Institute publications this week.',
-    ],
-    source_pool: [
-      {
-        url: 'https://www.gov.uk/government/publications/ai-regulation-a-pro-innovation-approach',
-        class: 'government',
-        name: 'DSIT white paper',
-      },
-    ],
-  },
-  {
-    id: 'singapore-pdpc',
-    display_name: 'Singapore PDPC',
-    jurisdiction: 'sg',
-    topic: 'AI assurance',
-    description_md:
-      'Tracks PDPC guidance on AI governance, AI Verify framework releases, and IMDA model AI governance updates.',
-    task_templates: [
-      'Summarize PDPC AI governance updates in the last 24 hours.',
-      'Identify AI Verify toolkit changes this week.',
-    ],
-    source_pool: [
-      {
-        url: 'https://www.pdpc.gov.sg/help-and-resources/2020/01/model-ai-governance-framework',
-        class: 'regulator',
-        name: 'PDPC Model AI Governance Framework',
-      },
-    ],
-  },
-  {
-    id: 'japan-meti-mic',
-    display_name: 'Japan METI / MIC',
-    jurisdiction: 'jp',
-    topic: 'AI business guidelines',
-    description_md:
-      'Tracks METI and MIC AI business guidelines and related Japanese government AI policy moves.',
-    task_templates: [
-      'Summarize Japanese AI policy developments in the last 24 hours.',
-      'List METI or MIC guidance updates this week.',
-    ],
-    source_pool: [
-      {
-        url: 'https://www.meti.go.jp/english/press/2024/0419_002.html',
-        class: 'regulator',
-        name: 'METI AI Guidelines for Business',
-      },
-    ],
-  },
 ]
 
 const RUBRIC: ScoringRubric = {
@@ -223,24 +142,6 @@ const AGENT_NAMES: Record<string, string[]> = {
     'Article 6 Live by Tomek',
     'AI Act Daily by Olov',
   ],
-  'us-ai-eo': [
-    'Federal AI Tracker by Jordan',
-    'NIST RMF Pulse by Renee',
-    'EO Watch by Daniel',
-  ],
-  'uk-ai-whitepaper': [
-    'AISI Live by Priya',
-    'DSIT Daily by Niamh',
-    'Whitehall AI by Connor',
-  ],
-  'singapore-pdpc': [
-    'AI Verify Pulse by Hui',
-    'PDPC Watch by Ravi',
-  ],
-  'japan-meti-mic': [
-    'METI Tracker by Aiko',
-    'MIC Daily by Takeshi',
-  ],
 }
 
 const SAMPLE_HEADLINES: Record<string, string[]> = {
@@ -249,24 +150,6 @@ const SAMPLE_HEADLINES: Record<string, string[]> = {
     'Commission delegated act on conformity assessment published',
     'Member state coordination meeting summary released',
     'GPAI code of practice draft 4 opens for consultation',
-  ],
-  'us-ai-eo': [
-    'NIST releases AI 600-1 generative AI profile update',
-    'Federal Register notice on AI procurement guidance posted',
-    'OSTP issues AI safety workforce framework',
-  ],
-  'uk-ai-whitepaper': [
-    'AISI publishes evaluation methodology v0.4',
-    'DSIT announces sandbox cohort 3 selections',
-    'CMA opens consultation on foundation model markets',
-  ],
-  'singapore-pdpc': [
-    'AI Verify toolkit 2.5 ships with new fairness checks',
-    'PDPC issues advisory on synthetic data and re-identification',
-  ],
-  'japan-meti-mic': [
-    'METI publishes AI Guidelines for Business v2.1 draft',
-    'MIC opens consultation on generative AI disclosures',
   ],
 }
 
@@ -371,16 +254,6 @@ const DISCOVERY_NAMES: Record<string, string[]> = {
     'EU Hobbyist Tracker',
     'Article 6 Sandbox by indie',
   ],
-  'us-ai-eo': [
-    'NIST AI RMF Probe (research)',
-    'Fed AI Citation Scraper',
-  ],
-  'uk-ai-whitepaper': [
-    'AISI Citation Scout',
-    'DSIT Research Stub',
-  ],
-  'singapore-pdpc': ['PDPC research draft'],
-  'japan-meti-mic': ['METI sandbox agent'],
 }
 
 const DISCOVERY_BIOS = [
@@ -756,7 +629,7 @@ export async function fetchMinerAgents(
   // ranked agents so the dashboard has something to render.
   if (!matching.length) {
     const rng = mulberry32(hashStr(hotkey))
-    const cardIds = ['eu-ai-act', 'us-ai-eo']
+    const cardIds = ['eu-ai-act']
     for (const cid of cardIds) {
       const agents = snap.agentsByCard.get(cid) ?? []
       const pick = agents[Math.floor(rng() * agents.length)]

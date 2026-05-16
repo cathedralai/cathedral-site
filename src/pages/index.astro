@@ -114,22 +114,10 @@ function relLabel(iso: string | null): string {
 const REG_LEDE: Record<string, string> = {
   'eu-ai-act':
     'A daily signed brief on enforcement, AI Office guidance, EDPB rulings, and Annex III risk-class shifts.',
-  'us-ai-eo':
-    'Federal AI policy: executive orders, OMB memoranda, NIST RMF, and agency rulemaking.',
-  'uk-ai-whitepaper':
-    "Pro-innovation framework, AI Safety Institute output, and each regulator's implementation.",
-  'singapore-pdpc':
-    'PDPC Model AI Governance, IMDA guidance, and AI Verify Foundation updates.',
-  'japan-meti-mic':
-    'METI/MIC AI Guidelines, Hiroshima Process implementation, and AISI Japan output.',
 }
 
 const REG_JURIS: Record<string, string> = {
   'eu-ai-act': 'EU',
-  'us-ai-eo': 'US',
-  'uk-ai-whitepaper': 'UK',
-  'singapore-pdpc': 'SG',
-  'japan-meti-mic': 'JP',
 }
 
 const regulatoryRows: JobRow[] = cards.map((c) => {
@@ -292,22 +280,9 @@ const focusJob = focusRow && focusPanel
     }
   : undefined
 
-const upcomingJobs: Pick<JobRow, 'id' | 'ind' | 'juris' | 'name' | 'lede'>[] = [
-  {
-    id: 'us-ai-eo',
-    ind: 'reg',
-    juris: 'US',
-    name: 'US AI EO',
-    lede: REG_LEDE['us-ai-eo'],
-  },
-  {
-    id: 'uk-ai-whitepaper',
-    ind: 'reg',
-    juris: 'UK',
-    name: 'UK AI framework',
-    lede: REG_LEDE['uk-ai-whitepaper'],
-  },
-]
+// v1 launch ships EU AI Act only. Upcoming jobs open as separate launch
+// tracks once EU AI Act is verified end to end with a real miner.
+const upcomingJobs: Pick<JobRow, 'id' | 'ind' | 'juris' | 'name' | 'lede'>[] = []
 
 const industryCounts = {
   all: jobRows.length + upcomingJobs.length,

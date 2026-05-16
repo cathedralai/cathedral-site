@@ -258,7 +258,7 @@ const useMock = (import.meta.env.PUBLIC_CATHEDRAL_API_MOCK as string | undefined
 
     function mockAgentsForHotkey(hotkey) {
       const seed = hotkey.split('').reduce(function (a, c) { return a + c.charCodeAt(0) }, 0)
-      const cards = ['eu-ai-act', 'us-ai-eo', 'uk-ai-whitepaper']
+      const cards = ['eu-ai-act']
       const out = []
       for (let i = 0; i < (1 + (seed % 3)); i++) {
         const cardId = cards[(seed + i) % cards.length]

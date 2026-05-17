@@ -1,6 +1,7 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
 import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
+import { V1_CARD_IDS } from '../lib/cards'
 import { relativeTime } from '../lib/format'
 import { SITE_TITLE } from '../lib/site'
 import '../styles/tokens.css'
@@ -12,6 +13,9 @@ import '../styles/tokens.css'
 //   PUBLIC_POSTHOG_KEY, PUBLIC_POSTHOG_HOST
 const POSTHOG_KEY = import.meta.env.PUBLIC_POSTHOG_KEY || ''
 const POSTHOG_HOST = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+const CATHEDRAL_API =
+  (import.meta.env.PUBLIC_CATHEDRAL_API_URL as string | undefined) ||
+  'https://api.cathedral.computer'
 const GITHUB_URL = 'https://github.com/cathedralai'
 const X_URL = 'https://x.com/cathidralhq'
 const X_HANDLE = '@cathidralhq'
@@ -174,6 +178,9 @@ const footerClass = fullHeight
         });
       </script>
     )}
+    <script is:inline define:vars={{ CATHEDRAL_API }}>
+      window.__CATHEDRAL_API__ = CATHEDRAL_API
+    </script>
     <script is:inline>
       (function () {
         try {
@@ -225,6 +232,7 @@ const footerClass = fullHeight
         <div
           class={`cd-status ${mainMax} mx-auto w-full${hideNoise ? ' cd-status-console' : ''}`}
           data-live="status-strip"
+          data-card-id={V1_CARD_IDS[0]}
           data-status-tone={initialStatus.tone}
           role="status"
           aria-label="Cathedral live status"

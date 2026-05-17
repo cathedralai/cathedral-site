@@ -34,7 +34,7 @@ jobs:
       - name: Build site
         env:
           PUBLIC_CATHEDRAL_API_MOCK: "false"
-          PUBLIC_CATHEDRAL_API_URL: "https://cathedral-publisher-production.up.railway.app"
+          PUBLIC_CATHEDRAL_API_URL: "https://api.cathedral.computer"
           PUBLIC_POLARIS_API_BASE: "https://api.polaris.computer"
         run: npm run build
 

@@ -3,9 +3,11 @@ import test from 'node:test'
 
 import {
   WALL_CELL_COUNT,
+  WALL_DISPLAY_LAID,
   pickQualifiedLeaderboard,
   wallGridFingerprint,
   wallLiveStats,
+  wallScoredForDisplay,
   wallStatsFromFeed,
 } from '../src/lib/wall-live-stats.js'
 
@@ -75,6 +77,21 @@ test('wallLiveStats reports laid and open counts', () => {
     },
   ])
   const stats = wallLiveStats(scored, [])
-  assert.equal(stats.laid, 1)
+  assert.equal(stats.crowned, 1)
+  assert.equal(stats.onWall, 1)
   assert.equal(stats.open, WALL_CELL_COUNT - 1)
+})
+
+test('wallScoredForDisplay caps grid stones', () => {
+  const qualified = pickQualifiedLeaderboard(
+    Array.from({ length: 40 }, (_, i) => ({
+      agent_id: `a${i}`,
+      display_name: `m${i}`,
+      miner_hotkey: `hk${i}`,
+      current_score: 1,
+      current_rank: i + 1,
+      last_eval_at: '2026-05-17T18:00:00Z',
+    })),
+  )
+  assert.equal(wallScoredForDisplay(qualified).length, WALL_DISPLAY_LAID)
 })

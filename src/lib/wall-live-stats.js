@@ -1,6 +1,10 @@
 import { isQualifiedScore } from './qualification.js'
 
 export const WALL_CELL_COUNT = 72
+
+/** Experiment: how many qualified masons render as laid stones on the grid. */
+export const WALL_DISPLAY_LAID = 12
+
 export const WALL_FRESH_MS = 30 * 60 * 1000
 const HOUR_24_MS = 24 * 60 * 60 * 1000
 
@@ -36,10 +40,23 @@ export function wallStatsFromFeed(feed, laid, now = Date.now()) {
   }
 }
 
-export function wallLiveStats(scored, feed, now = Date.now()) {
-  const laid = scored.length
-  const open = Math.max(0, WALL_CELL_COUNT - laid)
-  return { laid, open, ...wallStatsFromFeed(feed, laid, now) }
+export function wallScoredForDisplay(
+  qualified,
+  cap = WALL_DISPLAY_LAID,
+) {
+  return qualified.slice(0, Math.min(cap, qualified.length))
+}
+
+export function wallLiveStats(qualified, feed, now = Date.now()) {
+  const crowned = qualified.length
+  const onWall = Math.min(WALL_DISPLAY_LAID, crowned)
+  const open = Math.max(0, WALL_CELL_COUNT - onWall)
+  return {
+    crowned,
+    onWall,
+    open,
+    ...wallStatsFromFeed(feed, crowned, now),
+  }
 }
 
 export function wallGridFingerprint(scored, openCount) {
@@ -50,9 +67,9 @@ export function wallGridFingerprint(scored, openCount) {
 }
 
 export function wallPressureAria(stats) {
-  return `${stats.laid} crowned on wall. ${stats.accepted24h} qualified in 24h. ${stats.rejected24h} below threshold in 24h.`
+  return `${stats.crowned} crowned on wall. ${stats.accepted24h} qualified in 24h. ${stats.rejected24h} below threshold in 24h.`
 }
 
 export function wallLegendAria(stats) {
-  return `${stats.laid} laid stones, ${stats.open} bare seats`
+  return `${stats.onWall} laid stones, ${stats.open} bare seats`
 }

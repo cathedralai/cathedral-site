@@ -11,6 +11,7 @@
  */
 import { stoneMark } from '../lib/stone-marks'
 import { masonMark } from '../lib/mason-marks'
+import { WALL_DISPLAY_LAID } from '../lib/wall-live-stats.js'
 
 export type RosterScored = {
   kind: 'scored'
@@ -70,11 +71,11 @@ type Cell =
 // scored card. Evaluating bundles haven't earned a stone yet — they
 // surface elsewhere (procession, vitals) but the wall itself stays
 // clean: scored bricks first, open seats for everything else.
-const scoredRoster = roster.filter(
-  (r): r is RosterScored => r.kind === 'scored',
-)
+const scoredAll = roster.filter((r): r is RosterScored => r.kind === 'scored')
+const scoredRoster = scoredAll.slice(0, WALL_DISPLAY_LAID)
+const crownedTotal = scoredAll.length
 const cells: Cell[] = []
-for (const r of scoredRoster.slice(0, TOTAL)) cells.push(r)
+for (const r of scoredRoster) cells.push(r)
 while (cells.length < TOTAL) cells.push({ kind: 'empty', idx: cells.length })
 
 const counts = { laid: 0, open: 0 }
@@ -83,7 +84,9 @@ for (const c of cells) {
   else counts.laid++
 }
 const laidCount = counts.laid
-const claimedCount = Math.max(1, laidCount)
+const crownedCount = crownedTotal
+const traceSlots = Math.min(3, laidCount)
+const claimedCount = Math.max(1, traceSlots)
 const showEval24h = typeof eval24h === 'number'
 
 const skillUrl = 'https://api.cathedral.computer/skill.md'
@@ -113,11 +116,11 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
       class="wall-pressure"
       aria-label={
         showEval24h
-          ? `${laidCount} crowned on wall. ${eval24hAccepted ?? 0} qualified in 24h. ${eval24hRejected ?? 0} below threshold in 24h.`
-          : `${laidCount} crowned on wall`
+          ? `${crownedCount} crowned on wall. ${eval24hAccepted ?? 0} qualified in 24h. ${eval24hRejected ?? 0} below threshold in 24h.`
+          : `${crownedCount} crowned on wall`
       }
     >
-      <strong>{laidCount}</strong> crowned
+      <strong>{crownedCount}</strong> crowned
       {showEval24h && (
         <>
           <span class="wall-pressure-sep" aria-hidden="true">·</span>
@@ -158,10 +161,11 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
         const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
         const state = s.fresh ? 'fresh' : 'scored'
         const cls = s.fresh ? 'scored fresh' : 'scored'
+        const trace = i < traceSlots ? ' current' : ''
         return (
           <button
             type="button"
-            class={`stone ${cls} ${tier} current`}
+            class={`stone ${cls} ${tier}${trace}`}
             data-i={i}
             data-state={state}
             style={`--cd-slot: ${i}; --cd-claimed: ${claimedCount}`}

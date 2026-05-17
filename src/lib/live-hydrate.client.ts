@@ -24,6 +24,7 @@ import {
   wallLegendAria,
   wallLiveStats,
   wallPressureAria,
+  wallScoredForDisplay,
   type WallFeedRow,
   type WallLeaderRow,
 } from './wall-live'
@@ -320,7 +321,7 @@ function updateWallChrome(
   const pressure = wallEl.querySelector<HTMLElement>('.wall-pressure')
   if (pressure) {
     pressure.setAttribute('aria-label', wallPressureAria(stats))
-    pressure.innerHTML = `<strong>${stats.laid}</strong> crowned<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.accepted24h}</strong> qualified<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.rejected24h}</strong> below`
+    pressure.innerHTML = `<strong>${stats.crowned}</strong> crowned<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.accepted24h}</strong> qualified<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.rejected24h}</strong> below`
   }
   const legend = wallEl.querySelector<HTMLElement>('.legend')
   if (legend) legend.setAttribute('aria-label', wallLegendAria(stats))
@@ -339,16 +340,17 @@ async function hydrateWall(wallEl: HTMLElement, cardId: string): Promise<void> {
     ).catch(() => ({ items: [] }) as FeedPage),
   ])
 
-  const scored = pickQualifiedLeaderboard(
+  const qualified = pickQualifiedLeaderboard(
     (leaderboard.items || []) as WallLeaderRow[],
   )
+  const onWall = wallScoredForDisplay(qualified)
   const feedRows: WallFeedRow[] = (feed.items || []).map((e) => ({
     agent_id: e.agent_id,
     ran_at: e.ran_at,
     weighted_score: e.weighted_score,
   }))
-  const stats = wallLiveStats(scored, feedRows)
-  const fp = wallGridFingerprint(scored, stats.open)
+  const stats = wallLiveStats(qualified, feedRows)
+  const fp = wallGridFingerprint(onWall, stats.open)
   if (wallEl.dataset.wallLiveFp === fp) {
     updateWallChrome(wallEl, stats)
     return
@@ -358,7 +360,7 @@ async function hydrateWall(wallEl: HTMLElement, cardId: string): Promise<void> {
   const grid = wallEl.querySelector<HTMLElement>('[data-wall-grid]')
   if (!grid) return
 
-  const nextGrid = renderWallGridHtml(cardId, scored)
+  const nextGrid = renderWallGridHtml(cardId, onWall)
   if (grid.innerHTML.trim() !== nextGrid.trim()) {
     grid.innerHTML = nextGrid
     markWallYou(grid)

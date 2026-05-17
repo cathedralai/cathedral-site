@@ -47,9 +47,9 @@ interface Props {
   compact?: boolean
   /** Scored submissions in the last 24h for this job. */
   eval24h?: number
-  /** Last-24h submissions that earned a wall stone (score > 0). */
+  /** Last-24h submissions that earned a wall stone. */
   eval24hAccepted?: number
-  /** Last-24h submissions scored and rejected (score 0). */
+  /** Last-24h submissions that did not meet the public wall threshold. */
   eval24hRejected?: number
 }
 
@@ -113,7 +113,7 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
       class="wall-pressure"
       aria-label={
         showEval24h
-          ? `${laidCount} crowned on wall. ${eval24hAccepted ?? 0} accepted in 24h. ${eval24hRejected ?? 0} rejected in 24h.`
+          ? `${laidCount} crowned on wall. ${eval24hAccepted ?? 0} qualified in 24h. ${eval24hRejected ?? 0} below threshold in 24h.`
           : `${laidCount} crowned on wall`
       }
     >
@@ -121,9 +121,9 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
       {showEval24h && (
         <>
           <span class="wall-pressure-sep" aria-hidden="true">·</span>
-          <strong>{eval24hAccepted ?? 0}</strong> accepted
+          <strong>{eval24hAccepted ?? 0}</strong> qualified
           <span class="wall-pressure-sep" aria-hidden="true">·</span>
-          <strong>{eval24hRejected ?? 0}</strong> rejected
+          <strong>{eval24hRejected ?? 0}</strong> below
         </>
       )}
     </span>

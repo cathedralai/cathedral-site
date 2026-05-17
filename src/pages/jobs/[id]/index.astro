@@ -13,6 +13,7 @@ import { V1_CARD_IDS } from '../../../lib/cards'
 import { EXTERNAL_JOBS } from '../../../lib/external-jobs'
 import { relativeTime, truncateMiddle, formatScore } from '../../../lib/format'
 import { masonMark } from '../../../lib/mason-marks'
+import { hasAnyScore, isQualifiedScore } from '../../../lib/qualification.js'
 import {
   LITURGICAL_HOURS,
   currentHourIndex,
@@ -52,12 +53,10 @@ const [overview, leaderboard, feed, spec, discovery] = kind === 'regulatory'
     ])
   : [null, null, null, null, null] as const
 
-// The procession promotes the top scored masons above the wall — same
-// score-positive contract as the wall itself, otherwise a card that the
-// scorer rejected (broken citations, schema mismatch) could occupy
-// rank 1 and tell visitors the wrong story.
+// The procession promotes the top qualified masons above the wall. Lower
+// scored attempts stay in feedback/history views, not the public wall.
 const top3 = leaderboard
-  ? leaderboard.items.filter((r) => (r.current_score ?? 0) > 0).slice(0, 3)
+  ? leaderboard.items.filter((r) => isQualifiedScore(r.current_score)).slice(0, 3)
   : []
 const recent = feed ? feed.items : []
 
@@ -72,28 +71,33 @@ function resolveDisplayName(displayName: string | null | undefined, hotkey: stri
 }
 
 const nowMs = Date.now()
-// Only positively-scored cards earn a wall brick. Score 0 means the
-// card was scored and rejected (broken citations, schema mismatch,
-// missing fields) — keep it visible on the deeper leaderboard view but
-// don't let it occupy a wall slot that should signal verified work.
+// Only qualified cards earn a wall brick. Lower scored attempts stay
+// visible in deeper feedback/history surfaces but do not occupy a wall
+// slot that should signal strong verified work.
 const rosterScored = leaderboard
   ? leaderboard.items
-      .filter((r) => (r.current_score ?? 0) > 0)
+      .filter((r) => isQualifiedScore(r.current_score))
       .map((r) => ({
         kind: 'scored' as const,
         agentId: r.agent_id,
         displayName: resolveDisplayName(r.display_name, r.miner_hotkey),
         hotkey: r.miner_hotkey,
-        score: r.current_score,
+        score: r.current_score ?? 0,
         rank: r.current_rank,
         lastEvalAt: r.last_eval_at,
         fresh: nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
       }))
   : []
-const scoredIds = new Set(rosterScored.map((r) => r.agentId))
+const rankedIds = new Set(
+  leaderboard
+    ? leaderboard.items
+        .filter((r) => hasAnyScore(r.current_score))
+        .map((r) => r.agent_id)
+    : [],
+)
 const rosterEvaluating = discovery
   ? discovery.items
-      .filter((d) => !scoredIds.has(d.agent_id))
+      .filter((d) => !rankedIds.has(d.agent_id))
       .map((d) => ({
         kind: 'evaluating' as const,
         agentId: d.agent_id,
@@ -110,7 +114,7 @@ const recent24h = recent.filter(
   (e) => nowMs - new Date(e.ran_at).getTime() < 24 * HOUR_MS,
 )
 const eval24h = recent24h.length
-const eval24hAccepted = recent24h.filter((e) => e.weighted_score > 0).length
+const eval24hAccepted = recent24h.filter((e) => isQualifiedScore(e.weighted_score)).length
 const eval24hRejected = eval24h - eval24hAccepted
 const def = overview ? overview.definition : null
 const rubric = spec ? spec.scoring_rubric : null

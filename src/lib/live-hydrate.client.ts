@@ -8,7 +8,7 @@
  * them with fresh data from the publisher API.
  *
  * Each placeholder has:
- *   - `data-live="leaderboard|card-overview-stats|recent-feed|agent-evals|cards-index"`
+ *   - `data-live="leaderboard|card-overview-stats|recent-feed|agent-evals|cards-index|wall|status-strip"`
  *   - `data-card-id` (for card-scoped surfaces)
  *   - `data-agent-id` (for agent-scoped surfaces)
  *   - `data-limit` (optional)
@@ -17,10 +17,26 @@
  * with the freshly-fetched version so styles stay scoped.
  */
 
+import {
+  pickQualifiedLeaderboard,
+  renderWallGridHtml,
+  wallGridFingerprint,
+  wallLegendAria,
+  wallLiveStats,
+  wallPressureAria,
+  type WallFeedRow,
+  type WallLeaderRow,
+} from './wall-live'
+
 const API_BASE =
   (typeof window !== 'undefined' &&
     (window as Window & { __CATHEDRAL_API__?: string }).__CATHEDRAL_API__) ||
   'https://cathedral-publisher-production.up.railway.app'
+
+/** Publisher routes live under /v1 (not /api/cathedral on static deploy). */
+function v1(path: string): string {
+  return path.startsWith('/v1/') ? path : `/v1/${path.replace(/^\//, '')}`
+}
 
 const SHORT_HASH = (h: string, n = 8) =>
   h ? (h.length > n * 2 ? `${h.slice(0, n)}…${h.slice(-4)}` : h) : ''
@@ -269,19 +285,6 @@ interface FeedPage {
   items: EvalOutput[]
 }
 
-interface DiscoveryItem {
-  agent_id: string
-  display_name: string
-  bio: string | null
-  miner_hotkey: string
-  card_id: string
-  bundle_hash: string
-  submitted_at: string
-}
-interface DiscoveryPage {
-  items: DiscoveryItem[]
-}
-
 interface AgentProfileResponse {
   display_name?: string
   current_score?: number | null
@@ -297,6 +300,72 @@ function applyIfChanged(el: HTMLElement, next: string): void {
   el.innerHTML = next
 }
 
+function markWallYou(grid: HTMLElement): void {
+  let myId = ''
+  try {
+    myId = localStorage.getItem('cd:agent_id') || ''
+  } catch {
+    /* ignore */
+  }
+  if (!myId) return
+  grid.querySelectorAll<HTMLElement>('[data-agent-id]').forEach((stone) => {
+    if (stone.dataset.agentId === myId) stone.classList.add('you')
+  })
+}
+
+function updateWallChrome(
+  wallEl: HTMLElement,
+  stats: ReturnType<typeof wallLiveStats>,
+): void {
+  const pressure = wallEl.querySelector<HTMLElement>('.wall-pressure')
+  if (pressure) {
+    pressure.setAttribute('aria-label', wallPressureAria(stats))
+    pressure.innerHTML = `<strong>${stats.laid}</strong> crowned<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.accepted24h}</strong> qualified<span class="wall-pressure-sep" aria-hidden="true">·</span><strong>${stats.rejected24h}</strong> below`
+  }
+  const legend = wallEl.querySelector<HTMLElement>('.legend')
+  if (legend) legend.setAttribute('aria-label', wallLegendAria(stats))
+  wallEl.querySelector('[data-wall-drift]')?.remove()
+  wallEl.classList.remove('cd-wall-pulse')
+  delete wallEl.dataset.driftSeen
+}
+
+async function hydrateWall(wallEl: HTMLElement, cardId: string): Promise<void> {
+  const [leaderboard, feed] = await Promise.all([
+    fetchJSON<LeaderboardPage>(
+      v1(`leaderboard?card=${encodeURIComponent(cardId)}&limit=72`),
+    ),
+    fetchJSON<FeedPage>(
+      v1(`cards/${encodeURIComponent(cardId)}/feed?limit=96`),
+    ).catch(() => ({ items: [] }) as FeedPage),
+  ])
+
+  const scored = pickQualifiedLeaderboard(
+    (leaderboard.items || []) as WallLeaderRow[],
+  )
+  const feedRows: WallFeedRow[] = (feed.items || []).map((e) => ({
+    agent_id: e.agent_id,
+    ran_at: e.ran_at,
+    weighted_score: e.weighted_score,
+  }))
+  const stats = wallLiveStats(scored, feedRows)
+  const fp = wallGridFingerprint(scored, stats.open)
+  if (wallEl.dataset.wallLiveFp === fp) {
+    updateWallChrome(wallEl, stats)
+    return
+  }
+  wallEl.dataset.wallLiveFp = fp
+
+  const grid = wallEl.querySelector<HTMLElement>('[data-wall-grid]')
+  if (!grid) return
+
+  const nextGrid = renderWallGridHtml(cardId, scored)
+  if (grid.innerHTML.trim() !== nextGrid.trim()) {
+    grid.innerHTML = nextGrid
+    markWallYou(grid)
+  }
+  updateWallChrome(wallEl, stats)
+}
+
 async function hydrateOne(el: HTMLElement): Promise<void> {
   const kind = el.dataset.live
   const cardId = el.dataset.cardId || ''
@@ -306,22 +375,24 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
   try {
     if (kind === 'leaderboard' && cardId) {
       const d = await fetchJSON<LeaderboardPage>(
-        `/api/cathedral/v1/leaderboard?card=${encodeURIComponent(cardId)}&limit=${limit}`,
+        v1(
+          `leaderboard?card=${encodeURIComponent(cardId)}&limit=${limit}`,
+        ),
       )
       applyIfChanged(el, renderLeaderboard(d.items || []))
     } else if (kind === 'recent-feed' && cardId) {
       const d = await fetchJSON<FeedPage>(
-        `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/feed?limit=${limit}`,
+        v1(`cards/${encodeURIComponent(cardId)}/feed?limit=${limit}`),
       )
       applyIfChanged(el, renderRecentFeed(d.items || []))
     } else if (kind === 'card-overview-stats' && cardId) {
       const d = await fetchJSON<CardOverview>(
-        `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}`,
+        v1(`cards/${encodeURIComponent(cardId)}`),
       )
       applyIfChanged(el, renderCardOverviewStats(d))
     } else if (kind === 'agent-evals' && agentId) {
       const d = await fetchJSON<AgentProfileResponse>(
-        `/api/cathedral/v1/agents/${encodeURIComponent(agentId)}`,
+        v1(`agents/${encodeURIComponent(agentId)}`),
       )
       applyIfChanged(el, renderAgentEvals(d.recent_evals || []))
       // Also live-update the score/rank header if present.
@@ -334,13 +405,26 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         if (s.textContent !== next) s.textContent = next
       })
     } else if (kind === 'status-strip') {
-      const feed = await fetchJSON<FeedPage>('/api/cathedral/v1/feed?limit=12')
-      const items = feed.items || []
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const recent = await fetchJSON<{
+        items: EvalOutput[]
+        merkle_epoch_latest?: number
+      }>(
+        v1(
+          `leaderboard/recent?since=${encodeURIComponent(since)}&limit=12`,
+        ),
+      )
+      const items = recent.items || []
       const latest = items[0]
       const epochs = items
         .map((e) => e.merkle_epoch ?? null)
         .filter((e): e is number => e !== null)
-      const latestEpoch = epochs.length ? Math.max(...epochs) : null
+      const latestEpoch =
+        typeof recent.merkle_epoch_latest === 'number'
+          ? recent.merkle_epoch_latest
+          : epochs.length
+            ? Math.max(...epochs)
+            : null
       const { tone } = deriveStatusTone(latest?.ran_at)
       el.dataset.statusTone = tone
       applyIfChanged(
@@ -348,80 +432,7 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         renderStatusStripInner(latest, latestEpoch),
       )
     } else if (kind === 'wall' && cardId) {
-      // Live-refresh the wall by re-fetching feed + discovery and
-      // marking the wall element with a 'new stones since render'
-      // count. We don't rebuild the grid (that's an SSR concern); we
-      // just announce drift so the visitor knows the data is alive.
-      // When drift > 0, a small "fresh stone landed" pulse fires on
-      // the wall frame to draw the eye, and the count surfaces above
-      // the legend.
-      const [feed, discovery] = await Promise.all([
-        fetchJSON<FeedPage>(
-          `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/feed?limit=96`,
-        ).catch(() => ({ items: [] }) as FeedPage),
-        fetchJSON<DiscoveryPage>(
-          `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}/discovery?limit=48`,
-        ).catch(() => ({ items: [] }) as DiscoveryPage),
-      ])
-      const known = new Set<string>()
-      el.querySelectorAll<HTMLElement>('.stone[data-i]').forEach((s) => {
-        const aid = s.dataset.agentId
-        const ran = s.dataset.ranAt || s.dataset.submittedAt
-        if (aid && ran) known.add(`${aid}|${ran}`)
-      })
-      const now = Date.now()
-      const HOUR_24 = 24 * 60 * 60 * 1000
-      let driftScored = 0
-      let driftEval = 0
-      for (const e of feed.items || []) {
-        const t = new Date(e.ran_at).getTime()
-        if (now - t > HOUR_24 || now - t < 0) continue
-        if (!known.has(`${e.agent_id}|${e.ran_at}`)) driftScored++
-      }
-      for (const d of discovery.items || []) {
-        const t = new Date(d.submitted_at).getTime()
-        if (now - t > HOUR_24 || now - t < 0) continue
-        if (!known.has(`${d.agent_id}|${d.submitted_at}`)) driftEval++
-      }
-      const drift = driftScored + driftEval
-      // Update a drift chip in the wall header if one exists; create it
-      // if not. Click reloads the page (cheaper than a JS rebuild for
-      // now; keeps SSR layout as the source of truth).
-      let chip = el.querySelector<HTMLButtonElement>('[data-wall-drift]')
-      const headRule = el.querySelector<HTMLElement>('.wall-head .rule')
-      if (drift > 0) {
-        if (!chip && headRule) {
-          chip = document.createElement('button')
-          chip.dataset.wallDrift = 'true'
-          chip.type = 'button'
-          chip.className = 'lg lg-new'
-          chip.style.cssText =
-            'cursor:pointer;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);padding:3px 8px;font:inherit;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;font-family:var(--mono);'
-          chip.addEventListener('click', () => location.reload())
-          headRule.insertAdjacentElement('afterend', chip)
-        }
-        if (chip) {
-          const parts: string[] = []
-          if (driftScored) parts.push(`${driftScored} scored`)
-          if (driftEval) parts.push(`${driftEval} pending`)
-          chip.textContent = `+ ${parts.join(' · ')} · reload`
-          chip.setAttribute('aria-label', `${drift} new stones since this page loaded — click to refresh`)
-        }
-        // One-shot pulse on the wall frame to draw attention. Repeats
-        // only if drift count changes.
-        const prev = Number(el.dataset.driftSeen || '0')
-        if (drift !== prev) {
-          el.classList.remove('cd-wall-pulse')
-          // Force reflow so the animation re-triggers when the class
-          // is re-added.
-          void el.offsetWidth
-          el.classList.add('cd-wall-pulse')
-          el.dataset.driftSeen = String(drift)
-        }
-      } else if (chip) {
-        chip.remove()
-        el.dataset.driftSeen = '0'
-      }
+      await hydrateWall(el, cardId)
     } else if (kind === 'cards-index') {
       // The cards index page renders each tile with [data-card-id]. We
       // refresh just the per-tile agent count + last-update label so new
@@ -433,7 +444,7 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
           if (!cardId) return
           try {
             const d = await fetchJSON<CardOverview>(
-              `/api/cathedral/v1/cards/${encodeURIComponent(cardId)}`,
+              v1(`cards/${encodeURIComponent(cardId)}`),
             )
             const countEl = tile.querySelector<HTMLElement>('[data-agent-count]')
             if (countEl) countEl.textContent = String(d.agent_count)

@@ -16,6 +16,7 @@ import {
 import { V1_CARD_IDS } from '../lib/cards'
 import { relativeTime, truncateMiddle, formatScore } from '../lib/format'
 import { masonMark } from '../lib/mason-marks'
+import { hasAnyScore, isQualifiedScore } from '../lib/qualification.js'
 import {
   LITURGICAL_HOURS,
   currentHour,
@@ -186,31 +187,33 @@ const regulatoryPanels = await Promise.all(
       fetchCardDiscovery(cardId, { limit: 48 }),
     ])
     const recent = feed.items
-    // Only positively-scored cards earn a wall brick or procession
-    // slot. Score 0 means the scorer rejected the card (broken
-    // citations, schema mismatch); the leaderboard view still surfaces
-    // them so masons get feedback, but the wall + procession represent
-    // verified work and must not include them.
+    // Only qualified scores earn a wall brick or procession slot.
+    // Lower scored attempts stay visible in feedback/history views so
+    // masons can debug, but the homepage wall represents strong work.
     const scoredItems = leaderboard.items.filter(
-      (r) => (r.current_score ?? 0) > 0,
+      (r) => isQualifiedScore(r.current_score),
     )
     const top3 = scoredItems.slice(0, 3)
     const pending = discovery.items
-    const scoredIds = new Set(scoredItems.map((r) => r.agent_id))
+    const rankedIds = new Set(
+      leaderboard.items
+        .filter((r) => hasAnyScore(r.current_score))
+        .map((r) => r.agent_id),
+    )
     const nowMs = Date.now()
     const rosterScored = scoredItems.map((r) => ({
       kind: 'scored' as const,
       agentId: r.agent_id,
       displayName: r.display_name,
       hotkey: r.miner_hotkey,
-      score: r.current_score,
+      score: r.current_score ?? 0,
       rank: r.current_rank,
       lastEvalAt: r.last_eval_at,
       fresh:
         nowMs - new Date(r.last_eval_at).getTime() < FRESH_WINDOW_MS,
     }))
     const rosterEvaluating = pending
-      .filter((d) => !scoredIds.has(d.agent_id))
+      .filter((d) => !rankedIds.has(d.agent_id))
       .map((d) => ({
         kind: 'evaluating' as const,
         agentId: d.agent_id,
@@ -225,7 +228,7 @@ const regulatoryPanels = await Promise.all(
       (e) => nowMs - new Date(e.ran_at).getTime() < 24 * HOUR_MS,
     )
     const eval24h = recent24h.length
-    const eval24hAccepted = recent24h.filter((e) => e.weighted_score > 0).length
+    const eval24hAccepted = recent24h.filter((e) => isQualifiedScore(e.weighted_score)).length
     const eval24hRejected = eval24h - eval24hAccepted
     const rubric = spec.scoring_rubric
     const weightRows = rubric

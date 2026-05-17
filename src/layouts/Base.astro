@@ -12,6 +12,9 @@ import '../styles/tokens.css'
 //   PUBLIC_POSTHOG_KEY, PUBLIC_POSTHOG_HOST
 const POSTHOG_KEY = import.meta.env.PUBLIC_POSTHOG_KEY || ''
 const POSTHOG_HOST = import.meta.env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+const CATHEDRAL_API =
+  (import.meta.env.PUBLIC_CATHEDRAL_API_URL as string | undefined) ||
+  'https://api.cathedral.computer'
 const GITHUB_URL = 'https://github.com/cathedralai'
 const X_URL = 'https://x.com/cathidralhq'
 const X_HANDLE = '@cathidralhq'
@@ -174,6 +177,9 @@ const footerClass = fullHeight
         });
       </script>
     )}
+    <script is:inline define:vars={{ CATHEDRAL_API }}>
+      window.__CATHEDRAL_API__ = CATHEDRAL_API
+    </script>
     <script is:inline>
       (function () {
         try {

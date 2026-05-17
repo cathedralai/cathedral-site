@@ -71,14 +71,14 @@ export function renderWallGridHtml(
     const scoreStr = s.score.toFixed(2)
     const title = `Rank ${s.rank} · score ${scoreStr}`
     cells.push(
-      `<button type="button" class="stone ${cls} ${tier} current" data-i="${i}" data-state="${state}" style="--cd-slot: ${i}; --cd-claimed: ${claimedCount}" data-agent-id="${escAttr(s.agentId)}" data-agent-name="${escAttr(s.displayName)}" data-agent-bio="" data-score="${scoreStr}" data-rank="${s.rank}" data-ran-at="${escAttr(s.lastEvalAt)}" data-title="${escAttr(title)}" data-agent-modal-open="${escAttr(s.agentId)}" aria-label="${escAttr(`${s.displayName}, rank ${s.rank}, score ${scoreStr} — open profile`)}">${masonMark(s.hotkey || s.agentId, { size: 28 })}</button>`,
+      `<button type="button" class="stone ${cls} ${tier} current" data-i="${i}" data-state="${state}" style="--cd-slot: ${i}; --cd-claimed: ${claimedCount}" data-agent-id="${escAttr(s.agentId)}" data-agent-name="${escAttr(s.displayName)}" data-agent-bio="" data-score="${scoreStr}" data-rank="${s.rank}" data-ran-at="${escAttr(s.lastEvalAt)}" data-title="${escAttr(title)}" data-agent-modal-open="${escAttr(s.agentId)}" aria-label="${escAttr(`${s.displayName}, rank ${s.rank}, score ${scoreStr}, open profile`)}">${masonMark(s.hotkey || s.agentId, { size: 28 })}</button>`,
     )
   }
 
   for (let i = scored.length; i < WALL_CELL_COUNT; i++) {
     const glyph = stoneMark(`${cardId}:open:${i}`, { size: 28, open: true })
     cells.push(
-      `<button type="button" class="stone empty claimable" data-i="${i}" data-claim aria-label="Open seat — enlist your mason">${glyph}</button>`,
+      `<button type="button" class="stone empty claimable" data-i="${i}" data-claim aria-label="Open seat, enlist your mason">${glyph}</button>`,
     )
   }
 

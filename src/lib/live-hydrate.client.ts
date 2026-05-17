@@ -405,26 +405,18 @@ async function hydrateOne(el: HTMLElement): Promise<void> {
         if (s.textContent !== next) s.textContent = next
       })
     } else if (kind === 'status-strip') {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const recent = await fetchJSON<{
-        items: EvalOutput[]
-        merkle_epoch_latest?: number
-      }>(
-        v1(
-          `leaderboard/recent?since=${encodeURIComponent(since)}&limit=12`,
-        ),
+      // Card feed is newest-first. /v1/leaderboard/recent is ascending cursor
+      // order, so items[0] there is the oldest row in the since window.
+      const statusCardId = el.dataset.cardId || 'eu-ai-act'
+      const feed = await fetchJSON<FeedPage>(
+        v1(`cards/${encodeURIComponent(statusCardId)}/feed?limit=12`),
       )
-      const items = recent.items || []
+      const items = feed.items || []
       const latest = items[0]
       const epochs = items
         .map((e) => e.merkle_epoch ?? null)
         .filter((e): e is number => e !== null)
-      const latestEpoch =
-        typeof recent.merkle_epoch_latest === 'number'
-          ? recent.merkle_epoch_latest
-          : epochs.length
-            ? Math.max(...epochs)
-            : null
+      const latestEpoch = epochs.length ? Math.max(...epochs) : null
       const { tone } = deriveStatusTone(latest?.ran_at)
       el.dataset.statusTone = tone
       applyIfChanged(

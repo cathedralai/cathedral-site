@@ -244,17 +244,15 @@ export async function fetchMinerAgents(
 
 export async function fetchHomeFeed(limit: number = 12): Promise<EvalOutput[]> {
   if (USE_MOCK) return mock.fetchHomeFeed(limit)
-  // The contract exposes /v1/leaderboard/recent for cross-card feeds. Use a
-  // 24h lookback window for the home page.
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const q = new URLSearchParams({ since, limit: String(limit) })
+  // v1 ships eu-ai-act only. Card feed returns newest first. /v1/leaderboard/recent
+  // is ascending cursor order, so items[0] is the oldest row in the window.
+  const cardId = V1_CARD_IDS[0]
+  const q = new URLSearchParams({ limit: String(limit) })
   return liveOrMock(
     async () => {
-      const data = await jsonFetch<{
-        items: EvalOutput[]
-        next_since: string | null
-        merkle_epoch_latest: number
-      }>(`/v1/leaderboard/recent?${q.toString()}`)
+      const data = await jsonFetch<FeedPage>(
+        `/v1/cards/${encodeURIComponent(cardId)}/feed?${q.toString()}`,
+      )
       return data.items
     },
     () => mock.fetchHomeFeed(limit),

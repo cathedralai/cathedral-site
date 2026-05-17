@@ -1,6 +1,7 @@
 ---
 import RoseWindow from '../components/RoseWindow.astro'
 import { fetchHomeFeed, fetchAvailableCards } from '../lib/cathedral-api'
+import { V1_CARD_IDS } from '../lib/cards'
 import { relativeTime } from '../lib/format'
 import { SITE_TITLE } from '../lib/site'
 import '../styles/tokens.css'
@@ -231,6 +232,7 @@ const footerClass = fullHeight
         <div
           class={`cd-status ${mainMax} mx-auto w-full${hideNoise ? ' cd-status-console' : ''}`}
           data-live="status-strip"
+          data-card-id={V1_CARD_IDS[0]}
           data-status-tone={initialStatus.tone}
           role="status"
           aria-label="Cathedral live status"

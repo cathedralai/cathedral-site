@@ -1,6 +1,8 @@
 import { isQualifiedScore } from './qualification.js'
 
-export const WALL_CELL_COUNT = 72
+/** 12 columns × 5 rows — one row shorter than the original wall for breathing room. */
+export const WALL_CELL_COUNT = 60
+
 export const WALL_FRESH_MS = 30 * 60 * 1000
 const HOUR_24_MS = 24 * 60 * 60 * 1000
 

@@ -11,6 +11,7 @@
  */
 import { stoneMark } from '../lib/stone-marks'
 import { masonMark } from '../lib/mason-marks'
+import { wallStonePresentation } from '../lib/wall-live-stats.js'
 
 export type RosterScored = {
   kind: 'scored'
@@ -155,16 +156,14 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
             />
           )
         }
-        const tier = s.score >= 0.75 ? 'tier-high' : s.score >= 0.5 ? 'tier-mid' : 'tier-low'
-        const state = s.fresh ? 'fresh' : 'scored'
-        const cls = s.fresh ? 'scored fresh' : 'scored'
+        const pres = wallStonePresentation(i, s, laidCount)
         return (
           <button
             type="button"
-            class={`stone ${cls} ${tier} current`}
+            class={pres.className}
             data-i={i}
-            data-state={state}
-            style={`--cd-slot: ${i}; --cd-claimed: ${claimedCount}`}
+            data-state={pres.state}
+            style={pres.style}
             data-agent-id={s.agentId}
             data-agent-name={s.displayName}
             data-agent-bio={s.bio ?? ''}
@@ -532,15 +531,16 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
     flex-direction: column;
   }
   .wall-frame-compact .grid {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-height: clamp(200px, 32vh, 360px);
     max-height: none;
-    height: 100%;
-    aspect-ratio: auto;
+    height: auto;
+    aspect-ratio: 12 / 5.5;
     gap: clamp(3px, 0.45vmin, 6px);
     grid-template-rows: repeat(6, minmax(0, 1fr));
     justify-items: stretch;
     align-items: stretch;
+    align-content: start;
   }
   .wall-frame-compact .stone {
     width: 100%;
@@ -673,6 +673,17 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }
   .stone.tier-low :global(svg *) { opacity: 0.78; }
+  /* Deeper rows stay on the wall but read as settled masonry, not a
+     flat LED panel when the roster fills all 72 cells. */
+  .stone.scored.stone-settled {
+    border-color: rgba(126, 168, 208, 0.1);
+  }
+  .stone.scored.stone-settled :global(svg) {
+    opacity: 0.38;
+  }
+  .stone.scored.stone-settled:hover :global(svg) {
+    opacity: 0.88;
+  }
   /* Every claimed stone carries a single arc of current along its
      border. The stone fill stays muted; only the traced ring animates.
      Slots stagger so the current visits one stone at a time. */

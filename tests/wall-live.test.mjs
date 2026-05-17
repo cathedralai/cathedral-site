@@ -9,7 +9,7 @@ import {
   wallStatsFromFeed,
 } from '../src/lib/wall-live-stats.js'
 
-test('pickQualifiedLeaderboard caps at 72 and filters below 0.5', () => {
+test('pickQualifiedLeaderboard caps at 60 and filters below 0.5', () => {
   const rows = Array.from({ length: 100 }, (_, i) => ({
     agent_id: `agent-${i}`,
     display_name: `mason-${i}`,
@@ -19,7 +19,7 @@ test('pickQualifiedLeaderboard caps at 72 and filters below 0.5', () => {
     last_eval_at: '2026-05-17T18:00:00Z',
   }))
   const scored = pickQualifiedLeaderboard(rows)
-  assert.equal(scored.length, 72)
+  assert.equal(scored.length, 60)
   assert.equal(scored[0].rank, 1)
 })
 

@@ -39,8 +39,8 @@ const cardId = id as string
 const partnerJob = kind === 'partner' ? EXTERNAL_JOBS.find((j) => j.id === cardId)! : null
 
 // Pull leaderboard + discovery so the wall renders one stone per UID
-// (roster mode, top-72). Feed still drives stats + vigil computation.
-const WALL_CAPACITY = 72
+// (roster mode, top-60). Feed still drives stats + vigil computation.
+const WALL_CAPACITY = 60
 const FRESH_WINDOW_MS = 30 * 60 * 1000
 
 const [overview, leaderboard, feed, spec, discovery] = kind === 'regulatory'

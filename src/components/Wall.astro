@@ -55,11 +55,10 @@ interface Props {
 
 const { roster, cardId, num, compact = false, eval24h, eval24hAccepted, eval24hRejected } = Astro.props
 
-// 12 columns × 6 rows = 72 cells. Wider than tall reads as a wall, not a
-// timeline. If the roster outgrows this we'll surface a "+N more" deep
-// link rather than shrinking the cells.
+// 12 columns × 5 rows = 60 cells. One row shorter than the original wall
+// so the homepage console has room below. Wider than tall reads as a wall.
 const COLS = 12
-const ROWS = 6
+const ROWS = 5
 const TOTAL = COLS * ROWS
 
 type Cell =
@@ -538,7 +537,7 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
     height: 100%;
     aspect-ratio: auto;
     gap: clamp(3px, 0.45vmin, 6px);
-    grid-template-rows: repeat(6, minmax(0, 1fr));
+    grid-template-rows: repeat(5, minmax(0, 1fr));
     justify-items: stretch;
     align-items: stretch;
   }
@@ -576,11 +575,11 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
   .grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    grid-template-rows: repeat(6, minmax(0, 1fr));
+    grid-template-rows: repeat(5, minmax(0, 1fr));
     gap: 3px;
-    /* 12×6 roster grid. Slightly wide cells read as masonry stones,
+    /* 12×5 roster grid. Slightly wide cells read as masonry stones,
        not film strips. */
-    aspect-ratio: 12 / 5.5;
+    aspect-ratio: 12 / 5;
     min-height: 280px;
     padding: 4px;
     justify-items: center;
@@ -1097,24 +1096,20 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
     .peek { left: 8px; right: 8px; padding: 10px 12px; gap: 10px; }
     .peek .t { display: none; }
     .peek .who { min-width: 100px; }
-    /* Wider cells on mobile: at 12 cols a 375px viewport gives ~28px
-       cells which barely render the stained-glass glyph. 8×9 keeps the
-       grid roughly the same proportion (wider than tall) while making
-       each stone large enough to read at-a-glance. */
+    /* Wider cells on mobile: 10×6 reflows the same 60 seats with readable glyphs. */
     .wall-frame .grid {
       gap: 4px;
-      grid-template-columns: repeat(8, 1fr);
-      grid-template-rows: repeat(9, minmax(36px, 1fr));
+      grid-template-columns: repeat(10, 1fr);
+      grid-template-rows: repeat(6, minmax(36px, 1fr));
       aspect-ratio: auto;
       min-height: auto;
     }
   }
   @media (max-width: 480px) {
-    /* Below 480 (typical phone portrait), 6×12 reads better — fewer
-       columns means each glyph hits its readable size threshold. */
+    /* Below 480, 6×10 keeps stones large enough to read. */
     .wall-frame .grid {
       grid-template-columns: repeat(6, 1fr);
-      grid-template-rows: repeat(12, minmax(38px, 1fr));
+      grid-template-rows: repeat(10, minmax(38px, 1fr));
     }
   }
 </style>

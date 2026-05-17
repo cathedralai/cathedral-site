@@ -22,6 +22,7 @@ import {
   renderWallGridHtml,
   wallGridFingerprint,
   wallLegendAria,
+  WALL_CELL_COUNT,
   wallLiveStats,
   wallPressureAria,
   type WallFeedRow,
@@ -332,7 +333,7 @@ function updateWallChrome(
 async function hydrateWall(wallEl: HTMLElement, cardId: string): Promise<void> {
   const [leaderboard, feed] = await Promise.all([
     fetchJSON<LeaderboardPage>(
-      v1(`leaderboard?card=${encodeURIComponent(cardId)}&limit=72`),
+      v1(`leaderboard?card=${encodeURIComponent(cardId)}&limit=${WALL_CELL_COUNT}`),
     ),
     fetchJSON<FeedPage>(
       v1(`cards/${encodeURIComponent(cardId)}/feed?limit=96`),

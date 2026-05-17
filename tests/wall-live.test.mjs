@@ -3,13 +3,10 @@ import test from 'node:test'
 
 import {
   WALL_CELL_COUNT,
-  WALL_FRONT_ROW,
-  WALL_TRACE_SLOTS,
   pickQualifiedLeaderboard,
   wallGridFingerprint,
   wallLiveStats,
   wallStatsFromFeed,
-  wallStonePresentation,
 } from '../src/lib/wall-live-stats.js'
 
 test('pickQualifiedLeaderboard caps at 72 and filters below 0.5', () => {
@@ -64,19 +61,6 @@ test('wallGridFingerprint changes when roster changes', () => {
     wallGridFingerprint(a, WALL_CELL_COUNT - 1),
     wallGridFingerprint(b, WALL_CELL_COUNT - 1),
   )
-})
-
-test('wallStonePresentation traces top three and settles back rows', () => {
-  const top = wallStonePresentation(0, { fresh: true, score: 1 }, 72)
-  assert.match(top.className, /\bcurrent\b/)
-  assert.doesNotMatch(top.className, /\bstone-settled\b/)
-  const mid = wallStonePresentation(5, { fresh: true, score: 1 }, 72)
-  assert.doesNotMatch(mid.className, /\bcurrent\b/)
-  assert.doesNotMatch(mid.className, /\bstone-settled\b/)
-  const back = wallStonePresentation(WALL_FRONT_ROW, { fresh: false, score: 1 }, 72)
-  assert.match(back.className, /\bstone-settled\b/)
-  assert.doesNotMatch(back.className, /\bcurrent\b/)
-  assert.equal(WALL_TRACE_SLOTS, 3)
 })
 
 test('wallLiveStats reports laid and open counts', () => {

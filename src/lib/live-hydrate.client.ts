@@ -300,6 +300,17 @@ function applyIfChanged(el: HTMLElement, next: string): void {
   el.innerHTML = next
 }
 
+/** Astro scopes Wall styles to `[data-astro-cid-*]`. Hydrated markup is
+ *  plain HTML — copy the grid's scope attr onto each stone or pulse,
+ *  compact stretch, and tier rules never apply (prod looked flat). */
+function applyWallStoneScope(grid: HTMLElement): void {
+  const scope = grid.getAttribute('data-astro-cid')
+  if (!scope) return
+  grid.querySelectorAll<HTMLElement>('.stone').forEach((stone) => {
+    stone.setAttribute('data-astro-cid', scope)
+  })
+}
+
 function markWallYou(grid: HTMLElement): void {
   let myId = ''
   try {
@@ -361,6 +372,7 @@ async function hydrateWall(wallEl: HTMLElement, cardId: string): Promise<void> {
   const nextGrid = renderWallGridHtml(cardId, scored)
   if (grid.innerHTML.trim() !== nextGrid.trim()) {
     grid.innerHTML = nextGrid
+    applyWallStoneScope(grid)
     markWallYou(grid)
   }
   updateWallChrome(wallEl, stats)

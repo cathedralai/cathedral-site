@@ -652,8 +652,8 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
     border-color: var(--accent);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.62),
-      0 4px 10px rgba(0, 0, 0, 0.18);
+      inset 0 -2px 3px rgba(0, 0, 0, 0.6),
+      0 4px 10px rgba(0, 0, 0, 0.22);
     z-index: 2;
   }
   .stone:hover :global(svg) {
@@ -664,11 +664,19 @@ const legendBareGlyph = stoneMark(`${cardId}:open:0`, { size: 14, open: true })
      The wall reads as a uniform field of dark masonry; the only blue
      left is the current tracing the top-three borders. Glyphs stay
      visible at the base stone opacity so the heraldic field still reads. */
+  /* Scored stones sit *in* the wall like a laid block: highlight at the
+     top edge, shadow under the bottom. Empty wells use the inverse so
+     the two states read as raised vs recessed without needing colour. */
   .stone.scored {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.18)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.22)),
       var(--surface);
-    border-color: rgba(126, 168, 208, 0.18);
+    border-color: rgba(126, 168, 208, 0.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.55),
+      inset 1px 0 0 rgba(255, 255, 255, 0.03),
+      inset -1px 0 0 rgba(0, 0, 0, 0.35);
   }
   .stone.tier-high :global(svg *) { stroke-width: 1.05; }
   .stone.tier-mid :global(svg *) { opacity: 0.92; }

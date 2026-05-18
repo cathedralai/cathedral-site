@@ -162,8 +162,8 @@ const activeJobRow = sortedJobs.find((j) => j.id === defaultJobId) ?? sortedJobs
 type SwarmProfile = {
   id: string
   label: string
-  role: string
-  claim: string
+  does: string
+  matters: string
   ind: Industry
   live: boolean
   markSvg: string
@@ -173,9 +173,10 @@ const swarmProfiles: SwarmProfile[] = [
   {
     id: 'attest',
     label: 'attest',
-    role: 'regulatory monitoring',
-    claim:
-      'Signed regulatory monitoring. Independent masons capture every shift, scored in public, paid in TAO. Compliance, GC, and audit teams cite the chain as evidence of what they knew, when.',
+    does:
+      'Cryptographically signed regulatory monitoring records, refreshed every round by an open contributor network.',
+    matters:
+      'Compliance, GC, regtech, and audit firms cite the chain as evidence of what they knew, when. A signed attestation chain holds up in audit better than a single-vendor feed.',
     ind: 'reg',
     live: true,
     markSvg: masonMark('cathedral-attest', { size: 28 }),
@@ -183,9 +184,8 @@ const swarmProfiles: SwarmProfile[] = [
   {
     id: 'distill',
     label: 'distill',
-    role: 'model distillation',
-    claim:
-      'Distilled model cards from live eval traces. Masons compete on fidelity and cost, not marketing claims.',
+    does: 'Distilled model cards from live eval traces, scored in public.',
+    matters: 'Teams that need reproducible model cards with cited evidence, not benchmark slides.',
     ind: 'dist',
     live: false,
     markSvg: masonMark('cathedral-distill', { size: 28 }),
@@ -193,9 +193,8 @@ const swarmProfiles: SwarmProfile[] = [
   {
     id: 'discover',
     label: 'discover',
-    role: 'drug discovery',
-    claim:
-      'Hypothesis cards with cited evidence chains. Every claim traceable to source, scored in public.',
+    does: 'Hypothesis cards with full citation chains, scored in public.',
+    matters: 'Research teams that need every claim traceable to source before a wet lab run.',
     ind: 'drug',
     live: false,
     markSvg: masonMark('cathedral-discover', { size: 28 }),
@@ -498,10 +497,20 @@ const industryCounts = {
             hidden={swarm.id !== defaultSwarmId}
           >
             {swarm.live ? (
-              <>
-                <p class="swarm-claim">{swarm.claim}</p>
-                <div class="swarm-jobs">
-                  <span class="swarm-jobs-k">Current work</span>
+              <div class="swarm-panel-body">
+                <dl class="swarm-facts">
+                  <div class="swarm-fact">
+                    <dt>Does</dt>
+                    <dd>{swarm.does}</dd>
+                  </div>
+                  <div class="swarm-fact">
+                    <dt>Why</dt>
+                    <dd>{swarm.matters}</dd>
+                  </div>
+                </dl>
+
+                <section class="swarm-now" aria-label="Current work">
+                  <h3 class="swarm-now-k">Now working on</h3>
                   {sortedJobs.length > 1 ? (
                     <div class="swarm-job-tabs" role="tablist" aria-label="Jobs in this swarm">
                       {sortedJobs.map((j) => (
@@ -521,21 +530,27 @@ const industryCounts = {
                       ))}
                     </div>
                   ) : null}
-                  <div class="swarm-job-foot">
-                    {sortedJobs.length === 1 ? (
-                      <p class="swarm-job-line">
-                        <span class="swarm-job-juris">{activeJobRow?.juris}</span>
-                        <span class="swarm-job-name">{activeJobRow?.name}</span>
+                  <article class="swarm-now-card">
+                    <header class="swarm-now-head">
+                      <p class="swarm-now-title">
+                        <span class="swarm-job-juris" data-job-pick-juris>{activeJobRow?.juris}</span>
+                        <span class="swarm-job-name" data-job-pick-name>{activeJobRow?.name}</span>
                       </p>
-                    ) : null}
+                      <button
+                        type="button"
+                        class="swarm-now-brief"
+                        data-job-spec-open={defaultJobId}
+                        data-job-spec-current
+                      >
+                        Read brief
+                      </button>
+                    </header>
+                    <p class="swarm-now-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
                     <select
-                      class:list={[
-                        'job-pick-select',
-                        sortedJobs.length === 1 && 'visually-hidden',
-                      ]}
+                      class="job-pick-select visually-hidden"
                       data-job-pick-select
                       aria-label="Standing job"
-                      tabindex={sortedJobs.length === 1 ? -1 : undefined}
+                      tabindex="-1"
                     >
                       {sortedJobs.map((j) => (
                         <option
@@ -543,28 +558,30 @@ const industryCounts = {
                           selected={j.id === defaultJobId}
                           data-ind={j.ind}
                           data-job-lede={j.lede}
+                          data-job-juris={j.juris}
+                          data-job-name={j.name}
                         >
                           {j.juris} · {j.name}: {j.lede}
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      class="pick-info pick-info-compact"
-                      data-job-spec-open={defaultJobId}
-                      data-job-spec-current
-                      aria-label="Read job brief"
-                    >
-                      brief
-                    </button>
-                  </div>
-                  <p class="swarm-work-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
-                </div>
-              </>
+                  </article>
+                </section>
+              </div>
             ) : (
-              <p class="swarm-soon">
-                No live card yet. Masons can propose work from the <strong>+</strong> tab.
-              </p>
+              <div class="swarm-panel-body">
+                <dl class="swarm-facts">
+                  <div class="swarm-fact">
+                    <dt>Does</dt>
+                    <dd>{swarm.does}</dd>
+                  </div>
+                  <div class="swarm-fact">
+                    <dt>Why</dt>
+                    <dd>{swarm.matters}</dd>
+                  </div>
+                </dl>
+                <p class="swarm-soon">No live card yet. Propose work from the <strong>+</strong> tab.</p>
+              </div>
             )}
           </div>
         ))}
@@ -755,15 +772,16 @@ const industryCounts = {
           chip.classList.toggle('is-active', on)
           chip.setAttribute('aria-selected', on ? 'true' : 'false')
         })
-        var jobLine = document.querySelector('.swarm-job-foot .swarm-job-line')
-        if (jobLine && selectedOption) {
-          var juris = selectedOption.textContent.split('·')[0]
-          var name = selectedOption.textContent.split('·')[1]
-          if (name) name = name.split(':')[0].trim()
-          var jurisEl = jobLine.querySelector('.swarm-job-juris')
-          var nameEl = jobLine.querySelector('.swarm-job-name')
-          if (jurisEl && juris) jurisEl.textContent = juris.trim()
-          if (nameEl && name) nameEl.textContent = name.trim()
+        if (selectedOption) {
+          var jurisEl = document.querySelector('[data-job-pick-juris]')
+          var nameEl = document.querySelector('[data-job-pick-name]')
+          if (jurisEl) {
+            jurisEl.textContent =
+              selectedOption.getAttribute('data-job-juris') || ''
+          }
+          if (nameEl) {
+            nameEl.textContent = selectedOption.getAttribute('data-job-name') || ''
+          }
         }
       }
 
@@ -1374,19 +1392,46 @@ const industryCounts = {
     .swarm-panel {
       display: none;
       flex-direction: column;
-      gap: 10px;
-      padding: 12px 14px 14px;
-      border-top: 1px solid var(--border-soft);
       min-width: 0;
+      padding: 0;
+      border-top: 1px solid var(--border-soft);
     }
     .swarm-panel.is-active { display: flex; }
     .swarm-panel[hidden] { display: none !important; }
-    .swarm-claim {
+    .swarm-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 14px 14px;
+      min-width: 0;
+    }
+    .swarm-facts {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px 20px;
+      margin: 0;
+    }
+    @media (min-width: 640px) {
+      .swarm-facts { grid-template-columns: 1fr 1fr; }
+    }
+    .swarm-fact {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+    }
+    .swarm-fact dt {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .swarm-fact dd {
       margin: 0;
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12.5px;
       line-height: 1.5;
-      max-width: 64ch;
     }
     .swarm-soon {
       margin: 0;
@@ -1395,18 +1440,67 @@ const industryCounts = {
       line-height: 1.45;
     }
     .swarm-soon strong { color: var(--muted); font-weight: 400; }
-    .swarm-jobs {
+    .swarm-now {
       display: grid;
       gap: 8px;
-      padding-top: 8px;
+      padding-top: 10px;
       border-top: 1px solid var(--border-soft);
     }
-    .swarm-jobs-k {
+    .swarm-now-k {
+      margin: 0;
       font-family: var(--mono);
       font-size: 9.5px;
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--dim);
+      font-weight: 400;
+    }
+    .swarm-now-card {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg);
+    }
+    .swarm-now-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
+    .swarm-now-title {
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+    .swarm-now-brief {
+      flex: 0 0 auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .swarm-now-brief:hover,
+    .swarm-now-brief:focus-visible {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      outline: 2px solid transparent;
+    }
+    .swarm-now-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
     }
     .swarm-job-tabs {
       display: flex;
@@ -1437,14 +1531,6 @@ const industryCounts = {
       text-transform: uppercase;
       color: var(--dim);
     }
-    .swarm-job-line {
-      margin: 0;
-      display: flex;
-      align-items: baseline;
-      flex-wrap: wrap;
-      gap: 8px;
-      font-size: 13px;
-    }
     .swarm-job-juris {
       font-family: var(--mono);
       font-size: 9.5px;
@@ -1457,32 +1543,6 @@ const industryCounts = {
       font-style: italic;
       font-weight: 300;
       color: var(--fg);
-    }
-    .swarm-job-foot {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      min-width: 0;
-    }
-    .swarm-job-foot .swarm-job-line {
-      grid-column: 1;
-      margin: 0;
-    }
-    .swarm-job-foot .job-pick-select {
-      grid-column: 1;
-      min-width: 0;
-    }
-    .swarm-job-foot .pick-info-compact {
-      grid-column: 2;
-      grid-row: 1;
-    }
-    .swarm-work-lede {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-      max-width: 62ch;
     }
     .job-pick-select-wrap {
       display: grid;

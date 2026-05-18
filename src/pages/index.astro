@@ -411,49 +411,65 @@ const industryCounts = {
 
     <!-- ============ main canvas ============ -->
     <main class="canvas">
-      <section class="job-pick-shell" aria-label="Standing work">
-        <header class="job-pick-meta">
-          <span class="job-pick-meta-k">
-            {sortedJobs.length} job{sortedJobs.length === 1 ? '' : 's'} open
-          </span>
-          <span class="dim" aria-hidden="true">·</span>
-          <span class="job-pick-meta-lock">
-            score lock <strong>{scoreLockLabel}</strong>
-          </span>
-          {sortedJobs.length > 1 ? (
-            <>
-              <span class="dim" aria-hidden="true">·</span>
-              <span class="job-pick-meta-switch">pick another below</span>
-            </>
-          ) : null}
-        </header>
-        <div class="job-pick-compact">
-          <label class="job-pick-select-wrap">
-            <span class="job-pick-select-k">Standing job</span>
-            <select class="job-pick-select" data-job-pick-select>
-              {sortedJobs.map((j) => (
-                <option
-                  value={j.id}
-                  selected={j.id === defaultJobId}
-                  data-ind={j.ind}
-                  data-job-lede={j.lede}
+      <section class="swarm-row" aria-label="Specialised agent swarms">
+        <article class="swarm-card swarm-card-live" aria-labelledby="swarm-attest-name">
+          <header class="swarm-card-head">
+            <div class="swarm-id">
+              <span class="swarm-handle" id="swarm-attest-name">attest</span>
+              <span class="swarm-sep" aria-hidden="true">·</span>
+              <span class="swarm-role">regulatory monitoring swarm</span>
+            </div>
+            <span class="swarm-status" aria-label="Live, signed, refreshed every round">
+              <span class="swarm-status-dot" aria-hidden="true"></span>
+              live · signed · refreshed every round
+            </span>
+          </header>
+          <p class="swarm-claim">
+            A signed chain of regulatory monitoring. Every shift captured by an
+            independent mason, scored in public, paid in TAO. Compliance teams,
+            general counsel, and audit firms cite it as evidence of what they
+            knew, when.
+          </p>
+          <div class="swarm-work">
+            <span class="swarm-work-k">Current work</span>
+            <div class="swarm-work-row">
+              <label class="job-pick-select-wrap">
+                <span class="visually-hidden">Standing job</span>
+                <select
+                  class="job-pick-select"
+                  data-job-pick-select
+                  aria-label="Standing job"
                 >
-                  {j.juris} · {j.name}: {j.lede}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            class="pick-info pick-info-compact"
-            data-job-spec-open={defaultJobId}
-            data-job-spec-current
-            aria-label="Read job brief"
-          >
-            brief
-          </button>
-        </div>
-        <p class="job-pick-compact-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
+                  {sortedJobs.map((j) => (
+                    <option
+                      value={j.id}
+                      selected={j.id === defaultJobId}
+                      data-ind={j.ind}
+                      data-job-lede={j.lede}
+                    >
+                      {j.juris} · {j.name}: {j.lede}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                class="pick-info pick-info-compact"
+                data-job-spec-open={defaultJobId}
+                data-job-spec-current
+                aria-label="Read job brief"
+              >
+                brief
+              </button>
+            </div>
+            <p class="swarm-work-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
+          </div>
+        </article>
+
+        {/* Sibling swarm cards (Distill, Discover, …) land here once their
+            scorers, cards, and contributor cohorts exist. Stubs are kept
+            out of the canvas until they can carry live evidence — the rail
+            still names them under industries. */}
 
         {regulatoryPanels.map((panel) => (
           <JobSpecDialog spec={panel.spec} />
@@ -1115,50 +1131,113 @@ const industryCounts = {
       overflow: hidden;
     }
 
-    .job-pick-shell {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    /* ===== swarm row =====
+       Specialised agent swarms get one profile card each. Today the
+       Attest swarm is the only live cell; the row is a grid so sibling
+       swarms can drop in without rewriting the layout. The card is a
+       profile-style summary: handle, role, live evidence claim, and the
+       swarm's current work (job picker + brief). */
+    .swarm-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
       min-width: 0;
       flex: 0 0 auto;
     }
-    .job-pick-meta {
+    .swarm-card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+    .swarm-card-live { border-color: var(--border); }
+    .swarm-card-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      min-width: 0;
+    }
+    .swarm-id {
       display: flex;
       align-items: baseline;
       flex-wrap: wrap;
       gap: 8px;
+      min-width: 0;
+    }
+    .swarm-handle {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      color: var(--fg);
+    }
+    .swarm-sep { color: var(--faint); }
+    .swarm-role {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .swarm-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .swarm-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    .swarm-claim {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 64ch;
+    }
+    .swarm-work {
+      display: grid;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .swarm-work-k {
       font-family: var(--mono);
       font-size: 9.5px;
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--dim);
     }
-    .job-pick-meta .dim { color: var(--faint); }
-    .job-pick-meta strong {
-      color: var(--fg);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.04em;
-    }
-    .job-pick-meta-switch {
-      color: var(--muted);
-    }
-    .job-pick-compact {
+    .swarm-work-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       align-items: end;
     }
+    .swarm-work-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 62ch;
+    }
     .job-pick-select-wrap {
       display: grid;
       gap: 6px;
       min-width: 0;
-    }
-    .job-pick-select-k {
-      font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--dim);
     }
     .job-pick-select {
       width: 100%;
@@ -1174,13 +1253,6 @@ const industryCounts = {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
       border-color: var(--accent);
-    }
-    .job-pick-compact-lede {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-      max-width: 62ch;
     }
     .pick-info-compact {
       position: static;

@@ -300,14 +300,20 @@ function applyIfChanged(el: HTMLElement, next: string): void {
   el.innerHTML = next
 }
 
-/** Astro scopes Wall styles to `[data-astro-cid-*]`. Hydrated markup is
- *  plain HTML — copy the grid's scope attr onto each stone or pulse,
- *  compact stretch, and tier rules never apply (prod looked flat). */
+/** Astro scopes Wall styles via attributes like `data-astro-cid-abc123`
+ *  where the scope hash is part of the attribute NAME (the value is
+ *  empty). Hydrated markup from renderWallGridHtml is plain HTML, so
+ *  the scoped selectors (.stone.scored[data-astro-cid-abc123], pulse,
+ *  compact stretch, tier rules) never match and the wall reads flat.
+ *  Copy every data-astro-cid-* attribute from the grid onto each stone. */
 function applyWallStoneScope(grid: HTMLElement): void {
-  const scope = grid.getAttribute('data-astro-cid')
-  if (!scope) return
+  const scopeAttrs: string[] = []
+  for (const attr of Array.from(grid.attributes)) {
+    if (attr.name.startsWith('data-astro-cid-')) scopeAttrs.push(attr.name)
+  }
+  if (scopeAttrs.length === 0) return
   grid.querySelectorAll<HTMLElement>('.stone').forEach((stone) => {
-    stone.setAttribute('data-astro-cid', scope)
+    for (const name of scopeAttrs) stone.setAttribute(name, '')
   })
 }
 

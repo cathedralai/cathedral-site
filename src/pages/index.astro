@@ -174,9 +174,9 @@ const swarmProfiles: SwarmProfile[] = [
     id: 'attest',
     label: 'attest',
     does:
-      'Cryptographically signed regulatory monitoring records, refreshed every round by an open contributor network.',
+      'Cryptographically signed monitoring records. An open contributor network refreshes them every round.',
     matters:
-      'Compliance, GC, regtech, and audit firms cite the chain as evidence of what they knew, when. A signed attestation chain holds up in audit better than a single-vendor feed.',
+      'Compliance, GC, regtech, and audit cite the chain as evidence of what they knew, when. Survives audit better than a single-vendor feed.',
     ind: 'reg',
     live: true,
     markSvg: masonMark('cathedral-attest', { size: 28 }),
@@ -510,7 +510,7 @@ const industryCounts = {
                 </dl>
 
                 <section class="swarm-now" aria-label="Current work">
-                  <h3 class="swarm-now-k">Now working on</h3>
+                  <h3 class="swarm-now-k">Now</h3>
                   {sortedJobs.length > 1 ? (
                     <div class="swarm-job-tabs" role="tablist" aria-label="Jobs in this swarm">
                       {sortedJobs.map((j) => (
@@ -534,6 +534,7 @@ const industryCounts = {
                     <header class="swarm-now-head">
                       <p class="swarm-now-title">
                         <span class="swarm-job-juris" data-job-pick-juris>{activeJobRow?.juris}</span>
+                        <span class="swarm-now-sep" aria-hidden="true">·</span>
                         <span class="swarm-job-name" data-job-pick-name>{activeJobRow?.name}</span>
                       </p>
                       <button
@@ -541,8 +542,9 @@ const industryCounts = {
                         class="swarm-now-brief"
                         data-job-spec-open={defaultJobId}
                         data-job-spec-current
+                        aria-label="Read job brief"
                       >
-                        Read brief
+                        Brief &rarr;
                       </button>
                     </header>
                     <p class="swarm-now-lede" data-job-pick-lede>{activeJobRow?.lede}</p>
@@ -1088,8 +1090,11 @@ const industryCounts = {
         min-height: 44px;
         padding: 10px 12px;
       }
-      .pick-info-compact {
+      .pick-info-compact,
+      .swarm-now-brief {
         min-height: 44px;
+        padding-top: 10px;
+        padding-bottom: 10px;
       }
     }
     @media (min-width: 921px) {
@@ -1305,9 +1310,7 @@ const industryCounts = {
       overflow: hidden;
     }
 
-    /* ===== swarm shell =====
-       Profile tabs (mark + name) sit above one panel. Active tab
-       connects to the panel below; soon swarms preview their claim. */
+    /* ===== swarm shell ===== */
     .swarm-shell {
       display: flex;
       flex-direction: column;
@@ -1318,9 +1321,9 @@ const industryCounts = {
     }
     .swarm-tabs {
       display: flex;
-      align-items: stretch;
-      gap: 6px;
-      padding: 8px 8px 0;
+      align-items: flex-end;
+      gap: 4px;
+      padding: 6px 6px 0;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -1329,22 +1332,30 @@ const industryCounts = {
       flex: 0 0 auto;
       display: grid;
       justify-items: center;
-      gap: 4px;
-      width: 76px;
-      min-height: 72px;
-      padding: 8px 6px 6px;
+      align-content: center;
+      gap: 5px;
+      width: 68px;
+      min-height: 64px;
+      padding: 7px 6px 5px;
       border: 1px solid var(--border-soft);
       border-bottom: none;
       background: var(--bg);
       color: inherit;
       font: inherit;
       cursor: pointer;
-      transition: border-color 140ms, background 140ms;
+      transition:
+        border-color 160ms ease,
+        background 160ms ease,
+        color 160ms ease;
     }
-    .swarm-tab:hover,
+    .swarm-tab:hover {
+      border-color: rgba(126, 168, 208, 0.45);
+      background: var(--surface-2, var(--surface));
+    }
     .swarm-tab:focus-visible {
       border-color: var(--accent);
-      outline: 2px solid transparent;
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
     }
     .swarm-tab.is-active {
       background: var(--surface);
@@ -1352,42 +1363,59 @@ const industryCounts = {
       margin-bottom: -1px;
       z-index: 1;
     }
-    .swarm-tab.is-soon { opacity: 0.72; }
-    .swarm-tab.is-soon .swarm-tab-mk :global(svg) { opacity: 0.55; }
+    .swarm-tab.is-soon { opacity: 0.65; }
+    .swarm-tab.is-soon:hover { opacity: 0.85; }
+    .swarm-tab.is-soon .swarm-tab-mk :global(svg) { opacity: 0.5; }
     .swarm-tab-mk {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
+      transition: transform 160ms ease;
+    }
+    .swarm-tab:hover .swarm-tab-mk,
+    .swarm-tab:focus-visible .swarm-tab-mk {
+      transform: translateY(-1px);
     }
     .swarm-tab-mk :global(svg) {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
+      transition: opacity 160ms ease;
     }
     .swarm-tab-lbl {
       font-family: var(--mono);
       font-size: 10px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       text-transform: lowercase;
       color: var(--fg);
     }
     .swarm-tab-soon {
       font-family: var(--mono);
-      font-size: 8px;
-      letter-spacing: 0.14em;
+      font-size: 7.5px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--dim);
+      color: var(--faint);
     }
     .swarm-tab-add {
-      width: 52px;
-      min-height: 72px;
+      width: 48px;
+      min-height: 64px;
       border-style: dashed;
+      opacity: 0.85;
+    }
+    .swarm-tab-add:hover,
+    .swarm-tab-add:focus-visible {
+      opacity: 1;
     }
     .swarm-tab-add-glyph {
-      font-size: 20px;
+      font-size: 18px;
       line-height: 1;
       color: var(--muted);
+      transition: color 160ms ease;
+    }
+    .swarm-tab-add:hover .swarm-tab-add-glyph,
+    .swarm-tab-add:focus-visible .swarm-tab-add-glyph {
+      color: var(--accent);
     }
     .swarm-panel {
       display: none;
@@ -1401,72 +1429,83 @@ const industryCounts = {
     .swarm-panel-body {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding: 12px 14px 14px;
+      gap: 0;
+      padding: 16px;
       min-width: 0;
     }
     .swarm-facts {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 10px 20px;
+      gap: 16px 32px;
       margin: 0;
+      padding-bottom: 16px;
     }
     @media (min-width: 640px) {
       .swarm-facts { grid-template-columns: 1fr 1fr; }
     }
     .swarm-fact {
       display: grid;
-      gap: 4px;
+      gap: 7px;
       margin: 0;
     }
     .swarm-fact dt {
       margin: 0;
       font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.16em;
+      font-size: 9px;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--dim);
+      color: var(--faint);
     }
     .swarm-fact dd {
       margin: 0;
-      color: var(--muted);
-      font-size: 12.5px;
-      line-height: 1.5;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.55;
+      max-width: 36ch;
     }
     .swarm-soon {
       margin: 0;
+      padding-top: 4px;
       color: var(--dim);
       font-size: 12px;
-      line-height: 1.45;
+      line-height: 1.5;
     }
     .swarm-soon strong { color: var(--muted); font-weight: 400; }
     .swarm-now {
       display: grid;
-      gap: 8px;
-      padding-top: 10px;
+      gap: 10px;
+      padding-top: 16px;
       border-top: 1px solid var(--border-soft);
     }
     .swarm-now-k {
       margin: 0;
       font-family: var(--mono);
-      font-size: 9.5px;
-      letter-spacing: 0.16em;
+      font-size: 9px;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--dim);
+      color: var(--faint);
       font-weight: 400;
     }
     .swarm-now-card {
       display: grid;
-      gap: 8px;
-      padding: 10px 12px;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
       border: 1px solid var(--border-soft);
       background: var(--bg);
+      transition:
+        border-color 180ms ease,
+        background 180ms ease;
+    }
+    .swarm-now-card:hover {
+      border-color: rgba(126, 168, 208, 0.32);
+      background: var(--surface);
     }
     .swarm-now-head {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 16px;
       min-width: 0;
     }
     .swarm-now-title {
@@ -1474,62 +1513,15 @@ const industryCounts = {
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 8px;
+      gap: 0;
       min-width: 0;
+      line-height: 1.35;
     }
-    .swarm-now-brief {
-      flex: 0 0 auto;
-      padding: 0;
-      border: 0;
-      background: transparent;
+    .swarm-now-sep {
+      margin: 0 7px;
+      color: var(--faint);
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .swarm-now-brief:hover,
-    .swarm-now-brief:focus-visible {
-      text-decoration: underline;
-      text-underline-offset: 3px;
-      outline: 2px solid transparent;
-    }
-    .swarm-now-lede {
-      margin: 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    .swarm-job-tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .swarm-job-tab {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 6px;
-      padding: 6px 10px;
-      border: 1px solid var(--border-soft);
-      background: var(--bg);
-      color: inherit;
-      font: inherit;
-      font-size: 12px;
-      cursor: pointer;
-      transition: border-color 140ms, background 140ms;
-    }
-    .swarm-job-tab.is-active {
-      border-color: var(--accent);
-      background: var(--accent-dim);
-    }
-    .swarm-job-tab-juris {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--dim);
+      font-size: 11px;
     }
     .swarm-job-juris {
       font-family: var(--mono);
@@ -1542,7 +1534,97 @@ const industryCounts = {
       font-family: var(--serif);
       font-style: italic;
       font-weight: 300;
+      font-size: 15px;
       color: var(--fg);
+    }
+    .swarm-now-brief {
+      flex: 0 0 auto;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      background: transparent;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      cursor: pointer;
+      white-space: nowrap;
+      transition:
+        border-color 160ms ease,
+        background 160ms ease,
+        color 160ms ease;
+    }
+    .swarm-now-brief:hover {
+      border-color: rgba(126, 168, 208, 0.35);
+      background: var(--accent-dim);
+      color: var(--fg);
+    }
+    .swarm-now-brief:focus-visible {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      outline: 2px solid transparent;
+    }
+    .swarm-now-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 58ch;
+    }
+    .swarm-job-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .swarm-job-tab {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 7px 11px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg);
+      color: inherit;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition:
+        border-color 160ms ease,
+        background 160ms ease;
+    }
+    .swarm-job-tab:hover {
+      border-color: rgba(126, 168, 208, 0.4);
+    }
+    .swarm-job-tab:focus-visible {
+      border-color: var(--accent);
+      outline: 2px solid transparent;
+    }
+    .swarm-job-tab.is-active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .swarm-job-tab-juris {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .swarm-tab,
+      .swarm-tab-mk,
+      .swarm-tab-mk :global(svg),
+      .swarm-tab-add-glyph,
+      .swarm-now-card,
+      .swarm-now-brief,
+      .swarm-job-tab {
+        transition: none;
+      }
+      .swarm-tab:hover .swarm-tab-mk,
+      .swarm-tab:focus-visible .swarm-tab-mk {
+        transform: none;
+      }
     }
     .job-pick-select-wrap {
       display: grid;
